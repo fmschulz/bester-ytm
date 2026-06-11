@@ -12,7 +12,16 @@ uv run mypy src                  # type check
 ```
 
 CI runs the same lint, type check, and coverage gate on every push and pull
-request, on Python 3.11 and 3.13.
+request, on Python 3.11 and 3.13. Contribution rules live in
+[CONTRIBUTING.md](https://github.com/fmschulz/bester-ytm/blob/main/CONTRIBUTING.md).
+
+## Releasing
+
+Bump the version in `pyproject.toml` and `src/bester_ytm/__init__.py`, add a
+`## [X.Y.Z]` section to `CHANGELOG.md`, commit, and push a `vX.Y.Z` tag. The
+`Release` workflow fails unless tag, both version strings, and the changelog
+section agree; it then re-runs all checks and publishes the GitHub release
+with notes extracted from the changelog.
 
 ## Layout and conventions
 

@@ -1,6 +1,7 @@
 # bester-ytm
 
 [![CI](https://github.com/fmschulz/bester-ytm/actions/workflows/ci.yml/badge.svg)](https://github.com/fmschulz/bester-ytm/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/fmschulz/bester-ytm?color=orange)](https://github.com/fmschulz/bester-ytm/releases)
 [![Docs](https://img.shields.io/badge/docs-fmschulz.github.io-blue.svg)](https://fmschulz.github.io/bester-ytm/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
@@ -87,7 +88,8 @@ uv run mypy src
 
 CI gates lint, types, and 80% test coverage on Python 3.11 and 3.13. See
 [Development](https://fmschulz.github.io/bester-ytm/development/) for layout
-and conventions.
+and conventions, and [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose
+changes.
 
 ## License
 
