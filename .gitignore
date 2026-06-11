@@ -1,0 +1,25 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.memd/
+memory.md
+tasks/
+site/
+dist/
+build/
+*.egg-info/
+
+# Local auth material must stay outside the repo. These patterns protect
+# accidental copies made during manual setup.
+oauth.json
+oauth-client.json
+browser.json
+config.toml
+*.secret
+*.token

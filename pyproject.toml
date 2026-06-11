@@ -1,0 +1,75 @@
+[project]
+name = "bester-ytm"
+version = "0.1.0"
+description = "Local terminal/TUI YouTube Music companion with playlist planning and mpv playback."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Frederik Schulz" }]
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.109.1",
+    "pydantic>=2.8",
+    "requests>=2.32",
+    "rich>=13.7",
+    "textual>=0.86",
+    "typer>=0.12",
+    "ytmusicapi>=1.12,<2",
+]
+
+[project.urls]
+Homepage = "https://github.com/fmschulz/bester-ytm"
+Documentation = "https://fmschulz.github.io/bester-ytm/"
+
+[project.scripts]
+bester-ytm = "bester_ytm.cli:app"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0",
+    "pytest>=8.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.16",
+]
+docs = [
+    "mkdocs-material>=9.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_configs = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["ytmusicapi", "ytmusicapi.*"]
+ignore_missing_imports = true
+
+# TUI mixins are typed against the composed BesterYTMApp; attribute lookups
+# across sibling mixins are resolved at runtime by the App subclass.
+[[tool.mypy.overrides]]
+module = [
+    "bester_ytm.tui_library",
+    "bester_ytm.tui_playback",
+    "bester_ytm.tui_effects",
+    "bester_ytm.tui_selection",
+    "bester_ytm.tui_similar",
+    "bester_ytm.tui_queue",
+    "bester_ytm.tui_builder",
+]
+disable_error_code = ["attr-defined"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

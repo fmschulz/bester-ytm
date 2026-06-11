@@ -1,0 +1,138 @@
+"""Stylesheet for the BesterYTMApp screen."""
+
+from __future__ import annotations
+
+APP_CSS = """
+Screen {
+    layout: vertical;
+}
+#main {
+    height: 1fr;
+}
+#left {
+    width: 2fr;
+}
+#center {
+    width: 3fr;
+}
+#right {
+    width: 2fr;
+}
+#left, #center, #right {
+    border: solid #5b4a55;
+    padding: 1;
+}
+#left, #right {
+    min-width: 16;
+}
+#center {
+    min-width: 20;
+}
+PaneSplitter {
+    width: 1;
+    height: 1fr;
+    background: #3b2330;
+}
+PaneSplitter:hover {
+    background: #e07a5f;
+}
+#right {
+    overflow-y: auto;
+    scrollbar-size-vertical: 1;
+}
+#right.playing-effect {
+    border: heavy #e07a5f;
+}
+#right.paused-effect {
+    border: heavy #9ca3af;
+}
+#left:focus-within, #center:focus-within, #right:focus-within {
+    border: heavy #e07a5f;
+}
+#search {
+    dock: top;
+    margin-bottom: 1;
+}
+#queue-title, #player-title, #track-details-title, #builder-title {
+    color: #e07a5f;
+    text-style: bold;
+}
+#queue {
+    height: 1fr;
+}
+#big-visual {
+    height: 9;
+    margin-top: 1;
+    color: #e07a5f;
+}
+#big-visual.idle-effect {
+    color: #6b7280;
+}
+#big-visual.paused-effect {
+    color: #9ca3af;
+}
+#queue .playing {
+    background: #3b2330;
+    color: #f2cc8f;
+    text-style: bold;
+}
+#track {
+    min-height: 3;
+    margin-bottom: 1;
+}
+#progress-time, #volume-status {
+    height: 1;
+}
+#progress {
+    margin: 0 0 1 0;
+}
+#visualizer {
+    height: 4;
+    margin: 0;
+    color: #eda36c;
+}
+#visualizer.idle-effect {
+    color: #6b7280;
+}
+#visualizer.paused-effect {
+    color: #9ca3af;
+}
+#transport, #queue-actions, #fade-row, #volume-row, #track-actions, #playlist-actions {
+    height: auto;
+    layout: horizontal;
+}
+#transport, #fade-row {
+    margin-bottom: 1;
+}
+Button {
+    margin-right: 1;
+    min-width: 5;
+}
+#save-tags-button {
+    min-width: 10;
+}
+#builder {
+    height: 4;
+}
+#builder-actions {
+    height: auto;
+    layout: horizontal;
+    margin-top: 1;
+}
+#effect-row {
+    height: auto;
+    layout: horizontal;
+    margin-top: 1;
+}
+#effect-label {
+    margin-right: 1;
+    padding-top: 1;
+}
+#effect-select {
+    width: 20;
+}
+#status {
+    height: auto;
+    margin-top: 1;
+}
+"""
