@@ -120,7 +120,10 @@ def spawn_mpv(
         "--no-video",
         "--ytdl-format=bestaudio",
         # Exposes live loudness via the af-metadata/astats property for visuals.
-        "--af=@astats:lavfi=[astats=metadata=1:reset=1]",
+        # asetnsamples widens each measurement to ~43ms so the visual-fps poll
+        # hears nearly all of the audio; bare reset=1 reports one ~20ms decoder
+        # frame per poll, which aliases against the beat.
+        "--af=@astats:lavfi=[asetnsamples=n=2048,astats=metadata=1:reset=1]",
         f"--pause={'yes' if paused else 'no'}",
         f"--volume={volume:g}",
         f"--input-ipc-server={ipc_socket}",

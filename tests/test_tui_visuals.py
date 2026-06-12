@@ -116,15 +116,27 @@ def test_audio_level_meter_tracks_loudness() -> None:
     meter = AudioLevelMeter()
     start = meter.level
 
-    for _ in range(6):
+    for _ in range(12):
         quiet = meter.update(-45.0)
-    for _ in range(6):
+    for _ in range(12):
         loud = meter.update(-12.0)
 
     assert quiet < start
     assert loud > quiet
     assert 0.0 <= quiet <= 1.0 and 0.0 <= loud <= 1.0
     assert meter.update(None) == loud  # silence in the pipe keeps the last level
+
+
+def test_audio_level_meter_delays_readings_to_match_the_speakers() -> None:
+    """mpv filters audio ~0.25s before it is audible; the meter must not react early."""
+    meter = AudioLevelMeter(sample_interval=0.05)
+    start = meter.level
+
+    early = [meter.update(-10.0) for _ in range(5)]
+    heard = meter.update(-10.0)
+
+    assert all(value == start for value in early)  # still in the delay line
+    assert heard != start  # the sixth tick is when the loud audio reaches the ears
 
 
 def test_mythos_nodes_glide_rather_than_teleport() -> None:
@@ -140,13 +152,14 @@ def test_mythos_nodes_glide_rather_than_teleport() -> None:
 
 def test_audio_level_meter_reacts_to_narrow_band_dynamics() -> None:
     """Loudness-normalized music varies only a few dB; the meter must still visibly swing."""
-    meter = AudioLevelMeter()
+    meter = AudioLevelMeter(sample_interval=0.05)
     levels = []
-    for index in range(40):
-        rms = -12.0 + (2.0 if index % 2 == 0 else -2.0)  # 4 dB peak-to-peak around -12
+    for index in range(80):
+        # 4 dB peak-to-peak around -12, alternating every 5 samples (~a 2 Hz beat at 20 fps)
+        rms = -12.0 + (2.0 if (index // 5) % 2 == 0 else -2.0)
         levels.append(meter.update(rms))
 
-    tail = levels[-10:]
+    tail = levels[-20:]
     assert max(tail) - min(tail) > 0.15  # the visual genuinely moves with the beat
 
 
@@ -179,18 +192,24 @@ def test_animation_advances_and_reads_audio_level(monkeypatch, tmp_path) -> None
     widget = FakeVisualWidget()
     app = _make_app(monkeypatch, tmp_path, widget)
     app.last_playback_status = PlaybackStatus(running=True, current_video_id="v1")
-    readings: list[int] = []
-    monkeypatch.setattr(
-        app.playback, "read_audio_level_db", lambda: readings.append(1) or -14.0
-    )
+    readings: list[float] = []
+    feed = iter([-40.0] * 6 + [-10.0] * 6)  # quiet intro, then a loud passage
+
+    def fake_read() -> float:
+        value = next(feed)
+        readings.append(value)
+        return value
+
+    monkeypatch.setattr(app.playback, "read_audio_level_db", fake_read)
 
     app._animate_visual_panel()
     first = widget.value
-    app._animate_visual_panel()
+    for _ in range(11):
+        app._animate_visual_panel()
 
     assert app.visual_phase > 0.0  # phase advances with the audio
-    assert len(app.audio_levels) == 2  # each running tick pushes one loudness sample
-    assert len(readings) == 2
+    assert len(app.audio_levels) == 12  # each running tick pushes one loudness sample
+    assert len(readings) == 12
     assert widget.value != first
     assert "idle-effect" not in widget.classes
 

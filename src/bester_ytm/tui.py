@@ -189,7 +189,9 @@ class BesterYTMApp(
         self.visual_phase = 0.0
         self.audio_levels: list[float] = []
         self.last_playback_status: PlaybackStatus | None = None
-        self.audio_meter = AudioLevelMeter()
+        self.audio_meter = AudioLevelMeter(
+            1.0 / self.visual_fps if self.visual_fps else 1.0
+        )
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections import deque
 
 FULL = "█"
 # Glyph ramp from faint to incandescent; index = round(brightness * (len - 1)).
@@ -25,6 +26,10 @@ PALETTE = [
     "#e07a5f", "#eda36c", "#f2cc8f", "#ffe6c0",
 ]
 DEFAULT_LEVEL = 0.6
+# mpv's astats filter measures audio as it is filtered, which runs ahead of the
+# speakers by the output buffer (--audio-buffer 0.2s plus the device buffer).
+# Readings are held back this long so the visuals move with what is heard.
+MPV_AUDIO_LEAD_SECONDS = 0.25
 
 EFFECT_ORDER = ("mythos", "oracle", "bars", "wave", "pulse", "scope")
 EFFECT_LABELS = {
@@ -46,24 +51,44 @@ def strip_markup(panel: str) -> str:
 
 
 class AudioLevelMeter:
-    """Turns raw RMS dB readings into a smoothed 0..1 level that tracks recent dynamics."""
+    """Turns raw RMS dB readings into a smoothed 0..1 level that tracks recent dynamics.
 
-    def __init__(self) -> None:
+    Readings pass through a short delay line that cancels mpv's filter-to-speaker
+    lead, then drive the level with an instant attack and a smooth release so a
+    beat lights up the frame on which it becomes audible. Smoothing constants are
+    expressed per second, so behaviour is the same at any sampling rate.
+    """
+
+    def __init__(self, sample_interval: float = 0.05) -> None:
+        self.sample_interval = max(0.01, sample_interval)
         self.floor_db = -45.0
         self.ceiling_db = -15.0
         self.level = DEFAULT_LEVEL
+        self._pending: deque[float] = deque()
+        self._delay_samples = round(MPV_AUDIO_LEAD_SECONDS / self.sample_interval)
 
     def update(self, rms_db: float | None) -> float:
         if rms_db is None or rms_db < -90.0:
             return self.level
-        # Relax the floor/ceiling toward the current reading at 0.85/sample (~1s window),
-        # so the meter follows the melody and beat instead of locking onto the song's
+        self._pending.append(rms_db)
+        if len(self._pending) <= self._delay_samples:
+            return self.level
+        return self._absorb(self._pending.popleft())
+
+    def _absorb(self, rms_db: float) -> float:
+        # Relax the floor/ceiling toward the current reading (~1s window), so the
+        # meter follows the melody and beat instead of locking onto the song's
         # lifetime min/max and going flat on loudness-normalized tracks.
-        self.floor_db = min(rms_db, self.floor_db * 0.85 + rms_db * 0.15)
-        self.ceiling_db = max(rms_db, self.ceiling_db * 0.85 + rms_db * 0.15)
+        adapt = 0.27 ** self.sample_interval
+        self.floor_db = min(rms_db, self.floor_db * adapt + rms_db * (1 - adapt))
+        self.ceiling_db = max(rms_db, self.ceiling_db * adapt + rms_db * (1 - adapt))
         span = max(8.0, self.ceiling_db - self.floor_db)
-        instant = (rms_db - self.floor_db) / span
-        self.level = min(1.0, max(0.0, self.level * 0.4 + instant * 0.6))
+        instant = min(1.0, max(0.0, (rms_db - self.floor_db) / span))
+        if instant >= self.level:
+            self.level = instant
+        else:
+            release = 0.004 ** self.sample_interval
+            self.level = self.level * release + instant * (1 - release)
         return self.level
 
 

@@ -258,7 +258,8 @@ class PlaybackController:
         if not self.process or self.process.poll() is not None or not self.ipc_socket:
             return None
         try:
-            metadata = self._live_client().get_property("af-metadata/astats", 0.15)
+            # Polled every visual frame (~50ms); a slow reply must not stall the tick.
+            metadata = self._live_client().get_property("af-metadata/astats", 0.05)
         except MpvIpcError:
             return None
         return rms_db_from_astats(metadata)

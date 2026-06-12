@@ -14,7 +14,7 @@ from .config import ConfigError, get_paths, load_config_document, rewrite_config
 
 DEFAULT_VISUALIZER = "mythos"
 DEFAULT_THEME = "ember"
-DEFAULT_VISUAL_FPS = 8
+DEFAULT_VISUAL_FPS = 20
 MAX_VISUAL_FPS = 30
 MIN_PANE_CELLS = 10
 MAX_PANE_CELLS = 400

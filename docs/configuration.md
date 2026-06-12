@@ -15,7 +15,7 @@ volume = 100               # startup volume, 0-100
 [ui]
 visualizer = "mythos"      # mythos | oracle | bars | wave | pulse | scope
 theme = "ember"            # ember (branded) or any built-in Textual theme
-visual_fps = 8             # visualizer animation rate; 0 turns the panels off
+visual_fps = 20            # visualizer animation rate; 0 turns the panels off
 left_width = 30            # pane widths in terminal cells
 right_width = 44
 
@@ -33,8 +33,9 @@ provider = "auto"          # auto | heuristic | codex | openai | anthropic
   when you change the visual style, pick a theme from the command palette (the
   circle in the header), or drag the pane splitters in the TUI (mouse support
   required; inside tmux enable `set -g mouse on`).
-- `visual_fps`: how often the audio-reactive panels redraw. Lower it (or set
-  `0` to freeze them) on slow or remote terminals; it is read at startup only.
+- `visual_fps`: how often the audio-reactive panels redraw and sample live
+  loudness. Lower it (or set `0` to freeze the panels) on slow or remote
+  terminals — beat tracking loosens below ~15 — it is read at startup only.
 - `favorites_file`: path to a favorites markdown file used by
   favorites-based playlist builds.
 - `[intelligence]`: see [Playlist Builder & AI](builder.md#ai-providers).

@@ -214,7 +214,10 @@ class PlaybackRenderer:
             del self.audio_levels[:-MAX_LEVEL_HISTORY]
         # Near-still in lulls, flowing when loud, with an extra kick on each loudness
         # onset so the motion locks to the beat instead of drifting at a constant rate.
-        self.visual_phase += 0.2 + 1.4 * level + 3.0 * onset
+        # Drift rates are per second so the on-screen speed is the same at any fps;
+        # the onset kick is per beat and stays unscaled.
+        dt = self.audio_meter.sample_interval
+        self.visual_phase += (1.6 + 11.2 * level) * dt + 3.0 * onset
 
     def _toggle_widget_class(self, widget, class_name: str, enabled: bool) -> None:
         if widget is None:
