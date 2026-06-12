@@ -373,7 +373,6 @@ class YTMClient:
         return [
             search_item_from_song(candidate, source="song")
             for candidate in self.search_songs(query, limit=limit)
-            if query.casefold() in candidate.title.casefold()
         ][:limit]
 
     def search_albums(self, query: str, limit: int = 20) -> list[SearchItem]:
@@ -529,6 +528,11 @@ class YTMClient:
             if parsed.view == "albums":
                 return self.search_artist_albums(parsed.text, year=parsed.year, limit=limit)
             return self.search_artist_songs(parsed.text, year=parsed.year, limit=limit)
+        if parsed.kind == "album":
+            items = self.search_albums(parsed.text, limit=limit)
+            if parsed.year is not None:
+                items = [item for item in items if item.year == str(parsed.year)]
+            return items
         if parsed.kind == "song":
             return self.search_song_items(parsed.text, limit=limit)
         return [

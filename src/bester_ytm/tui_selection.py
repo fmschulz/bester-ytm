@@ -18,6 +18,9 @@ class SelectionActions:
     playlist_title: str
 
     def action_toggle_select(self) -> None:
+        if self._album_tree_active():
+            self._toggle_album_tree_selection()
+            return
         results = self._query_optional("#results", ListView)
         item = getattr(results, "highlighted_child", None) if results else None
         if not self._toggle_result_item(item):

@@ -13,6 +13,9 @@ focused pane.
 /          focus search
 Enter      play selected search result, playlist, or queue item
 x          select/deselect the highlighted search result (also shift+click)
+a          add the highlighted song or album to the queue, or every row
+           marked with x (keeps what is already queued)
+A          play now, replacing the queue (album searches; shift+a)
 Space      play/pause
 n          next track
 p or b     previous track
@@ -24,6 +27,7 @@ d          remove the highlighted queue track; in search results, delete the
 j / k      move the highlighted queue track down / up
 w          save the queue as a local playlist (also the Save button)
 g          add AI-suggested similar tracks to the queue
+i          build a playlist from the builder prompt (right pane)
 t          toggle transition style (cut / crossfade)
 [ / ]      shorten / lengthen the crossfade (1-15s)
 v          cycle the visualizer (Mythos, Oracle, Bars, Wave, Pulse, Scope)
@@ -32,7 +36,9 @@ Left/Right seek -10s/+10s
 - / =      volume down / up
 m          mute/unmute
 r          cycle the selected track's rating (0 to 3, then back to 0)
+f          save the current track to favorites
 Ctrl+P     show playlists (local first, then your YouTube library)
+Ctrl+A     show auth status
 Tab        cycle panes
 q          quit
 ```
@@ -42,7 +48,9 @@ q          quit
 The search box understands structured queries:
 
 ```text
-song:sepultura                      songs with the text in the title
+song:metallica                      songs ranked by relevance (songs: also works)
+album:metallica                     albums by name (albums: also works)
+album:metallica,year:1986           albums from a given year
 artist:sepultura                    popular songs by the artist
 artist:sepultura,albums             the artist's albums
 artist:sepultura,year:1998,songs    tracks from the artist's 1998 releases
@@ -50,16 +58,40 @@ playlist:                           your local playlists
 playlist:indie                      community playlists on YouTube Music
 ```
 
-Selecting an album or playlist loads its tracks into the center queue pane.
-`Ctrl+P` lists all your playlists in one place: locally saved playlists
-(marked `LOCAL PLAYLIST`) first, then your YouTube Music library playlists
-when logged in.
+`song:` lists individual tracks; `album:` shows a tree of album names in the
+left pane. Each album title is a branch you expand to its songs:
+
+```text
+left pane (album search)
+- Enter on an album title    expand/collapse it (songs load on first expand)
+- Enter on a song            play it now (or queue it if something is playing)
+- x                          select/deselect the highlighted row (marked *)
+                               on an album title this selects all its songs
+- a                          add to the queue (keeps what is already there):
+                               album title -> all its songs
+                               song        -> that one song
+                               any selected -> every selected song, in order
+- A (shift+a)                play now, replacing the whole queue:
+                               album title -> the whole album from the top
+                               song        -> the album from that song on
+                               any selected -> the selected songs
+```
+
+`a` keeps the current queue and appends; `A` clears it and starts the album
+immediately. When nothing is playing, `a` (or Enter on a song) also starts
+playback. `artist:...,albums`
+still lists albums in the normal results pane, where `Enter` loads the whole
+album into the queue. Selecting a playlist loads its tracks into the center
+queue pane. `Ctrl+P` lists all your playlists in one place: locally saved
+playlists (marked `LOCAL PLAYLIST`) first, then your YouTube Music library
+playlists when logged in.
 
 ### Building a queue from search
 
-Mark songs with `x` (marked rows show a `*`), then press Enter: all marked
-songs move to the queue in list order and play with auto-advance. While
-something is playing, marked songs are appended without interrupting it.
+In song results, mark songs with `x` (marked rows show a `*`), then press
+`a` to add every marked song to the queue in list order, or `Enter` to do the
+same. While something is playing, the songs are appended without interrupting
+it; otherwise the first one starts and auto-advance plays the rest.
 
 ### Playback and transitions
 

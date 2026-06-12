@@ -32,6 +32,7 @@ from .intelligence.llm import IntelligenceSettings
 from .playback import PlaybackController, PlaybackError, PlaybackStatus
 from .stores import LocalPlaylistStore
 from .transitions import DEFAULT_APP_SETTINGS
+from .tui_album import AlbumActions
 from .tui_builder import BuilderActions
 from .tui_effects import PlaybackRenderer, render_deck_status
 from .tui_layout import BuilderTextArea, build_layout
@@ -52,6 +53,7 @@ class BesterYTMApp(
     SelectionActions,
     QueueEditActions,
     BuilderActions,
+    AlbumActions,
     PlaybackActions,
     PlaybackRenderer,
     LibraryActions,
@@ -96,7 +98,9 @@ class BesterYTMApp(
         Binding("f", "favorite_current", "Favorite", show=False),
         Binding("tab", "focus_next", "Next pane", show=False),
         Binding("shift+tab", "focus_previous", "Previous pane", show=False),
-        Binding("a", "auth_status", "Auth", show=False),
+        Binding("a", "add_to_queue", "Add"),
+        Binding("A", "play_album", "Play album", show=False),
+        Binding("ctrl+a", "auth_status", "Auth", show=False),
     ]
 
     BUTTON_ACTIONS = {
@@ -124,6 +128,8 @@ class BesterYTMApp(
 
     CONTEXT_ACTIONS = {
         "toggle_select": {"results"},
+        "add_to_queue": {"results"},
+        "play_album": {"results"},
         "shuffle_queue": {"queue", "results"},
         "play_selected": {"results", "queue"},
         "remove_from_queue": {"queue", "results"},
@@ -305,6 +311,8 @@ class BesterYTMApp(
             # No screen stack outside a running app; treat as no pane focus.
             return "other"
         while node is not None:
+            if node.id == "album-tree":
+                return "results"
             if node.id in ("results", "queue"):
                 return node.id
             node = node.parent

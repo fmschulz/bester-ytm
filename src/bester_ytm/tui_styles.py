@@ -63,6 +63,15 @@ PaneSplitter:hover {
 #results {
     height: 1fr;
 }
+#album-tree {
+    height: 1fr;
+    display: none;
+}
+#album-tree .tree--cursor {
+    background: #3b2330;
+    color: #f2cc8f;
+    text-style: bold;
+}
 #big-visual, #left-visual, #right-visual {
     margin-top: 1;
     color: #e07a5f;

@@ -6,6 +6,7 @@ from textual.widgets import ListView
 
 from .config import ConfigError, save_transition_settings
 from .playback import PlaybackError, PlaybackStatus
+from .playlist_plan import SongCandidate
 from .transitions import TransitionSettings, TransitionStyle
 from .tui_effects import format_time
 
@@ -14,6 +15,7 @@ class PlaybackActions:
     """Mixin with play/pause/seek/volume and DJ transition actions for BesterYTMApp."""
 
     playlist_video_ids: list[str]
+    current_candidate: SongCandidate | None
 
     async def action_play_selected(self) -> None:
         try:
@@ -44,6 +46,10 @@ class PlaybackActions:
         candidate = getattr(item, "candidate", None) if item else None
         if candidate is None:
             return
+        await self._queue_or_play_candidate(candidate)
+
+    async def _queue_or_play_candidate(self, candidate: SongCandidate) -> None:
+        """Queue one song when something is playing, otherwise start it immediately."""
         self.candidates_by_video_id[candidate.video_id] = candidate
         try:
             if self.playback.status().running:

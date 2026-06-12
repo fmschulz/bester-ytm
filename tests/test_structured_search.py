@@ -17,6 +17,21 @@ class FakeYTMusic:
                     "artists": [{"name": "Sepultura"}],
                 },
             ][:limit]
+        if filter == "albums":
+            return [
+                {
+                    "browseId": "album-roots",
+                    "title": "Roots",
+                    "year": "1996",
+                    "artists": [{"name": "Sepultura"}],
+                },
+                {
+                    "browseId": "album-against",
+                    "title": "Against",
+                    "year": "1998",
+                    "artists": [{"name": "Sepultura"}],
+                },
+            ][:limit]
         if filter == "artists":
             return [{"browseId": "artist-sepultura", "artist": "Sepultura"}]
         if filter == "community_playlists":
@@ -107,10 +122,27 @@ def _client() -> YTMClient:
     return client
 
 
-def test_structured_song_query_filters_by_title() -> None:
+def test_structured_song_query_keeps_relevance_order() -> None:
     results = _client().structured_search(parse_search_query("song:sepultura"), limit=10)
 
-    assert [item.video_id for item in results] == ["song-title-match"]
+    assert [item.video_id for item in results] == ["song-title-match", "song-title-miss"]
+
+
+def test_structured_album_query_returns_albums() -> None:
+    results = _client().structured_search(parse_search_query("album:sepultura"), limit=10)
+
+    assert [item.item_type for item in results] == ["album", "album"]
+    assert [item.title for item in results] == ["Roots", "Against"]
+    assert all(item.browse_id for item in results)
+
+
+def test_structured_album_query_filters_by_year() -> None:
+    results = _client().structured_search(
+        parse_search_query("album:sepultura,year:1998"),
+        limit=10,
+    )
+
+    assert [item.title for item in results] == ["Against"]
 
 
 def test_structured_artist_songs_use_artist_popular_songs() -> None:

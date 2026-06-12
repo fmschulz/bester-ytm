@@ -66,6 +66,13 @@ class FakeQueuePlayback:
     def replace_queue(self, video_ids: list[str]) -> None:
         self.queue = list(video_ids)
 
+    def enqueue(self, video_ids: list[str]) -> None:
+        self.queue.extend(video_ids)
+
+    def play_queue(self) -> PlaybackStatus:
+        self.current_video_id = self.queue.pop(0)
+        return self.status()
+
 
 def test_tui_show_playlists_uses_authenticated_library(monkeypatch, tmp_path) -> None:
     class FakeListView:
@@ -867,7 +874,7 @@ def test_tui_keyboard_playlist_flow_loads_and_starts_queue(monkeypatch, tmp_path
     asyncio.run(run_flow())
 
 
-def test_tui_structured_album_result_loads_tracks(monkeypatch, tmp_path) -> None:
+def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
 
     class FakeClient:
@@ -920,6 +927,7 @@ def test_tui_structured_album_result_loads_tracks(monkeypatch, tmp_path) -> None
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
 
     asyncio.run(app._search("artist:sepultura,albums"))
+    # An artist album list stays in the results pane; Enter loads the album into the queue.
     asyncio.run(app.action_play_selected())
 
     assert app.playback.queue == ["v1", "v2"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual.widgets import Button, Input, Label, ListItem, ListView, ProgressBar, Static
 
 from .playback import PlaybackError, PlaybackStatus
+from .playlist_plan import SongCandidate
 from .stores import MAX_RATING, TrackMetadataStore
 from .tui_visuals import AudioLevelMeter, render_visual_panel
 
@@ -57,6 +58,7 @@ class PlaybackRenderer:
     visual_phase: float
     audio_levels: list[float]
     last_playback_status: PlaybackStatus | None
+    current_candidate: SongCandidate | None
     audio_meter: AudioLevelMeter
     _last_visual_state: str | None
     _rendered_now_playing_id: str | None

@@ -18,6 +18,7 @@ from textual.widgets import (
 )
 
 from .playlist_plan import parse_seed_text
+from .tui_album import AlbumTree
 from .tui_splitter import PaneSplitter
 from .tui_visuals import EFFECT_OPTIONS
 
@@ -46,6 +47,7 @@ def build_layout(visualizer_text: str, effect: str = "mythos") -> ComposeResult:
         with Vertical(id="left"):
             yield Input(placeholder="Search YouTube Music", id="search")
             yield ListView(id="results")
+            yield AlbumTree("albums", id="album-tree")
             yield Static("", id="left-visual")
         yield PaneSplitter("left", "right", grows_leftward=False)
         with Vertical(id="center"):

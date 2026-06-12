@@ -9,6 +9,30 @@ def test_parse_song_title_query() -> None:
     assert parsed.view == "songs"
 
 
+def test_parse_songs_prefix_is_song_query() -> None:
+    parsed = parse_search_query("songs:metallica")
+
+    assert parsed.kind == "song"
+    assert parsed.text == "metallica"
+    assert parsed.view == "songs"
+
+
+def test_parse_album_query() -> None:
+    parsed = parse_search_query("album:metallica")
+
+    assert parsed.kind == "album"
+    assert parsed.text == "metallica"
+    assert parsed.view == "albums"
+
+
+def test_parse_albums_prefix_is_album_query() -> None:
+    parsed = parse_search_query("albums:ride the lightning")
+
+    assert parsed.kind == "album"
+    assert parsed.text == "ride the lightning"
+    assert parsed.view == "albums"
+
+
 def test_parse_artist_songs_query() -> None:
     parsed = parse_search_query("artist:sepultura,songs")
 

@@ -17,6 +17,7 @@ class LibraryActions:
 
     selected_queue_video_id: str | None
     candidates_by_video_id: dict[str, SongCandidate]
+    current_candidate: SongCandidate | None
     build_in_progress: bool
     active_youtube_playlist_id: str | None
     _pending_playlist_delete: str | None
@@ -27,6 +28,7 @@ class LibraryActions:
         self.selected_queue_video_id = None
         self._clear_result_selection()
         if not query.strip():
+            self._show_results_list()
             return
         self._set_status(f"Searching {query!r}...")
         parsed = parse_search_query(query)
@@ -38,6 +40,13 @@ class LibraryActions:
         except YTMClientError as exc:
             self._set_status(str(exc))
             return
+        if parsed.kind == "album":
+            await self._populate_album_tree(items)
+            self._set_status(
+                f"{len(items)} album(s). Enter expands; x selects; a adds to the queue."
+            )
+            return
+        self._show_results_list()
         for search_item in items:
             await results.append(self._result_item(search_item))
         self._focus_first_result(results, bool(items))
