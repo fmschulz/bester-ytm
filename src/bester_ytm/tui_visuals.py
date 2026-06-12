@@ -1,27 +1,48 @@
-"""Large audio-reactive visual panel rendered under the queue.
+"""Large audio-reactive visual panels rendered in the bottom of each pane.
 
-Renderers are pure functions of (phase, width, height, level, levels) so frames
-are deterministic and testable. The app feeds in a sliding history of live RMS
-loudness (newest last) plus a motion ``phase`` it accumulates in proportion to
-loudness. ``bars`` and ``wave`` plot the loudness history directly, so the shape
-*is* the music scrolling left; ``pulse``/``scope``/``mythos`` move at a speed set
-by the audio. Rows are tinted with a vertical ember gradient via Rich markup.
+Each effect is a pure painter of a brightness *field* (``grid[y][x]`` in 0..1);
+a single shared renderer turns that field into glyphs with a per-cell ember glow
+and an optional bloom pass, so every effect lights up the same way. The app feeds
+in a sliding history of live RMS loudness (newest last) plus a motion ``phase`` it
+accumulates in proportion to loudness, so the visuals lock to the music: ``bars``
+and ``wave`` plot the loudness history directly, while ``mythos``/``oracle``/
+``pulse``/``scope`` move at a speed and brightness set by the audio.
 """
 
 from __future__ import annotations
 
 import math
+import re
 
-BLOCKS = " ▁▂▃▄▅▆▇█"
 FULL = "█"
-SHADE = "▒"
-DOT = "●"
-RING = "○"
+# Glyph ramp from faint to incandescent; index = round(brightness * (len - 1)).
+RAMP = " ·∙•●◉▓█"
 STAR = "·"
 
-# Warm ember gradient, dim depths to bright crest.
-PALETTE = ["#7c3f2e", "#a85638", "#c96442", "#e07a5f", "#eda36c", "#f2cc8f"]
+# Warm ember gradient, dim depths to white-hot crest.
+PALETTE = [
+    "#5b2f22", "#7c3f2e", "#a85638", "#c96442",
+    "#e07a5f", "#eda36c", "#f2cc8f", "#ffe6c0",
+]
 DEFAULT_LEVEL = 0.6
+
+EFFECT_ORDER = ("mythos", "oracle", "bars", "wave", "pulse", "scope")
+EFFECT_LABELS = {
+    "mythos": "Mythos",
+    "oracle": "Oracle",
+    "bars": "Bars",
+    "wave": "Wave",
+    "pulse": "Pulse",
+    "scope": "Scope",
+}
+EFFECT_OPTIONS = [(EFFECT_LABELS[key], key) for key in EFFECT_ORDER]
+
+_TAG = re.compile(r"\[[^\]]*\]")
+
+
+def strip_markup(panel: str) -> str:
+    """Drop Rich color tags, leaving the raw glyph grid (handy for tests)."""
+    return _TAG.sub("", panel)
 
 
 class AudioLevelMeter:
@@ -58,12 +79,84 @@ def render_visual_panel(
     if width < 8 or height < 3:
         return ""
     if not running:
-        return _tint(_idle(width, height), 0.25)
+        return _render_idle(width, height)
     history = levels or []
     level = min(1.0, max(0.0, history[-1] if history else DEFAULT_LEVEL))
-    renderer = _RENDERERS.get(effect, _mythos)
-    rows = renderer(phase, width, height, level, history)
-    return _tint(rows, level)
+    field = _RENDERERS.get(effect, _mythos_field)(phase, width, height, level, history)
+    bloom = _BLOOM.get(effect)
+    if bloom:
+        field = _bloom(field, bloom)
+    return _render_field(field, level)
+
+
+# --- shared rendering -------------------------------------------------------
+
+
+def _render_field(grid: list[list[float]], level: float) -> str:
+    """Map a brightness field to glyphs tinted with a vertical ember glow."""
+    height = len(grid)
+    gain = 0.55 + 0.7 * level
+    return "\n".join(
+        _row_markup(row, (height - 1 - y) / max(1, height - 1), gain, level)
+        for y, row in enumerate(grid)
+    )
+
+
+def _row_markup(values: list[float], depth: float, gain: float, level: float) -> str:
+    """Run-length encode a row into ``[#hex]chars[/]`` spans, glow brightening with loudness."""
+    top = len(PALETTE) - 1
+    parts: list[str] = []
+    run: list[str] = []
+    run_color: str | None = None
+    for value in values:
+        bright = min(1.0, max(0.0, value * gain))
+        glyph = RAMP[round(bright * (len(RAMP) - 1))]
+        if glyph == " ":
+            color = None
+        else:
+            shade = round(bright * top * 0.78 + depth * top * 0.18 + level * 1.1)
+            color = PALETTE[min(top, shade)]
+        if color != run_color:
+            parts.append(_flush(run, run_color))
+            run, run_color = [], color
+        run.append(glyph)
+    parts.append(_flush(run, run_color))
+    return "".join(parts)
+
+
+def _flush(chars: list[str], color: str | None) -> str:
+    if not chars:
+        return ""
+    text = "".join(chars)
+    return f"[{color}]{text}[/]" if color else text
+
+
+def _bloom(grid: list[list[float]], strength: float) -> list[list[float]]:
+    """One additive 3x3 spread so bright cells halo into their neighbours."""
+    height, width = len(grid), len(grid[0])
+    out = [row[:] for row in grid]
+    for y in range(height):
+        for x in range(width):
+            seed = grid[y][x]
+            if seed <= 0.0:
+                continue
+            spill = seed * strength
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if dx or dy:
+                        ny, nx = y + dy, x + dx
+                        if 0 <= ny < height and 0 <= nx < width:
+                            out[ny][nx] = min(1.0, out[ny][nx] + spill)
+    return out
+
+
+def _render_idle(width: int, height: int) -> str:
+    rows = [" " * width for _ in range(height - 1)]
+    rows.append("▁" * width)
+    label = "awaiting signal"
+    pad = max(0, (width - len(label)) // 2)
+    rows[height // 2] = (" " * pad + label).ljust(width)[:width]
+    return "\n".join(f"[{PALETTE[1]}]{row}[/]" for row in rows)
 
 
 def _history_columns(levels: list[float], width: int) -> list[float]:
@@ -73,76 +166,59 @@ def _history_columns(levels: list[float], width: int) -> list[float]:
     return pad + [min(1.0, max(0.0, value)) for value in recent]
 
 
-def _tint(rows: list[str], level: float) -> str:
-    """Vertical ember gradient, glowing brighter as the music gets louder."""
-    height = len(rows)
-    boost = (len(PALETTE) - 1) * 0.35 * level
-    tinted = []
-    for index, row in enumerate(rows):
-        depth = (height - 1 - index) / max(1, height - 1)
-        shade = min(len(PALETTE) - 1, int(depth * (len(PALETTE) - 1) * 0.8 + boost))
-        tinted.append(f"[{PALETTE[shade]}]{row}[/]")
-    return "\n".join(tinted)
+def _blank(width: int, height: int) -> list[list[float]]:
+    return [[0.0] * width for _ in range(height)]
 
 
-def _idle(width: int, height: int) -> list[str]:
-    rows = [" " * width for _ in range(height - 1)]
-    rows.append("▁" * width)
-    label = "awaiting signal"
-    middle = height // 2
-    pad = max(0, (width - len(label)) // 2)
-    rows[middle] = (" " * pad + label).ljust(width)[:width]
-    return rows
+# --- effect fields ----------------------------------------------------------
 
 
-def _bars(phase: float, width: int, height: int, level: float, levels: list[float]) -> list[str]:
+def _bars_field(phase: float, width: int, height: int, level: float, levels: list[float]):
     """A scrolling loudness spectrum: each column is a past RMS reading, newest on the right."""
-    rows = [[" "] * width for _ in range(height)]
+    grid = _blank(width, height)
     for x, value in enumerate(_history_columns(levels, width)):
-        cells = value * (height - 0.01)
-        full_cells = int(cells)
-        for y in range(full_cells):
-            rows[height - 1 - y][x] = FULL
-        if full_cells < height:
-            rows[height - 1 - full_cells][x] = BLOCKS[int((cells - full_cells) * 8)]
-    return ["".join(row) for row in rows]
+        cells = value * height
+        full = int(cells)
+        for y in range(full):
+            grid[height - 1 - y][x] = 1.0
+        if full < height:
+            grid[height - 1 - full][x] = cells - full
+    return grid
 
 
-def _wave(phase: float, width: int, height: int, level: float, levels: list[float]) -> list[str]:
+def _wave_field(phase: float, width: int, height: int, level: float, levels: list[float]):
     """A symmetric oscilloscope of the loudness history; the band swells on loud passages."""
-    rows = [[" "] * width for _ in range(height)]
+    grid = _blank(width, height)
     mid = (height - 1) / 2
     for x, value in enumerate(_history_columns(levels, width)):
         amp = value * mid
         top = max(0, round(mid - amp))
         bottom = min(height - 1, round(mid + amp))
-        for y in range(top + 1, bottom):
-            rows[y][x] = SHADE
-        rows[top][x] = DOT
-        rows[bottom][x] = DOT
-    return ["".join(row) for row in rows]
+        for y in range(top, bottom + 1):
+            grid[y][x] = 1.0 if y in (top, bottom) else 0.45
+    return grid
 
 
-def _pulse(phase: float, width: int, height: int, level: float, levels: list[float]) -> list[str]:
+def _pulse_field(phase: float, width: int, height: int, level: float, levels: list[float]):
     """Concentric rings driven outward by the audio phase; thicker and brighter on loud beats."""
-    rows = [[" "] * width for _ in range(height)]
+    grid = _blank(width, height)
     center_x = (width - 1) / 2
     center_y = (height - 1) / 2
-    thickness = 0.3 + 1.4 * level
+    thickness = 0.4 + 1.6 * level
     for y in range(height):
         for x in range(width):
-            distance = abs(x - center_x) * 0.45 + abs(y - center_y)
+            distance = abs(x - center_x) * 0.5 + abs(y - center_y)
             ring = (distance - phase * 0.6) % 5.0
             if ring < thickness:
-                rows[y][x] = FULL
-            elif ring < thickness + 0.8:
-                rows[y][x] = SHADE
-    return ["".join(row) for row in rows]
+                grid[y][x] = 1.0 - 0.4 * ring / thickness
+            elif ring < thickness + 1.0:
+                grid[y][x] = 0.4 * (thickness + 1.0 - ring)
+    return grid
 
 
-def _scope(phase: float, width: int, height: int, level: float, levels: list[float]) -> list[str]:
+def _scope_field(phase: float, width: int, height: int, level: float, levels: list[float]):
     """A Lissajous figure that rotates with the audio phase and swells with loudness."""
-    rows = [[" "] * width for _ in range(height)]
+    grid = _blank(width, height)
     center_x = (width - 1) / 2
     center_y = (height - 1) / 2
     radius = 0.3 + 0.65 * level
@@ -151,27 +227,56 @@ def _scope(phase: float, width: int, height: int, level: float, levels: list[flo
         t = step / points * math.tau
         x = center_x + math.sin(3 * t + phase * 0.11) * center_x * radius
         y = center_y + math.sin(2 * t) * center_y * radius
-        rows[round(y)][round(x)] = DOT
-    return ["".join(row) for row in rows]
+        grid[round(y)][round(x)] = 1.0
+    return grid
 
 
-def _mythos(phase: float, width: int, height: int, level: float, levels: list[float]) -> list[str]:
-    """A drifting constellation: nodes orbit at audio speed, link up, and flare with the music."""
-    grid = [[" "] * width for _ in range(height)]
-    # Reseed the backdrop only every ~9 phase units (~1s); per-tick reseeding reads as flicker.
+def _oracle_field(phase: float, width: int, height: int, level: float, levels: list[float]):
+    """A mind's eye: rotating spokes crossed by thought-rings expanding from a white-hot core."""
+    grid = _blank(width, height)
+    center_x = (width - 1) / 2
+    center_y = (height - 1) / 2
+    eye = 1.2 + 1.8 * level
     for y in range(height):
         for x in range(width):
-            if (x * 73 + y * 151 + (int(phase) // 9) * 37) % 127 < 2:
-                grid[y][x] = STAR
+            dx = (x - center_x) * 0.5
+            dy = y - center_y
+            distance = math.hypot(dx, dy)
+            angle = math.atan2(dy, dx)
+            ring = 0.5 + 0.5 * math.cos(distance * 1.15 - phase * 0.45)
+            spoke = 0.5 + 0.5 * math.cos(angle * 6 - phase * 0.12)
+            bright = (ring * spoke - 0.45) * 1.6
+            if distance < eye:
+                bright = max(bright, 1.0 - distance / eye)
+            grid[y][x] = min(1.0, max(0.0, bright))
+    return grid
+
+
+def _mythos_field(phase: float, width: int, height: int, level: float, levels: list[float]):
+    """A constellation around a luminous mind: nodes orbit, link, and flare with the music."""
+    grid = _blank(width, height)
+    seed = int(phase) // 9  # reseed the backdrop ~once/sec; per-tick reseeding reads as flicker
+    for y in range(height):
+        for x in range(width):
+            if (x * 73 + y * 151 + seed * 37) % 127 < 2:
+                grid[y][x] = 0.35
+    center_x = (width - 1) / 2
+    center_y = (height - 1) / 2
+    core = 1.4 + 2.6 * level
+    for y in range(height):
+        for x in range(width):
+            distance = math.hypot((x - center_x) * 0.5, y - center_y)
+            if distance < core:
+                grid[y][x] = max(grid[y][x], 1.0 - distance / core)
     nodes = _mythos_nodes(phase, width, height)
     reach = (width + height) * (0.10 + 0.22 * level)
     for index, (x1, y1) in enumerate(nodes):
-        for x2, y2 in nodes[index + 1 :]:
+        for x2, y2 in nodes[index + 1:]:
             if abs(x1 - x2) + abs(y1 - y2) <= reach:
-                _draw_link(grid, x1, y1, x2, y2)
+                _draw_filament(grid, x1, y1, x2, y2)
     for node_x, node_y in nodes:
-        grid[round(node_y)][round(node_x)] = DOT if level > 0.4 else RING
-    return ["".join(row) for row in grid]
+        grid[round(node_y)][round(node_x)] = 1.0
+    return grid
 
 
 def _mythos_nodes(phase: float, width: int, height: int) -> list[tuple[float, float]]:
@@ -186,20 +291,25 @@ def _mythos_nodes(phase: float, width: int, height: int) -> list[tuple[float, fl
     return nodes
 
 
-def _draw_link(grid: list[list[str]], x1: float, y1: float, x2: float, y2: float) -> None:
+def _draw_filament(grid, x1: float, y1: float, x2: float, y2: float) -> None:
     steps = max(2, int(abs(x1 - x2) + abs(y1 - y2)))
     for step in range(1, steps):
         t = step / steps
         x = round(x1 + (x2 - x1) * t)
         y = round(y1 + (y2 - y1) * t)
-        if grid[y][x] == " ":
-            grid[y][x] = STAR
+        if grid[y][x] < 0.55:
+            grid[y][x] = 0.55
 
 
 _RENDERERS = {
-    "mythos": _mythos,
-    "bars": _bars,
-    "wave": _wave,
-    "pulse": _pulse,
-    "scope": _scope,
+    "mythos": _mythos_field,
+    "oracle": _oracle_field,
+    "bars": _bars_field,
+    "wave": _wave_field,
+    "pulse": _pulse_field,
+    "scope": _scope_field,
 }
+
+# Effects whose fields are sparse curves/points glow with an additive halo;
+# bars/wave stay crisp so a column height reads as an exact loudness.
+_BLOOM = {"mythos": 0.5, "oracle": 0.55, "pulse": 0.4, "scope": 0.5}

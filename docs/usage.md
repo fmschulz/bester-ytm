@@ -26,7 +26,7 @@ w          save the queue as a local playlist (also the Save button)
 g          add AI-suggested similar tracks to the queue
 t          toggle transition style (cut / crossfade)
 [ / ]      shorten / lengthen the crossfade (1-15s)
-v          cycle the visualizer (Mythos, Bars, Wave, Pulse, Scope)
+v          cycle the visualizer (Mythos, Oracle, Bars, Wave, Pulse, Scope)
 Left/Right seek -10s/+10s
 ,/.        seek -30s/+30s
 - / =      volume down / up
@@ -68,9 +68,11 @@ transition style is crossfade (the default, 6 seconds), the next queued
 track is prebuffered on a second silent mpv deck and blended in DJ-style
 with an equal-power fade; set the transition to cut for instant switches.
 The `DECK` line in the right pane shows the active deck and becomes a `MIX`
-meter while two tracks blend. While audio plays, an audio-reactive visual
-runs beneath the queue; pick a style with the `Visuals` dropdown or cycle
-with `v`.
+meter while two tracks blend. While audio plays, glowing audio-reactive
+panels run in the bottom of every pane; pick a style with the `Visuals`
+dropdown or cycle with `v`, and choose a theme from the command palette (the
+circle in the header). On slow or remote terminals, lower `ui.visual_fps` in
+the config (or set it to `0`) to ease the rendering load.
 
 ### Ratings, tags, and local playlists
 

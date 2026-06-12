@@ -7,18 +7,19 @@ import pytest
 
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.tui import BesterYTMApp
-from bester_ytm.tui_visuals import AudioLevelMeter, _mythos_nodes, render_visual_panel
+from bester_ytm.tui_visuals import (
+    AudioLevelMeter,
+    _mythos_nodes,
+    render_visual_panel,
+    strip_markup,
+)
 
-EFFECTS = ("mythos", "bars", "wave", "pulse", "scope")
+EFFECTS = ("mythos", "oracle", "bars", "wave", "pulse", "scope")
 
 
 def _plain_rows(panel: str) -> list[str]:
-    """Strip the per-row gradient markup: '[#hex]chars[/]' -> 'chars'."""
-    rows = []
-    for line in panel.splitlines():
-        assert line.startswith("[#") and line.endswith("[/]")
-        rows.append(line.split("]", 1)[1][:-3])
-    return rows
+    """Drop the per-cell ember-glow markup, leaving the raw glyph grid."""
+    return strip_markup(panel).splitlines()
 
 
 def _levels(count: int = 64) -> list[float]:

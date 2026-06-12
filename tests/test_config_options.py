@@ -59,6 +59,35 @@ def test_ui_and_transition_saves_preserve_each_other(tmp_path: Path, monkeypatch
     assert 'transition = "cut"' in text
 
 
+def test_theme_and_visual_fps_round_trip(tmp_path: Path, monkeypatch) -> None:
+    _sandbox(tmp_path, monkeypatch)
+
+    save_ui_options("bars", theme="textual-dark")
+    options = load_app_options()
+
+    assert options.theme == "textual-dark"
+
+
+def test_theme_save_preserves_widths_and_visualizer(tmp_path: Path, monkeypatch) -> None:
+    _sandbox(tmp_path, monkeypatch)
+    save_ui_options("mythos", left_width=28, right_width=40)
+
+    save_ui_options("mythos", theme="ember")
+    options = load_app_options()
+
+    assert options.theme == "ember"
+    assert options.left_width == 28 and options.right_width == 40
+
+
+def test_visual_fps_loads_and_defaults(tmp_path: Path, monkeypatch) -> None:
+    path = _sandbox(tmp_path, monkeypatch)
+    assert load_app_options().visual_fps == AppOptions().visual_fps
+
+    path.parent.mkdir(parents=True)
+    path.write_text("[ui]\nvisual_fps = 0\n", encoding="utf-8")
+    assert load_app_options().visual_fps == 0  # 0 = animation off
+
+
 def test_volume_and_favorites_load(tmp_path: Path, monkeypatch) -> None:
     path = _sandbox(tmp_path, monkeypatch)
     path.parent.mkdir(parents=True)
@@ -81,6 +110,9 @@ def test_volume_and_favorites_load(tmp_path: Path, monkeypatch) -> None:
         ("[ui]\nleft_width = 4\n", "ui.left_width"),
         ('[ui]\nright_width = "wide"\n', "ui.right_width"),
         ("[ui]\nvisualizer = 7\n", "ui.visualizer"),
+        ("[ui]\nvisual_fps = 99\n", "ui.visual_fps"),
+        ('[ui]\nvisual_fps = "fast"\n', "ui.visual_fps"),
+        ("[ui]\ntheme = 5\n", "ui.theme"),
         ('[builder]\nfavorites_file = ""\n', "builder.favorites_file"),
     ],
 )

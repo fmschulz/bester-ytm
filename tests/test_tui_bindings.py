@@ -40,7 +40,7 @@ def test_r_cycles_rating_and_g_adds_similar() -> None:
     assert actions["g"] == "add_similar"
 
 
-def test_footer_stays_compact_per_context_and_palette_disabled(monkeypatch) -> None:
+def test_footer_stays_compact_and_palette_enabled(monkeypatch) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/nonexistent-bytm-config")
     app = BesterYTMApp()
     shown_actions = [
@@ -65,7 +65,9 @@ def test_footer_stays_compact_per_context_and_palette_disabled(monkeypatch) -> N
     assert "play_selected" in results and "play_selected" in queue
     for context_bindings in (everywhere, results, queue):
         assert len(context_bindings) <= 13
-    assert BesterYTMApp.ENABLE_COMMAND_PALETTE is False
+    # The Header icon opens the command palette, which is where theme
+    # selection lives, so the palette must stay enabled.
+    assert BesterYTMApp.ENABLE_COMMAND_PALETTE is True
 
 
 def test_volume_buttons_send_playback_commands() -> None:
@@ -171,9 +173,8 @@ def test_playback_effects_update_for_playing_paused_and_idle(monkeypatch) -> Non
 
     app._refresh_playback()
 
-    assert visualizer.value.startswith("PLAY")
-    assert "EQ    " in visualizer.value
-    assert "SEEK  [###---------" in visualizer.value
+    assert visualizer.value.startswith("DECK")
+    assert "(playing)" in visualizer.value
     assert "playing-effect" in panel.classes
     assert "paused-effect" not in panel.classes
     assert progress_updates[-1] == (60, 15)
@@ -188,14 +189,14 @@ def test_playback_effects_update_for_playing_paused_and_idle(monkeypatch) -> Non
     )
     app._refresh_playback()
 
-    assert visualizer.value.startswith("PAUSED")
+    assert "(paused)" in visualizer.value
     assert "paused-effect" in panel.classes
     assert "playing-effect" not in panel.classes
 
     app.playback.current = PlaybackStatus(running=False, current_video_id=None)
     app._refresh_playback()
 
-    assert visualizer.value.startswith("IDLE")
+    assert "(idle)" in visualizer.value
     assert "idle-effect" in visualizer.classes
     assert "playing-effect" not in panel.classes
     assert "paused-effect" not in panel.classes

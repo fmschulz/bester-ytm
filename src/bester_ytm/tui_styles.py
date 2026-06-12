@@ -60,15 +60,31 @@ PaneSplitter:hover {
 #queue {
     height: 1fr;
 }
-#big-visual {
-    height: 9;
+#results {
+    height: 1fr;
+}
+#big-visual, #left-visual, #right-visual {
     margin-top: 1;
     color: #e07a5f;
 }
-#big-visual.idle-effect {
+#big-visual {
+    height: 9;
+}
+#left-visual {
+    height: 8;
+}
+#right-visual {
+    dock: bottom;
+    height: 7;
+}
+#big-visual.idle-effect,
+#left-visual.idle-effect,
+#right-visual.idle-effect {
     color: #6b7280;
 }
-#big-visual.paused-effect {
+#big-visual.paused-effect,
+#left-visual.paused-effect,
+#right-visual.paused-effect {
     color: #9ca3af;
 }
 #queue .playing {
@@ -87,7 +103,7 @@ PaneSplitter:hover {
     margin: 0 0 1 0;
 }
 #visualizer {
-    height: 4;
+    height: 1;
     margin: 0;
     color: #eda36c;
 }

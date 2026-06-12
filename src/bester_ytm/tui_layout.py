@@ -19,14 +19,7 @@ from textual.widgets import (
 
 from .playlist_plan import parse_seed_text
 from .tui_splitter import PaneSplitter
-
-EFFECT_OPTIONS = [
-    ("Mythos", "mythos"),
-    ("Bars", "bars"),
-    ("Wave", "wave"),
-    ("Pulse", "pulse"),
-    ("Scope", "scope"),
-]
+from .tui_visuals import EFFECT_OPTIONS
 
 
 class BuilderTextArea(TextArea):
@@ -53,6 +46,7 @@ def build_layout(visualizer_text: str, effect: str = "mythos") -> ComposeResult:
         with Vertical(id="left"):
             yield Input(placeholder="Search YouTube Music", id="search")
             yield ListView(id="results")
+            yield Static("", id="left-visual")
         yield PaneSplitter("left", "right", grows_leftward=False)
         with Vertical(id="center"):
             yield Label("Playlist / Queue", id="queue-title")
@@ -107,3 +101,4 @@ def _build_player_panel(visualizer_text: str, effect: str = "mythos") -> Compose
         yield Label("Visuals", id="effect-label")
         yield Select(EFFECT_OPTIONS, value=effect, allow_blank=False, id="effect-select")
     yield Static("", id="status")
+    yield Static("", id="right-visual")

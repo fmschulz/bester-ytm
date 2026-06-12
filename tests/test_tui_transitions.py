@@ -205,7 +205,7 @@ def test_visualizer_renders_mix_meter_and_announces_mix_once(monkeypatch, tmp_pa
     )
     app._refresh_playback()
 
-    assert widgets["#visualizer"].value.splitlines()[-1] == "MIX   A [######------] B  xfade 6s"
+    assert widgets["#visualizer"].value == "MIX  A [######------] B  xfade 6s"
     assert statuses == ["Mixing into v2."]
 
     playback.current = replace(playback.current, mix_progress=0.75)
@@ -214,7 +214,7 @@ def test_visualizer_renders_mix_meter_and_announces_mix_once(monkeypatch, tmp_pa
 
     playback.current = replace(playback.current, mix_progress=None, fade_seconds=8.0)
     app._refresh_playback()
-    assert widgets["#visualizer"].value.splitlines()[-1] == "DECK  B  xfade 8s"
+    assert widgets["#visualizer"].value == "DECK B  xfade 8s  (playing)"
 
 
 def test_visualizer_renders_deck_line_when_idle(monkeypatch, tmp_path) -> None:
@@ -225,12 +225,7 @@ def test_visualizer_renders_deck_line_when_idle(monkeypatch, tmp_path) -> None:
 
     app._refresh_playback()
 
-    assert widgets["#visualizer"].value.splitlines() == [
-        "IDLE  no signal",
-        "EQ    [----] [----] [----]",
-        "SEEK  [------------]",
-        "DECK  A  cut",
-    ]
+    assert widgets["#visualizer"].value == "DECK A  cut  (idle)"
 
 
 def test_refresh_reports_transition_error_once(monkeypatch, tmp_path) -> None:

@@ -33,7 +33,7 @@ from .playback import PlaybackController, PlaybackError, PlaybackStatus
 from .stores import LocalPlaylistStore
 from .transitions import DEFAULT_APP_SETTINGS
 from .tui_builder import BuilderActions
-from .tui_effects import VISUALIZER_EFFECTS, PlaybackRenderer, render_visualizer
+from .tui_effects import PlaybackRenderer, render_deck_status
 from .tui_layout import BuilderTextArea, build_layout
 from .tui_library import LibraryActions
 from .tui_playback import PlaybackActions
@@ -42,7 +42,8 @@ from .tui_selection import SelectionActions
 from .tui_similar import SimilarActions
 from .tui_splitter import PaneSplitter
 from .tui_styles import APP_CSS
-from .tui_visuals import AudioLevelMeter
+from .tui_theme import EMBER_THEME
+from .tui_visuals import EFFECT_ORDER, AudioLevelMeter
 from .ytm_client import YTMClient, YTMClientError
 
 
@@ -60,7 +61,6 @@ class BesterYTMApp(
     SUB_TITLE = "YouTube Music"
 
     CSS = APP_CSS
-    ENABLE_COMMAND_PALETTE = False
 
     BINDINGS = [
         ("/", "focus_search", "Search"),
@@ -168,13 +168,14 @@ class BesterYTMApp(
         self._queue_render_active = False
         self._queue_render_pending = False
         self._queue_render_focus: str | None = None
-        self.effect_frame = 0
+        self._last_visual_state: str | None = "unset"
+        self.visual_fps = self.app_options.visual_fps
         self.playback_was_active = False
         self.auto_advance_pending = False
         self.was_mixing = False
         self.visualizer_effect = (
             self.app_options.visualizer
-            if self.app_options.visualizer in VISUALIZER_EFFECTS
+            if self.app_options.visualizer in EFFECT_ORDER
             else "mythos"
         )
         self.selected_result_video_ids: set[str] = set()
@@ -190,18 +191,16 @@ class BesterYTMApp(
         yield Footer()
 
     def _idle_visualizer_text(self) -> str:
-        return render_visualizer(
+        return render_deck_status(
             PlaybackStatus(
                 running=False,
                 transition_style=self.transition_settings.style.value,
                 fade_seconds=self.transition_settings.fade_seconds,
-            ),
-            frame=0,
-            effect=self.visualizer_effect,
+            )
         )
 
     def action_cycle_visualizer(self) -> None:
-        names = list(VISUALIZER_EFFECTS)
+        names = list(EFFECT_ORDER)
         position = names.index(self.visualizer_effect) if self.visualizer_effect in names else 0
         self._apply_visualizer_effect(names[(position + 1) % len(names)])
         select = self._query_optional("#effect-select", Select)
@@ -224,7 +223,9 @@ class BesterYTMApp(
         self, left_width: int | None = None, right_width: int | None = None
     ) -> None:
         try:
-            save_ui_options(self.visualizer_effect, left_width, right_width)
+            save_ui_options(
+                self.visualizer_effect, left_width, right_width, theme=str(self.theme)
+            )
         except ConfigError as exc:
             self._set_status(f"Settings not saved: {exc}")
 
@@ -243,11 +244,24 @@ class BesterYTMApp(
             self._apply_visualizer_effect(event.value)
 
     async def on_mount(self) -> None:
+        self._apply_branded_theme()
         self._apply_saved_pane_widths()
         self.query_one("#search", Input).focus()
         self._set_status(self._startup_status())
         self.set_interval(0.75, self._refresh_playback)
-        self.set_interval(0.12, self._animate_visual_panel)
+        self._animate_visual_panel()  # draw an initial frame even when visuals are off
+        if self.visual_fps > 0:
+            self.set_interval(1.0 / self.visual_fps, self._animate_visual_panel)
+
+    def _apply_branded_theme(self) -> None:
+        """Register the ember theme, restore the saved choice, then persist future changes."""
+        self.register_theme(EMBER_THEME)
+        if self.app_options.theme in self.available_themes:
+            self.theme = self.app_options.theme
+        self.theme_changed_signal.subscribe(self, self._on_theme_changed)
+
+    def _on_theme_changed(self, _theme: object) -> None:
+        self._save_ui_options()
 
     def _startup_status(self) -> str:
         if self._config_error:

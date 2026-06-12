@@ -27,12 +27,21 @@ First public release.
   without interrupting the playing track.
 - Track removal from both local and YouTube playlists, local playlist
   deletion, and YouTube playlist deletion with a confirming second press.
-- Audio-reactive visualizers (Mythos, Bars, Wave, Pulse, Scope) driven by
-  live mpv loudness, draggable pane splitters with persistent layout, and
-  per-track ratings and tags.
-- Transition, volume, layout, builder, and AI provider configuration in
-  `~/.config/bester-ytm/config.toml`; `--transition` / `--fade` flags on
-  `play playlist`; a `config show` command.
+- Audio-reactive visualizers driven by live mpv loudness, rendered as glowing
+  panels in the bottom of every pane: six effects (Mythos, Oracle, Bars, Wave,
+  Pulse, Scope) with a per-cell ember gradient and an additive bloom, where
+  Mythos is a luminous mind-core orbited by a constellation that flares with the
+  music and Oracle is a mind's-eye of expanding thought-rings. Switch effects via
+  the right-pane dropdown, the `v` key, or the command palette.
+- A branded "ember" theme applied by default and selectable from the command
+  palette (the circle in the header), with the chosen theme remembered across
+  runs.
+- Draggable pane splitters with persistent layout, and per-track ratings and
+  tags.
+- Transition, volume, layout, theme, builder, and AI provider configuration in
+  `~/.config/bester-ytm/config.toml` (including `ui.visual_fps`, which lowers the
+  animation rate or turns the panels off with `0`); `--transition` / `--fade`
+  flags on `play playlist`; a `config show` command.
 - Documentation site (MkDocs Material) deployed to GitHub Pages, MIT
   license, changelog, architecture documentation, and continuous
   integration (lint, type check, 80% coverage gate, release consistency).

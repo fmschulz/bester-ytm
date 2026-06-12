@@ -13,7 +13,9 @@ fade_seconds = 6.0         # crossfade length, 1-15
 volume = 100               # startup volume, 0-100
 
 [ui]
-visualizer = "mythos"      # mythos | bars | wave | pulse | scope
+visualizer = "mythos"      # mythos | oracle | bars | wave | pulse | scope
+theme = "ember"            # ember (branded) or any built-in Textual theme
+visual_fps = 8             # visualizer animation rate; 0 turns the panels off
 left_width = 30            # pane widths in terminal cells
 right_width = 44
 
@@ -27,9 +29,12 @@ provider = "auto"          # auto | heuristic | codex | openai | anthropic
 - `transition = "crossfade"` (default): the next queued track is prebuffered
   on a second silent mpv deck and blended in with an equal-power fade;
   `"cut"` switches instantly.
-- `visualizer`, `left_width`, `right_width`: written automatically when you
-  change the visual style or drag the pane splitters in the TUI (mouse
-  support required; inside tmux enable `set -g mouse on`).
+- `visualizer`, `theme`, `left_width`, `right_width`: written automatically
+  when you change the visual style, pick a theme from the command palette (the
+  circle in the header), or drag the pane splitters in the TUI (mouse support
+  required; inside tmux enable `set -g mouse on`).
+- `visual_fps`: how often the audio-reactive panels redraw. Lower it (or set
+  `0` to freeze them) on slow or remote terminals; it is read at startup only.
 - `favorites_file`: path to a favorites markdown file used by
   favorites-based playlist builds.
 - `[intelligence]`: see [Playlist Builder & AI](builder.md#ai-providers).

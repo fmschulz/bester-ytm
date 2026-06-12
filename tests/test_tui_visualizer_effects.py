@@ -1,47 +1,35 @@
 import asyncio
 
-import pytest
 from textual.widgets import Select
 
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.tui import BesterYTMApp
-from bester_ytm.tui_effects import (
-    EFFECT_WIDTH,
-    VISUALIZER_EFFECTS,
-    effect_bars,
-    effect_pulse,
-    effect_scope,
-    effect_wave,
-    render_visualizer,
-)
+from bester_ytm.tui_effects import render_deck_status
 from bester_ytm.tui_layout import EFFECT_OPTIONS
+from bester_ytm.tui_visuals import EFFECT_ORDER
 
 
 def test_effect_registry_matches_dropdown_options() -> None:
-    assert list(VISUALIZER_EFFECTS) == [value for _, value in EFFECT_OPTIONS]
+    assert [value for _, value in EFFECT_OPTIONS] == list(EFFECT_ORDER)
 
 
-@pytest.mark.parametrize("effect", [effect_wave, effect_pulse, effect_scope])
-def test_effects_are_deterministic_and_animated(effect) -> None:
-    assert effect(3) == effect(3)
-    assert any(effect(frame) != effect(frame + 1) for frame in range(4))
-    assert len(effect(0)) == EFFECT_WIDTH
+def test_deck_status_reports_deck_and_transition() -> None:
+    status = PlaybackStatus(
+        running=True, active_deck="A", transition_style="crossfade", fade_seconds=4
+    )
+    line = render_deck_status(status)
+    assert "DECK A" in line and "xfade 4s" in line and "playing" in line
 
 
-def test_render_visualizer_uses_selected_effect() -> None:
-    status = PlaybackStatus(running=True, position_seconds=10.0, duration_seconds=100.0)
-
-    wave_frame = render_visualizer(status, frame=5, effect="wave")
-    default_frame = render_visualizer(status, frame=5)
-
-    assert f"EQ    {effect_wave(5)}" in wave_frame
-    assert f"EQ    {effect_bars(5)}" in default_frame
+def test_deck_status_shows_mix_progress_during_a_crossfade() -> None:
+    status = PlaybackStatus(running=True, active_deck="B", mix_progress=0.5)
+    line = render_deck_status(status)
+    assert line.startswith("MIX") and "A" in line and "B" in line
 
 
-def test_render_visualizer_falls_back_to_bars_for_unknown_effect() -> None:
-    status = PlaybackStatus(running=True)
-
-    assert render_visualizer(status, 2, effect="nope") == render_visualizer(status, 2)
+def test_deck_status_marks_idle_and_paused() -> None:
+    assert "idle" in render_deck_status(PlaybackStatus(running=False))
+    assert "paused" in render_deck_status(PlaybackStatus(running=True, paused=True))
 
 
 def test_dropdown_changes_visualizer_effect(monkeypatch, tmp_path) -> None:
@@ -65,7 +53,7 @@ def test_cycle_visualizer_action_advances_and_syncs_dropdown(monkeypatch, tmp_pa
 
     async def run_flow() -> None:
         async with app.run_test(size=(110, 50)) as pilot:
-            for _ in range(len(VISUALIZER_EFFECTS) + 1):
+            for _ in range(len(EFFECT_ORDER) + 1):
                 app.action_cycle_visualizer()
                 await pilot.pause()
                 effects.append(app.visualizer_effect)
@@ -73,5 +61,5 @@ def test_cycle_visualizer_action_advances_and_syncs_dropdown(monkeypatch, tmp_pa
 
     asyncio.run(run_flow())
 
-    assert effects[: len(VISUALIZER_EFFECTS)] == ["bars", "wave", "pulse", "scope", "mythos"]
-    assert effects[-1] == "bars"
+    assert effects[: len(EFFECT_ORDER)] == ["oracle", "bars", "wave", "pulse", "scope", "mythos"]
+    assert effects[-1] == "oracle"

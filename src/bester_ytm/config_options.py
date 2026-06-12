@@ -13,6 +13,9 @@ from typing import Any
 from .config import ConfigError, get_paths, load_config_document, rewrite_config_sections
 
 DEFAULT_VISUALIZER = "mythos"
+DEFAULT_THEME = "ember"
+DEFAULT_VISUAL_FPS = 8
+MAX_VISUAL_FPS = 30
 MIN_PANE_CELLS = 10
 MAX_PANE_CELLS = 400
 
@@ -20,6 +23,8 @@ MAX_PANE_CELLS = 400
 @dataclass(frozen=True)
 class AppOptions:
     visualizer: str = DEFAULT_VISUALIZER
+    theme: str = DEFAULT_THEME
+    visual_fps: int = DEFAULT_VISUAL_FPS
     left_width: int | None = None
     right_width: int | None = None
     volume: float = 100.0
@@ -34,6 +39,8 @@ def load_app_options(path: Path | None = None) -> AppOptions:
     builder = _section(document, "builder")
     return AppOptions(
         visualizer=_string(config_path, ui, "ui", "visualizer", DEFAULT_VISUALIZER),
+        theme=_string(config_path, ui, "ui", "theme", DEFAULT_THEME),
+        visual_fps=_visual_fps(config_path, ui),
         left_width=_optional_width(config_path, ui, "left_width"),
         right_width=_optional_width(config_path, ui, "right_width"),
         volume=_volume(config_path, playback),
@@ -46,14 +53,29 @@ def save_ui_options(
     left_width: int | None = None,
     right_width: int | None = None,
     path: Path | None = None,
+    *,
+    theme: str | None = None,
 ) -> Path:
-    """Persist UI choices; a width of None keeps whatever the file already has."""
+    """Persist UI choices; a None value keeps whatever the file already has."""
     values: dict[str, Any] = {"visualizer": visualizer}
+    if theme is not None:
+        values["theme"] = theme
     if left_width is not None:
         values["left_width"] = int(left_width)
     if right_width is not None:
         values["right_width"] = int(right_width)
     return rewrite_config_sections({"ui": values}, path)
+
+
+def _visual_fps(path: Path, section: dict[str, Any]) -> int:
+    value = section.get("visual_fps", DEFAULT_VISUAL_FPS)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ConfigError(f"{path}: ui.visual_fps must be a whole number (got {value!r})")
+    if not 0 <= value <= MAX_VISUAL_FPS:
+        raise ConfigError(
+            f"{path}: ui.visual_fps must be between 0 (off) and {MAX_VISUAL_FPS} (got {value})"
+        )
+    return value
 
 
 def _section(document: dict[str, Any], name: str) -> dict[str, Any]:

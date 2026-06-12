@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from textual.widgets import Button, Input, Label, ListItem, ListView, ProgressBar, Static
 
 from .playback import PlaybackError, PlaybackStatus
@@ -11,7 +9,6 @@ from .stores import MAX_RATING, TrackMetadataStore
 from .tui_visuals import AudioLevelMeter, render_visual_panel
 
 METER_SLOTS = 12
-EFFECT_WIDTH = 18
 MAX_LEVEL_HISTORY = 256
 
 
@@ -26,59 +23,6 @@ def format_time(seconds: float | None) -> str:
     return f"{minutes}:{secs:02d}"
 
 
-def effect_meter(position: float | None, duration: float | None) -> str:
-    if not duration or duration <= 0:
-        filled = 0
-    else:
-        filled = int(METER_SLOTS * min(1.0, max(0.0, (position or 0.0) / duration)))
-    return "[" + "#" * filled + "-" * (METER_SLOTS - filled) + "]"
-
-
-def effect_bars(frame: int) -> str:
-    pattern = [1, 3, 2, 4, 2, 3]
-    bars = []
-    for index in range(3):
-        value = pattern[(frame + index * 2) % len(pattern)]
-        bars.append("[" + "#" * value + "-" * (4 - value) + "]")
-    return " ".join(bars)
-
-
-def effect_wave(frame: int) -> str:
-    pattern = "_.-~^~-._"
-    return "".join(pattern[(frame + col) % len(pattern)] for col in range(EFFECT_WIDTH))
-
-
-def effect_pulse(frame: int) -> str:
-    widths = [2, 6, 10, 14, 16, 14, 10, 6]
-    span = widths[frame % len(widths)]
-    pad = (EFFECT_WIDTH - 2 - span) // 2
-    tail = EFFECT_WIDTH - 2 - span - pad
-    return "[" + " " * pad + "=" * span + " " * tail + "]"
-
-
-def effect_scope(frame: int) -> str:
-    levels = " .:!|!:."
-    return "".join(
-        levels[(frame * 3 + col * col) % len(levels)] for col in range(EFFECT_WIDTH)
-    )
-
-
-def effect_mythos(frame: int) -> str:
-    glyphs = "·∙●∙· "
-    return "".join(
-        glyphs[(frame + col * 3) % len(glyphs)] for col in range(EFFECT_WIDTH)
-    )
-
-
-VISUALIZER_EFFECTS: dict[str, Callable[[int], str]] = {
-    "mythos": effect_mythos,
-    "bars": effect_bars,
-    "wave": effect_wave,
-    "pulse": effect_pulse,
-    "scope": effect_scope,
-}
-
-
 def mix_meter(progress: float) -> str:
     filled = int(METER_SLOTS * min(1.0, max(0.0, progress)))
     return "[" + "#" * filled + "-" * (METER_SLOTS - filled) + "]"
@@ -90,37 +34,17 @@ def style_label(status) -> str:
     return f"xfade {status.fade_seconds:g}s"
 
 
-def deck_line(status) -> str:
+def render_deck_status(status) -> str:
+    """The one-line deck/crossfade readout under the transport (the audio-reactive
+    panels carry the motion now; this just reports which deck is live and how it mixes)."""
     label = style_label(status)
+    state = "playing" if status.running and not status.paused else (
+        "paused" if status.running else "idle"
+    )
     if status.mix_progress is None:
-        return f"DECK  {status.active_deck}  {label}"
+        return f"DECK {status.active_deck}  {label}  ({state})"
     outgoing = "B" if status.active_deck == "A" else "A"
-    return f"MIX   {outgoing} {mix_meter(status.mix_progress)} {status.active_deck}  {label}"
-
-
-def render_visualizer(status, frame: int, effect: str = "bars") -> str:
-    animate = VISUALIZER_EFFECTS.get(effect, effect_bars)
-    if status.running and not status.paused:
-        spinner = "-\\|/"[frame % 4]
-        lines = [
-            f"PLAY  {spinner} signal live",
-            f"EQ    {animate(frame)}",
-            f"SEEK  {effect_meter(status.position_seconds, status.duration_seconds)}",
-        ]
-    elif status.running:
-        lines = [
-            "PAUSED signal held",
-            "EQ    [##--] [##--] [##--]",
-            f"SEEK  {effect_meter(status.position_seconds, status.duration_seconds)}",
-        ]
-    else:
-        lines = [
-            "IDLE  no signal",
-            "EQ    [----] [----] [----]",
-            "SEEK  [------------]",
-        ]
-    lines.append(deck_line(status))
-    return "\n".join(lines)
+    return f"MIX  {outgoing} {mix_meter(status.mix_progress)} {status.active_deck}  {label}"
 
 
 class PlaybackRenderer:
@@ -129,12 +53,12 @@ class PlaybackRenderer:
     was_mixing: bool
     auto_advance_pending: bool
     playback_was_active: bool
-    effect_frame: int
     visualizer_effect: str
     visual_phase: float
     audio_levels: list[float]
     last_playback_status: PlaybackStatus | None
     audio_meter: AudioLevelMeter
+    _last_visual_state: str | None
     _rendered_now_playing_id: str | None
     selected_queue_video_id: str | None
     _queue_render_active: bool
@@ -239,36 +163,41 @@ class PlaybackRenderer:
 
         if visualizer is None:
             return
-        if playing:
-            self.effect_frame = (self.effect_frame + 1) % 64
-        effect = getattr(self, "visualizer_effect", "bars")
-        visualizer.update(render_visualizer(status, self.effect_frame, effect))
+        visualizer.update(render_deck_status(status))
 
     def _animate_visual_panel(self) -> None:
-        """Fast animation tick for the large center-pane visual, fed by live loudness."""
-        widget = self._query_optional("#big-visual", Static)
-        if widget is None:
-            return
+        """Fast animation tick for the audio-reactive panels in every pane, fed by live loudness."""
         status = getattr(self, "last_playback_status", None)
         running = bool(status and status.running)
         paused = bool(status and status.running and status.paused)
-        self._toggle_widget_class(widget, "idle-effect", not running)
-        self._toggle_widget_class(widget, "paused-effect", paused)
+        # When idle or paused the frame is frozen; redraw it once on entry, then skip the
+        # per-tick re-render of every pane until playback actually moves again.
+        static_state = None if (running and not paused) else ("idle" if not running else "paused")
+        if static_state is not None and static_state == self._last_visual_state:
+            return
+        self._last_visual_state = static_state
         if running and not paused:
             self._advance_audio_visual()
-        size = getattr(widget, "size", None)
-        if size is None or size.width <= 0 or size.height <= 0:
-            return
-        widget.update(
-            render_visual_panel(
-                getattr(self, "visualizer_effect", "mythos"),
-                self.visual_phase,
-                size.width,
-                size.height,
-                running=running,
-                levels=self.audio_levels,
+        effect = getattr(self, "visualizer_effect", "mythos")
+        for selector in ("#left-visual", "#big-visual", "#right-visual"):
+            widget = self._query_optional(selector, Static)
+            if widget is None:
+                continue
+            self._toggle_widget_class(widget, "idle-effect", not running)
+            self._toggle_widget_class(widget, "paused-effect", paused)
+            size = getattr(widget, "size", None)
+            if size is None or size.width <= 0 or size.height <= 0:
+                continue
+            widget.update(
+                render_visual_panel(
+                    effect,
+                    self.visual_phase,
+                    size.width,
+                    size.height,
+                    running=running,
+                    levels=self.audio_levels,
+                )
             )
-        )
 
     def _advance_audio_visual(self) -> None:
         """Sample live loudness, push it onto the history, and advance the audio-driven phase."""
