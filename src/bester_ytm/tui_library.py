@@ -52,6 +52,25 @@ class LibraryActions:
         self._focus_first_result(results, bool(items))
         self._set_status(f"{len(items)} {parsed.view} result(s).")
 
+    async def _refresh_local_playlist_library(self, highlight_id: str | None = None) -> None:
+        """Repopulate the left pane with local playlists (offline; no YouTube fetch) so a
+        freshly built or saved playlist appears at once; highlight the named one if given."""
+        results = self._query_optional("#results", ListView)
+        if results is None:
+            return
+        self._show_results_list()
+        await results.clear()
+        highlight_index: int | None = None
+        for index, search_item in enumerate(LocalPlaylistStore().search_items()):
+            await results.append(self._result_item(search_item))
+            if highlight_id and search_item.playlist_id == highlight_id:
+                highlight_index = index
+        if highlight_index is not None:
+            try:
+                results.index = highlight_index
+            except AttributeError:
+                pass
+
     def _result_item(self, search_item: SearchItem) -> ListItem:
         label_widget = Label(search_item.display_name)
         item = ListItem(label_widget)

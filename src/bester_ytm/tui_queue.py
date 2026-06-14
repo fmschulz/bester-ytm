@@ -51,8 +51,35 @@ class QueueEditActions:
         if name_input:
             name_input.value = plan.name
         await self._render_queue()
+        await self._refresh_local_playlist_library(playlist.id)
         self._set_status(
             f"{message} Created local playlist {plan.name!r}; {verb} {EDIT_HINT}"
+        )
+
+    async def action_new_playlist(self) -> None:
+        """Start a fresh playlist: clear the queue, detach the active one, name it next."""
+        current = self.playback.current_video_id
+        is_playing = bool(self.playback.status().running and current)
+        kept = current if is_playing else None
+        self.playback.queue = []
+        self.playlist_video_ids = [kept] if kept else []
+        self.playlist_title = "New Playlist"
+        self.active_local_playlist_id = None
+        self.active_youtube_playlist_id = None
+        # Retarget the track context to the kept playing track (or nothing), so a
+        # later Rate/Save Tags/Add does not act on a row that just left the queue.
+        self.selected_queue_video_id = kept
+        self._sync_current_track(kept)
+        name_input = self._query_optional("#playlist-name", Input)
+        if name_input:
+            name_input.value = ""
+            focus = getattr(name_input, "focus", None)
+            if callable(focus):
+                focus()
+        await self._render_queue()
+        kept = " The playing track keeps playing." if is_playing else ""
+        self._set_status(
+            f"New playlist started.{kept} Add tracks with a, name it, then Save (w)."
         )
 
     async def action_clear_queue(self) -> None:
@@ -130,10 +157,19 @@ class QueueEditActions:
         playlist = LocalPlaylist(id=slugify(name), name=name, tracks=candidates)
         LocalPlaylistStore().save(playlist)
         self.active_local_playlist_id = playlist.id
+        self._schedule_library_refresh(playlist.id)
         self._set_status(
             f"Saved {len(candidates)} track(s) to local playlist {playlist.name!r}. "
             "Load it anytime with Ctrl+P."
         )
+
+    def _schedule_library_refresh(self, highlight_id: str | None) -> None:
+        """Refresh the left playlist library off the UI thread; no-op without a results pane."""
+        from textual.widgets import ListView
+
+        if self._query_optional("#results", ListView) is None:
+            return
+        self.run_worker(self._refresh_local_playlist_library(highlight_id), exclusive=False)
 
     def _queue_candidates(self) -> list[SongCandidate]:
         video_ids = self.playlist_video_ids or list(self.playback.queue)

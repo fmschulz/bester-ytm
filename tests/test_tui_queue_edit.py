@@ -167,6 +167,57 @@ def test_loading_a_plan_prefills_the_save_name(monkeypatch, tmp_path) -> None:
     assert name_input.value == "AI Mix"
 
 
+def test_built_plan_appears_in_the_left_library(monkeypatch, tmp_path) -> None:
+    playback = FakePlayback()
+    app, widgets, _ = _make_app(monkeypatch, tmp_path, playback)
+    results = FakeListView()
+    widgets["#results"] = results
+
+    asyncio.run(app._load_plan_into_queue(_resolved_plan(["v1", "v2"]), "plan saved."))
+
+    titles = [item.search_item.title for item in results.items]
+    assert titles == ["AI Mix"]  # the just-built playlist shows in the left pane
+    assert results.index == 0  # and is highlighted for the user
+
+
+def test_new_playlist_resets_the_working_area(monkeypatch, tmp_path) -> None:
+    playback = FakePlayback(current=None, queue=["v1", "v2"])
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path, playback)
+    name_input = FakeStatic()
+    name_input.value = "Old Mix"
+    widgets["#playlist-name"] = name_input
+    app.playlist_video_ids = ["v1", "v2"]
+    app.playlist_title = "Old Mix"
+    app.active_local_playlist_id = "old-mix"
+    app.selected_queue_video_id = "v1"
+
+    asyncio.run(app.action_new_playlist())
+
+    assert playback.queue == []
+    assert app.playlist_video_ids == []
+    assert app.active_local_playlist_id is None
+    assert app.playlist_title == "New Playlist"
+    assert name_input.value == ""
+    # The stale selection must not survive, or Rate/Add would target a dropped row.
+    assert app.selected_queue_video_id is None
+    assert "New playlist started." in statuses[-1]
+
+
+def test_new_playlist_keeps_the_playing_track(monkeypatch, tmp_path) -> None:
+    playback = FakePlayback(current="now", queue=["v1"])
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path, playback)
+    widgets["#playlist-name"] = FakeStatic()
+    app.playlist_video_ids = ["now", "v1"]
+    app.selected_queue_video_id = "v1"
+
+    asyncio.run(app.action_new_playlist())
+
+    assert app.playlist_video_ids == ["now"]
+    # Selection retargets to the kept playing track, not the dropped upcoming one.
+    assert app.selected_queue_video_id == "now"
+    assert "keeps playing" in statuses[-1]
+
+
 def test_remove_from_queue_updates_playlist_and_playback(monkeypatch, tmp_path) -> None:
     playback = FakePlayback(current="now", queue=["v1", "v2"])
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)

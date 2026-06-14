@@ -85,16 +85,18 @@ def _build_player_panel(visualizer_text: str, effect: str = "mythos") -> Compose
         yield Button("Mute", id="mute-button", compact=True)
     yield Label("Track Details", id="track-details-title")
     yield Static("Rating --  Tags --", id="track-metadata")
-    yield Input(placeholder="tags: metal, favorite", id="tags-input")
-    yield Input(placeholder="local playlist name", id="playlist-name")
+    yield Input(placeholder="tags for this track", id="tags-input")
     with Horizontal(id="track-actions"):
         yield Button("Rate-", id="rate-down-button", compact=True)
         yield Button("Rate+", id="rate-up-button", compact=True)
         yield Button("Save Tags", id="save-tags-button", compact=True)
+    yield Label("Playlist", id="playlist-section-title")
+    yield Input(placeholder="playlist name", id="playlist-name")
     with Horizontal(id="playlist-actions"):
+        yield Button("New", id="new-playlist-button", compact=True)
+        yield Button("Save", id="save-queue-button", compact=True)
         yield Button("Add", id="add-local-playlist-button", compact=True)
         yield Button("Remove", id="remove-local-playlist-button", compact=True)
-        yield Button("Save", id="save-queue-button", compact=True)
     yield Label("Playlist Builder", id="builder-title")
     yield BuilderTextArea(id="builder", language="markdown")
     with Horizontal(id="builder-actions"):

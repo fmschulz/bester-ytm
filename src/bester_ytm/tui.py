@@ -120,6 +120,7 @@ class BesterYTMApp(
         "rate-down-button": "rate_down",
         "rate-up-button": "rate_up",
         "save-tags-button": "save_tags",
+        "new-playlist-button": "new_playlist",
         "add-local-playlist-button": "add_to_local_playlist",
         "remove-local-playlist-button": "remove_from_playlist",
         "save-queue-button": "save_queue_playlist",

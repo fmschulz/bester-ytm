@@ -70,6 +70,26 @@ def test_footer_stays_compact_and_palette_enabled(monkeypatch) -> None:
     assert BesterYTMApp.ENABLE_COMMAND_PALETTE is True
 
 
+def test_every_button_action_resolves_to_a_method() -> None:
+    for button_id, action in BesterYTMApp.BUTTON_ACTIONS.items():
+        assert callable(getattr(BesterYTMApp, f"action_{action}", None)), (
+            f"{button_id} -> action_{action} is not a method"
+        )
+
+
+def test_every_wired_button_exists_in_the_layout(monkeypatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/nonexistent-bytm-config")
+
+    async def run_flow() -> None:
+        app = BesterYTMApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            for button_id in app.BUTTON_ACTIONS:
+                assert app.query_one(f"#{button_id}") is not None
+
+    asyncio.run(run_flow())
+
+
 def test_volume_buttons_send_playback_commands() -> None:
     class FakePlayback:
         def __init__(self) -> None:

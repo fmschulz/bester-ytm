@@ -53,9 +53,13 @@ PaneSplitter:hover {
     dock: top;
     margin-bottom: 1;
 }
-#queue-title, #player-title, #track-details-title, #builder-title {
+#queue-title, #player-title, #track-details-title,
+#playlist-section-title, #builder-title {
     color: #e07a5f;
     text-style: bold;
+}
+#playlist-section-title, #builder-title {
+    margin-top: 1;
 }
 #queue {
     height: 1fr;
