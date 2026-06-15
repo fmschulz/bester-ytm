@@ -71,6 +71,10 @@ def _build_player_panel(visualizer_text: str, effect: str = "mythos") -> Compose
         yield Button("Play", id="play-button", compact=True)
         yield Button("+10s", id="forward-button", compact=True)
         yield Button("Next", id="next-button", compact=True)
+    with Horizontal(id="volume-row"):
+        yield Button("Vol-", id="volume-down-button", compact=True)
+        yield Button("Vol+", id="volume-up-button", compact=True)
+        yield Button("Mute", id="mute-button", compact=True)
     with Horizontal(id="queue-actions"):
         yield Button("Shuffle", id="shuffle-button", compact=True)
         yield Button("Mix", id="transition-button", compact=True)
@@ -78,11 +82,6 @@ def _build_player_panel(visualizer_text: str, effect: str = "mythos") -> Compose
     with Horizontal(id="fade-row"):
         yield Button("Fade-", id="fade-down-button", compact=True)
         yield Button("Fade+", id="fade-up-button", compact=True)
-    yield Static("Vol --", id="volume-status")
-    with Horizontal(id="volume-row"):
-        yield Button("Vol-", id="volume-down-button", compact=True)
-        yield Button("Vol+", id="volume-up-button", compact=True)
-        yield Button("Mute", id="mute-button", compact=True)
     yield Label("Track Details", id="track-details-title")
     yield Static("Rating --  Tags --", id="track-metadata")
     yield Input(placeholder="tags for this track", id="tags-input")

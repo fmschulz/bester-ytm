@@ -275,10 +275,11 @@ class BesterYTMApp(
     def _startup_status(self) -> str:
         if self._config_error:
             return self._config_error
-        if get_paths().oauth_token.exists():
-            return "Ready."
+        paths = get_paths()
+        if paths.oauth_token.exists() or paths.browser_auth.exists():
+            return "Logged in to YouTube Music."
         return (
-            "Ready (not logged in): search and playback work now; "
+            "Not logged in: search and playback work now; "
             "run 'bester-ytm auth login' for library and playlist features."
         )
 

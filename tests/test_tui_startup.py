@@ -26,10 +26,10 @@ def test_startup_status_hints_login_without_token(
     statuses = _mounted_statuses(BesterYTMApp(), monkeypatch)
 
     assert any("bester-ytm auth login" in status for status in statuses)
-    assert "Ready." not in statuses
+    assert any("Not logged in" in status for status in statuses)
 
 
-def test_startup_status_ready_with_token(
+def test_startup_status_reports_logged_in_with_oauth_token(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config_dir = tmp_path / "config" / "bester-ytm"
@@ -39,7 +39,20 @@ def test_startup_status_ready_with_token(
 
     statuses = _mounted_statuses(BesterYTMApp(), monkeypatch)
 
-    assert "Ready." in statuses
+    assert "Logged in to YouTube Music." in statuses
+
+
+def test_startup_status_reports_logged_in_with_browser_auth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = tmp_path / "config" / "bester-ytm"
+    config_dir.mkdir(parents=True)
+    (config_dir / "browser.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+    statuses = _mounted_statuses(BesterYTMApp(), monkeypatch)
+
+    assert "Logged in to YouTube Music." in statuses
 
 
 def test_startup_status_prefers_config_error(

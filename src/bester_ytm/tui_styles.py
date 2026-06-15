@@ -109,7 +109,7 @@ PaneSplitter:hover {
     min-height: 3;
     margin-bottom: 1;
 }
-#progress-time, #volume-status {
+#progress-time {
     height: 1;
 }
 #progress {
@@ -130,7 +130,7 @@ PaneSplitter:hover {
     height: auto;
     layout: horizontal;
 }
-#transport, #fade-row {
+#volume-row, #fade-row {
     margin-bottom: 1;
 }
 Button {

@@ -135,14 +135,6 @@ class PlaybackRenderer:
                 f"{format_time(position)} / {format_time(status.duration_seconds)}  {state}"
             )
 
-        volume = self._query_optional("#volume-status", Static)
-        if volume:
-            if status.volume is None:
-                volume.update("Vol --")
-            else:
-                muted = " muted" if status.muted else ""
-                volume.update(f"Vol {int(status.volume)}%{muted}")
-
         play_button = self._query_optional("#play-button", Button)
         if play_button:
             play_button.label = "Resume" if status.paused else "Pause" if status.running else "Play"
