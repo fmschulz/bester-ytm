@@ -56,7 +56,7 @@ class PlaybackActions:
                 self.playback.enqueue([candidate.video_id])
                 self.playlist_video_ids.append(candidate.video_id)
                 await self._render_queue()
-                self._set_status(f"Queued {candidate.video_id}.")
+                self._set_status(f"Queued {candidate.display_name}.")
                 return
             self.playback.replace_queue([candidate.video_id])
             self.playlist_video_ids = [candidate.video_id]
@@ -70,7 +70,8 @@ class PlaybackActions:
         self._update_track_label(candidate.display_name)
         await self._render_queue()
         self._refresh_playback(status)
-        self._set_status(f"Playing {candidate.video_id}.")
+        # The track name is shown in the Now Playing panel; keep the status brief.
+        self._set_status("Playing.")
 
     async def action_pause_resume(self) -> None:
         status = self.playback.status()
@@ -90,7 +91,7 @@ class PlaybackActions:
                     await self._report_playback_error(exc)
                     return
                 await self._show_playback_status(
-                    status, f"Playing {status.current_video_id or 'none'}."
+                    status, "Playing." if status.running else "Nothing to play."
                 )
                 return
             self._set_status("Nothing to play.")
@@ -107,7 +108,9 @@ class PlaybackActions:
         except PlaybackError as exc:
             await self._report_playback_error(exc)
             return
-        await self._show_playback_status(status, f"Next: {status.current_video_id or 'none'}.")
+        await self._show_playback_status(
+            status, "Next track." if status.running else "End of the queue."
+        )
 
     async def action_previous_track(self) -> None:
         try:
@@ -117,7 +120,7 @@ class PlaybackActions:
             await self._report_playback_error(exc)
             return
         await self._show_playback_status(
-            status, f"Previous: {status.current_video_id or 'none'}."
+            status, "Previous track." if status.running else "Nothing to play."
         )
 
     async def _play_queue_item(self, item) -> None:
@@ -127,7 +130,7 @@ class PlaybackActions:
 
         current = self.playback.status().current_video_id
         if video_id == current:
-            self._set_status(f"Already playing {video_id}.")
+            self._set_status("Already playing this track.")
             return
 
         video_ids = list(self.playlist_video_ids or self.playback.queue)
@@ -145,7 +148,9 @@ class PlaybackActions:
             await self._report_playback_error(exc)
             return
 
-        await self._show_playback_status(status, f"Playing {status.current_video_id or 'none'}.")
+        await self._show_playback_status(
+            status, "Playing." if status.running else "Nothing to play."
+        )
 
     async def _auto_advance(self) -> None:
         try:
@@ -169,7 +174,7 @@ class PlaybackActions:
                 continue
             self.playback_was_active = status.running
             await self._show_playback_status(
-                status, f"Auto next: {status.current_video_id or 'none'}."
+                status, "Playing next." if status.running else "Queue finished."
             )
             return
         self.playback_was_active = False

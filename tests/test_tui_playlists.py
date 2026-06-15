@@ -346,7 +346,7 @@ def test_tui_space_on_selected_playlist_loads_and_starts_queue(monkeypatch) -> N
         "NOW  Beach House - Myth",
         "02  Beach House - Silver Soul",
     ]
-    assert status.value == "Playing v1."
+    assert status.value == "Playing."
 
 
 def test_tui_queue_item_selection_jumps_to_that_song(monkeypatch) -> None:
@@ -417,7 +417,7 @@ def test_tui_queue_item_selection_jumps_to_that_song(monkeypatch) -> None:
         "NOW  Artist B - Two",
         "03  Artist C - Three",
     ]
-    assert status.value == "Playing v2."
+    assert status.value == "Playing."
 
 
 def test_tui_auto_advances_when_playing_track_finishes(monkeypatch) -> None:
@@ -490,7 +490,7 @@ def test_tui_auto_advances_when_playing_track_finishes(monkeypatch) -> None:
         "01  Artist A - One",
         "NOW  Artist B - Two",
     ]
-    assert status.value == "Auto next: v2."
+    assert status.value == "Playing next."
 
 
 def test_tui_auto_advance_skips_unplayable_track(monkeypatch) -> None:
@@ -554,7 +554,7 @@ def test_tui_auto_advance_skips_unplayable_track(monkeypatch) -> None:
     assert app.playback.queue == []
     assert app.playback_was_active is True
     assert app.auto_advance_pending is False
-    assert status.value == "Auto next: v3."
+    assert status.value == "Playing next."
 
 
 def test_tui_auto_advance_reports_error_when_no_track_is_playable(monkeypatch) -> None:
@@ -745,7 +745,7 @@ def test_tui_search_result_replaces_loaded_queue_before_playing(monkeypatch) -> 
     assert app.playback.current_video_id == "search-v1"
     assert app.playback.queue == []
     assert track.value == "Artist - Search Song"
-    assert status.value == "Playing search-v1."
+    assert status.value == "Playing."
 
 
 def test_tui_playback_error_clears_stale_track(monkeypatch) -> None:

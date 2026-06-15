@@ -114,7 +114,7 @@ def test_play_selected_enqueues_when_already_playing(monkeypatch, tmp_path) -> N
 
     assert playback.enqueued == ["v2"]
     assert app.playlist_video_ids == ["v2"]
-    assert statuses[-1] == "Queued v2."
+    assert statuses[-1] == "Queued B - Two."
 
 
 def test_play_selected_ignores_items_without_candidate(monkeypatch, tmp_path) -> None:
@@ -149,7 +149,7 @@ def test_play_selected_routes_to_focused_queue_item(monkeypatch, tmp_path) -> No
 
     asyncio.run(app.action_play_selected())
 
-    assert statuses == ["Already playing v1."]
+    assert statuses == ["Already playing this track."]
 
 
 def test_pause_resume_with_nothing_to_play(monkeypatch, tmp_path) -> None:
@@ -204,7 +204,7 @@ def test_next_track_reports_new_track(monkeypatch, tmp_path) -> None:
     asyncio.run(app.action_next_track())
 
     assert app.playback_was_active is True
-    assert statuses[-1] == "Next: v2."
+    assert statuses[-1] == "Next track."
 
 
 def test_previous_track_success_and_error(monkeypatch, tmp_path) -> None:
@@ -212,7 +212,7 @@ def test_previous_track_success_and_error(monkeypatch, tmp_path) -> None:
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
 
     asyncio.run(app.action_previous_track())
-    assert statuses[-1] == "Previous: prev."
+    assert statuses[-1] == "Previous track."
 
     playback.error = PlaybackError("no deck")
     asyncio.run(app.action_previous_track())
@@ -226,7 +226,7 @@ def test_play_queue_item_falls_back_to_single_video(monkeypatch, tmp_path) -> No
     asyncio.run(app._play_queue_item(SimpleNamespace(video_id="solo")))
 
     assert playback.current_video_id == "solo"
-    assert statuses[-1] == "Playing solo."
+    assert statuses[-1] == "Playing."
 
 
 def test_play_queue_item_ignores_items_without_video_id(monkeypatch, tmp_path) -> None:
