@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import inspect
+
+from textual import events
 from textual.widgets import ListView, Tree
 from textual.widgets.tree import TreeNode
 
@@ -15,9 +18,36 @@ SELECTED_PREFIX = "* "
 
 
 class AlbumTree(Tree):
-    """Tree of album titles that branch into their songs; space stays the global pause key."""
+    """Album/song tree that leaves space and shift+space to the app selection logic."""
 
-    BINDINGS = [binding for binding in Tree.BINDINGS if getattr(binding, "key", None) != "space"]
+    BINDINGS = [
+        binding
+        for binding in Tree.BINDINGS
+        if getattr(binding, "key", None) not in {"space", "shift+space"}
+    ]
+
+    async def _on_key(self, event: events.Key) -> None:
+        if event.key in {"space", "shift+space"}:
+            event.stop()
+            event.prevent_default()
+            if event.key == "shift+space":
+                self.app.action_range_select()
+                return
+            result = self.app.action_pause_resume()
+            if inspect.iscoroutine(result):
+                await result
+            return
+        await super()._on_key(event)
+
+    async def _on_click(self, event: events.Click) -> None:
+        if event.shift and "line" in event.style.meta:
+            node = self.get_node_at_line(event.style.meta["line"])
+            handled = bool(self.app._range_select_tree_node(node))
+            if handled:
+                event.stop()
+                event.prevent_default()
+                return
+        await super()._on_click(event)
 
 
 def _node_data(node: TreeNode) -> dict:
@@ -35,6 +65,7 @@ class AlbumActions:
     active_local_playlist_id: str | None
     active_youtube_playlist_id: str | None
     selected_queue_video_id: str | None
+    result_selection_anchor_video_id: str | None
 
     # --- visibility -------------------------------------------------------
 
@@ -130,6 +161,13 @@ class AlbumActions:
     async def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         data = _node_data(event.node)
         kind = data.get("kind")
+        if (
+            self.selected_result_video_ids
+            and not (kind == "album" and not event.node.is_expanded)
+        ):
+            event.stop()
+            await self.action_add_to_queue()
+            return
         if kind == "album":
             event.node.toggle()
         elif kind == "song":
@@ -153,7 +191,7 @@ class AlbumActions:
                 self._set_status(str(exc))
                 return
         count = len(self.selected_result_video_ids)
-        self._set_status(f"{count} track(s) selected; press a to add them to the queue.")
+        self._set_status(f"{count} track(s) selected; Enter queues them in order.")
 
     def _toggle_song_node(self, node: TreeNode) -> None:
         candidate = self._song_candidate(node)
@@ -191,8 +229,12 @@ class AlbumActions:
     def _mark_selected(self, video_id: str, selected: bool) -> None:
         if selected:
             self.selected_result_video_ids.add(video_id)
+            if self.result_selection_anchor_video_id is None:
+                self.result_selection_anchor_video_id = video_id
         else:
             self.selected_result_video_ids.discard(video_id)
+            if self.result_selection_anchor_video_id == video_id:
+                self.result_selection_anchor_video_id = self._first_selected_result_video_id()
 
     def _reset_album_tree_markers(self) -> None:
         tree = self._album_tree()

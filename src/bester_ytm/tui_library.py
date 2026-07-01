@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from textual import events
 from textual.widgets import Input, Label, ListItem, ListView
 
 from .config import ConfigError
@@ -10,6 +11,17 @@ from .playlist_plan import SongCandidate
 from .search_query import SearchItem, parse_search_query
 from .stores import MAX_RATING, FavoritesStore, LocalPlaylistStore, TrackMetadataStore
 from .ytm_client import PlaylistSnapshot, YTMClient, YTMClientError
+
+
+class ResultListItem(ListItem):
+    """Search result row with shift-click range selection before ListView activation."""
+
+    def _on_click(self, event: events.Click) -> None:  # type: ignore[override]
+        if event.shift and self.app._range_select_clicked_result(self):
+            event.stop()
+            event.prevent_default()
+            return
+        super()._on_click(event)
 
 
 class LibraryActions:
@@ -43,7 +55,8 @@ class LibraryActions:
         if parsed.kind == "album":
             await self._populate_album_tree(items)
             self._set_status(
-                f"{len(items)} album(s). Enter expands; x selects; a adds to the queue."
+                f"{len(items)} album(s). Enter expands; space/x mark; "
+                "shift+space ranges."
             )
             return
         self._show_results_list()
@@ -73,7 +86,7 @@ class LibraryActions:
 
     def _result_item(self, search_item: SearchItem) -> ListItem:
         label_widget = Label(search_item.display_name)
-        item = ListItem(label_widget)
+        item = ResultListItem(label_widget)
         item.search_item = search_item  # type: ignore[attr-defined]
         item.base_label = search_item.display_name  # type: ignore[attr-defined]
         item.label_widget = label_widget  # type: ignore[attr-defined]

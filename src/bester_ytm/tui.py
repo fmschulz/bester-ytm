@@ -66,7 +66,7 @@ class BesterYTMApp(
 
     BINDINGS = [
         ("/", "focus_search", "Search"),
-        ("space", "pause_resume", "Pause"),
+        ("space", "pause_resume", "Select/Pause"),
         ("n", "next_track", "Next"),
         ("s", "shuffle_queue", "Shuffle"),
         ("x", "toggle_select", "Select"),
@@ -76,6 +76,7 @@ class BesterYTMApp(
         Binding("ctrl+p", "show_playlists", "Playlists", priority=True),
         ("q", "quit", "Quit"),
         Binding("enter", "play_selected", "Play/Add"),
+        Binding("shift+space", "range_select", "Range select", show=False),
         Binding("p", "previous_track", "Previous", show=False),
         Binding("b", "previous_track", "Previous", show=False),
         Binding("v", "cycle_visualizer", "Visuals", show=False),
@@ -129,6 +130,7 @@ class BesterYTMApp(
 
     CONTEXT_ACTIONS = {
         "toggle_select": {"results"},
+        "range_select": {"results"},
         "add_to_queue": {"results"},
         "play_album": {"results"},
         "shuffle_queue": {"queue", "results"},
@@ -186,6 +188,7 @@ class BesterYTMApp(
             else "mythos"
         )
         self.selected_result_video_ids: set[str] = set()
+        self.result_selection_anchor_video_id: str | None = None
         self.build_in_progress = False
         self.visual_phase = 0.0
         self.audio_levels: list[float] = []
@@ -348,9 +351,6 @@ class BesterYTMApp(
             await result
 
     async def on_click(self, event: events.Click) -> None:
-        if event.shift and self._toggle_clicked_result(event.widget):
-            event.stop()
-            return
         widget = event.widget
         while widget is not None and getattr(widget, "id", None) != "progress":
             widget = getattr(widget, "parent", None)

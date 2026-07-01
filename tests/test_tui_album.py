@@ -151,6 +151,90 @@ def test_select_song_then_add_queues_only_that_song(monkeypatch, tmp_path) -> No
     asyncio.run(run())
 
 
+def test_album_space_shift_space_and_enter_queue_selected_range(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FakeClient()
+            app.playback = FakePlayback()
+            await app._search("album:metallica")
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            await pilot.press("enter")  # expand album 1
+            await pilot.press("down")
+            await pilot.press("down")
+            await pilot.press("down")
+            await pilot.press("enter")  # expand album 2 before selecting
+            await pilot.press("up")
+            await pilot.press("up")  # cursor -> Battery (t1)
+            await pilot.pause()
+
+            await pilot.press("space")
+            await pilot.pause()
+            assert app.selected_result_video_ids == {"t1"}
+            assert app.result_selection_anchor_video_id == "t1"
+
+            await pilot.press("down")
+            await pilot.press("down")
+            await pilot.press("down")  # cursor -> Fight Fire with Fire (t3)
+            await pilot.press("shift+space")
+            await pilot.pause()
+
+            assert app.selected_result_video_ids == {"t1", "t2", "t3"}
+
+            await pilot.press("enter")
+            await pilot.pause()
+
+            assert app.playback.current_video_id == "t1"
+            assert app.playback.queue == ["t2", "t3"]
+            assert app.selected_result_video_ids == set()
+            assert app.result_selection_anchor_video_id is None
+
+    asyncio.run(run())
+
+
+def test_enter_expands_collapsed_album_while_selection_is_active(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FakeClient()
+            app.playback = FakePlayback()
+            await app._search("album:metallica")
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            await pilot.press("enter")  # expand album 1
+            await pilot.press("down")  # cursor -> Battery (t1)
+            await pilot.press("space")
+            await pilot.press("down")
+            await pilot.press("down")  # cursor -> collapsed album 2
+            await pilot.press("enter")
+            await pilot.pause()
+
+            second = tree.root.children[1]
+            assert second.is_expanded
+            assert _labels(second) == ["Metallica - Fight Fire with Fire"]
+            assert app.selected_result_video_ids == {"t1"}
+            assert app.playback.current_video_id is None
+
+    asyncio.run(run())
+
+
 def test_add_on_album_node_queues_all_its_songs(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))

@@ -74,6 +74,10 @@ class PlaybackActions:
         self._set_status("Playing.")
 
     async def action_pause_resume(self) -> None:
+        if self._focus_context() == "results" and self._highlighted_result_can_toggle_selection():
+            self.action_toggle_select()
+            return
+
         status = self.playback.status()
         if not status.running:
             results = self.query_one("#results", ListView)

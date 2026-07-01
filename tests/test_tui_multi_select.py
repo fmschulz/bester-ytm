@@ -3,6 +3,7 @@ import asyncio
 from bester_ytm import tui
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
+from bester_ytm.search_query import search_item_from_song
 
 
 class FakeLabel:
@@ -105,6 +106,92 @@ def test_toggle_select_marks_and_unmarks_highlighted_result(monkeypatch) -> None
     app.action_toggle_select()
     assert app.selected_result_video_ids == set()
     assert items[0].label_widget.text == items[0].base_label
+
+
+def test_space_toggles_highlighted_result_when_results_are_focused(monkeypatch) -> None:
+    items = [FakeResultItem("v1", "One")]
+    app, _ = _make_app(monkeypatch, FakeResults(items), FakePlayback())
+    monkeypatch.setattr(app, "_focus_context", lambda: "results")
+
+    asyncio.run(app.action_pause_resume())
+
+    assert app.selected_result_video_ids == {"v1"}
+    assert app.result_selection_anchor_video_id == "v1"
+    assert items[0].label_widget.text.startswith("* ")
+
+
+def test_shift_space_range_selects_from_anchor_to_highlight(monkeypatch) -> None:
+    items = [
+        FakeResultItem("v1", "One"),
+        FakeResultItem("v2", "Two"),
+        FakeResultItem("v3", "Three"),
+        FakeResultItem("v4", "Four"),
+    ]
+    results = FakeResults(items)
+    app, _ = _make_app(monkeypatch, results, FakePlayback())
+
+    app.action_toggle_select()
+    results.highlighted_child = items[2]
+    app.action_range_select()
+
+    assert app.selected_result_video_ids == {"v1", "v2", "v3"}
+    assert app.result_selection_anchor_video_id == "v1"
+    assert items[0].label_widget.text.startswith("* ")
+    assert items[1].label_widget.text.startswith("* ")
+    assert items[2].label_widget.text.startswith("* ")
+    assert items[3].label_widget.text == items[3].base_label
+
+
+def test_shift_click_range_selects_up_from_anchor(monkeypatch) -> None:
+    items = [
+        FakeResultItem("v1", "One"),
+        FakeResultItem("v2", "Two"),
+        FakeResultItem("v3", "Three"),
+        FakeResultItem("v4", "Four"),
+    ]
+    results = FakeResults(items)
+    results.highlighted_child = items[3]
+    app, _ = _make_app(monkeypatch, results, FakePlayback())
+    app.action_toggle_select()
+
+    class FakeChild:
+        parent = items[1]
+
+    assert app._range_select_clicked_result(FakeChild()) is True
+    assert app.selected_result_video_ids == {"v2", "v3", "v4"}
+    assert app.result_selection_anchor_video_id == "v4"
+
+
+def test_shift_click_selects_range_without_activating_result(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        app.playback = FakePlayback()
+        async with app.run_test() as pilot:
+            results = app.query_one("#results")
+            candidates = [
+                SongCandidate(video_id="v1", title="One", artists=["A"]),
+                SongCandidate(video_id="v2", title="Two", artists=["A"]),
+                SongCandidate(video_id="v3", title="Three", artists=["A"]),
+            ]
+            for candidate in candidates:
+                await results.append(app._result_item(search_item_from_song(candidate)))
+            results.focus()
+            results.index = 0
+            await pilot.pause()
+
+            app.action_toggle_select()
+            clicked = await pilot.click(results.children[2].label_widget, shift=True)
+            await pilot.pause()
+
+            assert clicked is True
+            assert app.selected_result_video_ids == {"v1", "v2", "v3"}
+            assert app.playback.replaced is None
+            assert app.playback.current_video_id is None
+
+    asyncio.run(run())
 
 
 def test_enter_queues_selection_in_display_order_and_plays(monkeypatch) -> None:
