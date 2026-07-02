@@ -24,6 +24,10 @@ theme:
     - navigation.footer
     - content.code.copy
 
+exclude_docs: |
+  handoffs/
+  plans/
+
 markdown_extensions:
   - admonition
   - pymdownx.highlight
