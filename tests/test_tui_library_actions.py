@@ -482,15 +482,37 @@ def test_toggle_favorite_targets_the_highlighted_result(monkeypatch, tmp_path) -
     widgets = {"#results": FakeListView(), "#queue": FakeListView()}
     app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
     workers = _capture_workers(app, monkeypatch)
+    monkeypatch.setattr(app, "_focus_context", lambda: "results")
     highlighted = SongCandidate(video_id="v2", title="Two", artists=["B"])
     widgets["#results"].highlighted_child = SimpleNamespace(candidate=highlighted)
     app.current_candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
+    # A loaded queue remembers a selection; it must NOT hijack f in the results pane.
+    app.selected_queue_video_id = "v1"
 
     app.action_toggle_favorite()
     _drain_workers(workers)
 
     assert statuses[-1] == "Favorited B - Two."
     assert FavoritesStore().ids() == {"v2"}
+
+
+def test_toggle_favorite_ignores_remembered_queue_row_when_unfocused(
+    monkeypatch, tmp_path
+) -> None:
+    from bester_ytm.stores import FavoritesStore
+
+    app, _, statuses = _make_app(monkeypatch, tmp_path)
+    workers = _capture_workers(app, monkeypatch)
+    monkeypatch.setattr(app, "_focus_context", lambda: "other")
+    app.candidates_by_video_id["v9"] = SongCandidate(video_id="v9", title="Nine")
+    app.selected_queue_video_id = "v9"  # remembered from an earlier queue highlight
+    app.current_candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
+
+    app.action_toggle_favorite()
+    _drain_workers(workers)
+
+    assert statuses[-1] == "Favorited A - One."
+    assert FavoritesStore().ids() == {"v1"}
 
 
 def test_favs_query_lists_favorites_with_marker(monkeypatch, tmp_path) -> None:
@@ -546,6 +568,7 @@ def test_toggle_favorite_relabels_the_result_row(monkeypatch, tmp_path) -> None:
     widgets = {"#results": ChildListView(), "#queue": FakeListView()}
     app, _, _ = _make_app(monkeypatch, tmp_path, widgets)
     workers = _capture_workers(app, monkeypatch)
+    monkeypatch.setattr(app, "_focus_context", lambda: "results")
     candidate = SongCandidate(video_id="v1", title="Myth", artists=["Beach House"])
     FavoritesStore().toggle(candidate)
 

@@ -20,7 +20,7 @@ class TrackMetadataActions:
 
     def action_toggle_favorite(self) -> None:
         """Fav/unfav the highlighted song, falling back to the playing track."""
-        candidate = self._current_candidate()
+        candidate = self._favorite_target()
         if candidate is None:
             self._set_status("No track to favorite.")
             return
@@ -34,6 +34,22 @@ class TrackMetadataActions:
             self._set_status(f"Favorited {candidate.display_name}.")
         else:
             self._set_status(f"Removed {candidate.display_name} from favorites.")
+
+    def _favorite_target(self):
+        """The song f acts on: the highlighted row of the FOCUSED pane, else the
+        playing track — never the queue's remembered row while browsing results."""
+        context = self._focus_context()
+        if context == "results":
+            candidate = self._highlighted_result_candidate()
+            if candidate is not None:
+                return candidate
+        if context == "queue":
+            queue = self._query_optional("#queue", ListView)
+            item = getattr(queue, "highlighted_child", None) if queue else None
+            video_id = getattr(item, "video_id", None) if item else None
+            if video_id and video_id in self.candidates_by_video_id:
+                return self.candidates_by_video_id[video_id]
+        return self.current_candidate
 
     def action_add_to_local_playlist(self) -> None:
         candidate = self._current_candidate()

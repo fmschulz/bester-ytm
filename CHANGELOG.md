@@ -61,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `f` favs the highlighted search result while the results pane has focus
+  even when a playlist is loaded; the queue's remembered selection no longer
+  hijacks the toggle.
 - The `=` (volume up) and `.` (seek +30s) keys were dead because the
   bindings used the wrong Textual key names; both work again, and `+` also
   raises the volume.

@@ -1159,6 +1159,7 @@ def test_tui_favorite_and_local_playlist_controls_target_highlighted_queue_song(
     asyncio.run(app._render_queue())
     queue.index = 1
     app.selected_queue_video_id = "v2"
+    monkeypatch.setattr(app, "_focus_context", lambda: "queue")
 
     app.action_toggle_favorite()
     app.action_add_to_local_playlist()

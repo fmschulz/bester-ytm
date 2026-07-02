@@ -69,7 +69,7 @@ class QueueEditActions:
         self.active_local_playlist_id = None
         self.active_youtube_playlist_id = None
         # Retarget the track context to the kept playing track (or nothing), so a
-        # later Rate/Save Tags/Add does not act on a row that just left the queue.
+        # later Add/Remove does not act on a row that just left the queue.
         self.selected_queue_video_id = kept
         self._sync_current_track(kept)
         name_input = self._query_optional("#playlist-name", Input)
