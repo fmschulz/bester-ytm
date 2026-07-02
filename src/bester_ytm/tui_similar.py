@@ -53,6 +53,7 @@ class SimilarActions:
         self.call_from_thread(self._finish_add_similar, candidates, provider)
 
     def _finish_add_similar(self, candidates: list[SongCandidate], provider: str) -> None:
+        self._supersede_queue_load()
         for candidate in candidates:
             self.candidates_by_video_id[candidate.video_id] = candidate
         video_ids = [candidate.video_id for candidate in candidates]

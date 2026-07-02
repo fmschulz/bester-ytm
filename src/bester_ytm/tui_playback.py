@@ -50,6 +50,7 @@ class PlaybackActions:
 
     async def _queue_or_play_candidate(self, candidate: SongCandidate) -> None:
         """Queue one song when something is playing, otherwise start it immediately."""
+        self._supersede_queue_load()
         self.candidates_by_video_id[candidate.video_id] = candidate
         try:
             if self.playback.status().running:
@@ -137,6 +138,7 @@ class PlaybackActions:
             self._set_status("Already playing this track.")
             return
 
+        self._supersede_queue_load()
         video_ids = list(self.playlist_video_ids or self.playback.queue)
         try:
             start = video_ids.index(video_id)
@@ -174,7 +176,9 @@ class PlaybackActions:
                 if not self.playback.queue:
                     break
                 skipped = self.playback.queue.pop(0)
-                self._set_status(f"Skipping unplayable track {skipped}: {exc}")
+                name = self._track_display_name(skipped)
+                label = f"track {name}" if name else "track"
+                self._set_status(f"Skipping unplayable {label}: {exc}")
                 continue
             self.playback_was_active = status.running
             await self._show_playback_status(

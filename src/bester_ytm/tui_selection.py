@@ -210,6 +210,7 @@ class SelectionActions:
         return True
 
     def _start_or_extend_queue(self, video_ids: list[str]) -> str:
+        self._supersede_queue_load()
         if self.playback.status().running:
             self.playback.enqueue(video_ids)
             self.playlist_video_ids.extend(video_ids)

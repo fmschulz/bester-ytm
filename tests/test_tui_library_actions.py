@@ -68,6 +68,27 @@ def _make_app(monkeypatch, tmp_path, widgets=None) -> tuple[tui.BesterYTMApp, di
     return app, widgets, statuses
 
 
+def _capture_workers(app, monkeypatch) -> list:
+    """Synchronous seam: collect scheduled workers instead of running threads."""
+    workers: list = []
+    monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: workers.append(work))
+    monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
+    return workers
+
+
+def _drain_workers(workers: list) -> None:
+    """Run captured thread-worker bodies and any coroutines they schedule.
+
+    Consumes the list so repeated drains only run newly scheduled work.
+    """
+    while workers:
+        work = workers.pop(0)
+        if asyncio.iscoroutine(work):
+            asyncio.run(work)
+        else:
+            work()
+
+
 def test_search_with_blank_query_only_clears_results(monkeypatch, tmp_path) -> None:
     app, widgets, statuses = _make_app(monkeypatch, tmp_path)
     widgets["#results"].items.append(object())
@@ -87,8 +108,10 @@ def test_search_reports_client_error(monkeypatch, tmp_path) -> None:
 
     app, _, statuses = _make_app(monkeypatch, tmp_path)
     app.client = FailingClient()  # type: ignore[assignment]
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app._search("free text"))
+    _drain_workers(workers)
 
     assert statuses[-1] == "quota exceeded"
 
@@ -102,12 +125,38 @@ def test_search_registers_song_candidates(monkeypatch, tmp_path) -> None:
 
     app, widgets, statuses = _make_app(monkeypatch, tmp_path)
     app.client = SongClient()  # type: ignore[assignment]
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app._search("beach house"))
+    assert statuses[-1] == "Searching 'beach house'..."
+    _drain_workers(workers)
 
     item = widgets["#results"].items[0]
     assert item.candidate is candidate
     assert app.candidates_by_video_id["v1"] is candidate
+    assert statuses[-1] == "1 songs result(s)."
+
+
+def test_new_search_supersedes_stale_results(monkeypatch, tmp_path) -> None:
+    class SongClient:
+        def __init__(self, candidate: SongCandidate) -> None:
+            self.candidate = candidate
+
+        def structured_search(self, parsed, limit: int = 25):
+            return [search_item_from_song(self.candidate)]
+
+    stale = SongCandidate(video_id="old", title="Old", artists=["A"])
+    fresh = SongCandidate(video_id="new", title="New", artists=["B"])
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path)
+    workers = _capture_workers(app, monkeypatch)
+
+    app.client = SongClient(stale)  # type: ignore[assignment]
+    asyncio.run(app._search("old query"))
+    app.client = SongClient(fresh)  # type: ignore[assignment]
+    asyncio.run(app._search("new query"))
+    _drain_workers(workers)  # both workers finish; only the newest may land
+
+    assert [item.candidate.video_id for item in widgets["#results"].items] == ["new"]
     assert statuses[-1] == "1 songs result(s)."
 
 
@@ -135,7 +184,9 @@ def test_load_search_item_requires_ids(monkeypatch, tmp_path) -> None:
     ]
 
 
-def test_load_search_item_loads_remote_playlist(monkeypatch, tmp_path) -> None:
+def test_load_search_item_loads_remote_playlist_off_the_ui_thread(
+    monkeypatch, tmp_path
+) -> None:
     class PlaylistClient:
         def get_playlist(self, playlist_id: str) -> PlaylistSnapshot:
             assert playlist_id == "PL1"
@@ -146,17 +197,71 @@ def test_load_search_item_loads_remote_playlist(monkeypatch, tmp_path) -> None:
                 tracks=[SongCandidate(video_id="v1", title="One", artists=["A"])],
             )
 
-    app, _, statuses = _make_app(monkeypatch, tmp_path)
+    widgets = {
+        "#results": FakeListView(),
+        "#queue": FakeListView(),
+        "#track": FakeStatic(),
+        "#track-metadata": FakeStatic(),
+        "#tags-input": FakeInput(),
+        "#playlist-name": FakeInput(),
+        "#queue-title": FakeStatic(),
+    }
+    app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
     app.client = PlaylistClient()  # type: ignore[assignment]
+    workers = _capture_workers(app, monkeypatch)
     item = SearchItem(item_type="playlist", title="Mix", playlist_id="PL1")
 
     loaded = asyncio.run(app._load_search_item(item))
 
+    # The fetch is deferred to a worker; the UI thread only shows progress.
     assert loaded is True
+    assert app.playback.queue == []
+    assert statuses[-1] == "Loading playlist tracks..."
+
+    _drain_workers(workers)
+
     assert app.playback.queue == ["v1"]
     assert app.active_youtube_playlist_id == "PL1"
     assert app.active_local_playlist_id is None
-    assert statuses[-1] == "Loaded playlist Mix: 1 track(s)."
+    assert statuses[-1] == "Loaded Mix: 1 track(s)."
+
+
+def test_load_search_item_loads_album_off_the_ui_thread(monkeypatch, tmp_path) -> None:
+    class AlbumClient:
+        def get_album(self, browse_id: str) -> PlaylistSnapshot:
+            assert browse_id == "b1"
+            return PlaylistSnapshot(
+                playlist_id="b1",
+                title="Against",
+                video_ids=["v1"],
+                tracks=[SongCandidate(video_id="v1", title="Against", artists=["S"])],
+            )
+
+    widgets = {
+        "#results": FakeListView(),
+        "#queue": FakeListView(),
+        "#track": FakeStatic(),
+        "#track-metadata": FakeStatic(),
+        "#tags-input": FakeInput(),
+        "#playlist-name": FakeInput(),
+        "#queue-title": FakeStatic(),
+    }
+    app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
+    app.client = AlbumClient()  # type: ignore[assignment]
+    workers = _capture_workers(app, monkeypatch)
+    item = SearchItem(item_type="album", title="Against", browse_id="b1")
+
+    loaded = asyncio.run(app._load_search_item(item))
+
+    assert loaded is True
+    assert app.playback.queue == []
+    assert statuses[-1] == "Loading album tracks..."
+
+    _drain_workers(workers)
+
+    assert app.playback.queue == ["v1"]
+    assert app.active_youtube_playlist_id is None
+    assert statuses[-1] == "Loaded album Against: 1 track(s)."
 
 
 def test_load_search_item_reports_lookup_error(monkeypatch, tmp_path) -> None:
@@ -166,12 +271,31 @@ def test_load_search_item_reports_lookup_error(monkeypatch, tmp_path) -> None:
 
     app, _, statuses = _make_app(monkeypatch, tmp_path)
     app.client = FailingClient()  # type: ignore[assignment]
+    workers = _capture_workers(app, monkeypatch)
     item = SearchItem(item_type="album", title="A", browse_id="b1")
 
     loaded = asyncio.run(app._load_search_item(item))
+    _drain_workers(workers)
 
     assert loaded is True
     assert statuses[-1] == "album gone"
+
+
+def test_stale_search_results_are_dropped_after_scheduling(monkeypatch, tmp_path) -> None:
+    from bester_ytm.search_query import parse_search_query, search_item_from_song
+
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path)
+    workers = _capture_workers(app, monkeypatch)
+    parsed = parse_search_query("old query")
+    stale = [search_item_from_song(SongCandidate(video_id="old", title="Old"))]
+
+    app._results_load_id = 1
+    app._finish_search(parsed, stale, 1)  # schedules the render coroutine
+    app._results_load_id = 2  # a newer search starts before the coroutine runs
+    _drain_workers(workers)
+
+    assert widgets["#results"].items == []
+    assert statuses == []
 
 
 def test_focus_first_result_tolerates_unfocusable_widgets(monkeypatch, tmp_path) -> None:

@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 from textual import events
 from textual.widgets import Input, Label, ListItem, ListView
 
 from .config import ConfigError
 from .playback import PlaybackError
 from .playlist_plan import SongCandidate
-from .search_query import SearchItem, parse_search_query
+from .search_query import ParsedSearch, SearchItem, parse_search_query
 from .stores import MAX_RATING, FavoritesStore, LocalPlaylistStore, TrackMetadataStore
 from .ytm_client import PlaylistSnapshot, YTMClient, YTMClientError
 
@@ -33,25 +35,57 @@ class LibraryActions:
     build_in_progress: bool
     active_youtube_playlist_id: str | None
     _pending_playlist_delete: str | None
+    _results_load_id: int
 
     async def _search(self, query: str) -> None:
         results = self.query_one("#results", ListView)
         await results.clear()
         self.selected_queue_video_id = None
         self._clear_result_selection()
+        # A newer search or playlist listing supersedes any in-flight one.
+        self._results_load_id += 1
         if not query.strip():
             self._show_results_list()
             return
         self._set_status(f"Searching {query!r}...")
         parsed = parse_search_query(query)
-        try:
-            if parsed.lists_local_playlists:
-                items = LocalPlaylistStore().search_items()
-            else:
-                items = self.client.structured_search(parsed, limit=25)
-        except YTMClientError as exc:
-            self._set_status(str(exc))
+        if parsed.lists_local_playlists:
+            await self._show_search_results(
+                parsed, LocalPlaylistStore().search_items(), self._results_load_id
+            )
             return
+        self.run_worker(
+            partial(self._search_worker, parsed, self._results_load_id),
+            name="search",
+            group="search",
+            thread=True,
+        )
+
+    def _search_worker(self, parsed: ParsedSearch, load_id: int) -> None:
+        """Runs on a worker thread so slow searches never freeze the UI."""
+        try:
+            items = self.client.structured_search(parsed, limit=25)
+        except YTMClientError as exc:
+            self.call_from_thread(self._finish_search_error, str(exc), load_id)
+            return
+        self.call_from_thread(self._finish_search, parsed, items, load_id)
+
+    def _finish_search_error(self, message: str, load_id: int) -> None:
+        if load_id == self._results_load_id:
+            self._set_status(message)
+
+    def _finish_search(
+        self, parsed: ParsedSearch, items: list[SearchItem], load_id: int
+    ) -> None:
+        if load_id != self._results_load_id:
+            return  # superseded by a newer search or playlist listing
+        self.run_worker(self._show_search_results(parsed, items, load_id), exclusive=False)
+
+    async def _show_search_results(
+        self, parsed: ParsedSearch, items: list[SearchItem], load_id: int
+    ) -> None:
+        if load_id != self._results_load_id:
+            return  # a newer search or listing started after this was scheduled
         if parsed.kind == "album":
             await self._populate_album_tree(items)
             self._set_status(
@@ -59,6 +93,7 @@ class LibraryActions:
                 "shift+space ranges."
             )
             return
+        results = self.query_one("#results", ListView)
         self._show_results_list()
         for search_item in items:
             await results.append(self._result_item(search_item))
@@ -101,51 +136,45 @@ class LibraryActions:
     async def _load_search_item(self, item: SearchItem) -> bool:
         if item.item_type == "song":
             return False
+        if item.item_type == "album":
+            if not item.browse_id:
+                self._set_status("Album result has no browse id.")
+                return True
+            # Deferred: the fetch runs on a worker thread and fills the queue later.
+            self._load_album_queue(item.browse_id, item.title)
+            return True
+        if item.item_type == "playlist":
+            if not item.playlist_id:
+                self._set_status("Playlist result has no playlist id.")
+                return True
+            # Search playlists are public; keep the unauthenticated client.
+            await self._load_playlist_queue(item.playlist_id, authenticated=False)
+            return True
+        if item.item_type == "local_playlist":
+            return await self._load_local_playlist_item(item)
+        return False
+
+    async def _load_local_playlist_item(self, item: SearchItem) -> bool:
+        if not item.playlist_id:
+            self._set_status("Local playlist result has no id.")
+            return True
         try:
-            if item.item_type == "album":
-                if not item.browse_id:
-                    self._set_status("Album result has no browse id.")
-                    return True
-                snapshot = self.client.get_album(item.browse_id)
-                await self._load_snapshot(snapshot, item.title, local_playlist_id=None)
-                self._set_status(f"Loaded album {item.title}: {len(snapshot.video_ids)} track(s).")
-                return True
-            if item.item_type == "playlist":
-                if not item.playlist_id:
-                    self._set_status("Playlist result has no playlist id.")
-                    return True
-                snapshot = self.client.get_playlist(item.playlist_id)
-                await self._load_snapshot(
-                    snapshot,
-                    item.title,
-                    local_playlist_id=None,
-                    youtube_playlist_id=item.playlist_id,
-                )
-                self._set_status(
-                    f"Loaded playlist {item.title}: {len(snapshot.video_ids)} track(s)."
-                )
-                return True
-            if item.item_type == "local_playlist":
-                if not item.playlist_id:
-                    self._set_status("Local playlist result has no id.")
-                    return True
-                playlist = LocalPlaylistStore().load(item.playlist_id)
-                snapshot = PlaylistSnapshot(
-                    playlist_id=playlist.id,
-                    title=playlist.name,
-                    track_count=len(playlist.tracks),
-                    video_ids=playlist.video_ids,
-                    tracks=playlist.tracks,
-                )
-                await self._load_snapshot(snapshot, playlist.name, local_playlist_id=playlist.id)
-                self._set_status(
-                    f"Loaded local playlist {playlist.name}: {len(playlist.tracks)} track(s)."
-                )
-                return True
-        except (ConfigError, YTMClientError, FileNotFoundError) as exc:
+            playlist = LocalPlaylistStore().load(item.playlist_id)
+        except (ConfigError, FileNotFoundError) as exc:
             self._set_status(str(exc))
             return True
-        return False
+        snapshot = PlaylistSnapshot(
+            playlist_id=playlist.id,
+            title=playlist.name,
+            track_count=len(playlist.tracks),
+            video_ids=playlist.video_ids,
+            tracks=playlist.tracks,
+        )
+        await self._load_snapshot(snapshot, playlist.name, local_playlist_id=playlist.id)
+        self._set_status(
+            f"Loaded local playlist {playlist.name}: {len(playlist.tracks)} track(s)."
+        )
+        return True
 
     async def _load_snapshot(
         self,
@@ -155,6 +184,8 @@ class LibraryActions:
         local_playlist_id: str | None,
         youtube_playlist_id: str | None = None,
     ) -> None:
+        # This queue is now the user's newest choice; drop any older in-flight load.
+        self._supersede_queue_load()
         for track in snapshot.tracks:
             self.candidates_by_video_id[track.video_id] = track
         self.playback.replace_queue(list(snapshot.video_ids))
@@ -302,18 +333,30 @@ class LibraryActions:
             return
         search_item = getattr(item, "search_item", None)
         if search_item is not None and search_item.item_type == "local_playlist":
-            await self._delete_local_playlist(item, search_item.playlist_id or "")
+            await self._delete_local_playlist(
+                item, search_item.playlist_id or "", search_item.title
+            )
             return
         playlist_id = getattr(item, "playlist_id", None)
         if playlist_id:
             await self._delete_youtube_playlist(item, str(playlist_id))
             return
         self._set_status(
-            "d deletes the highlighted playlist: local ones immediately, "
-            "YouTube ones after a confirming second press."
+            "d deletes the highlighted playlist (local or YouTube) "
+            "after a confirming second press."
         )
 
-    async def _delete_local_playlist(self, item: object, playlist_id: str) -> None:
+    async def _delete_local_playlist(
+        self, item: object, playlist_id: str, title: str
+    ) -> None:
+        name = title or playlist_id
+        if self._pending_playlist_delete != playlist_id:
+            self._pending_playlist_delete = playlist_id
+            self._set_status(
+                f"Press d again to permanently delete local playlist {name!r}."
+            )
+            return
+        self._pending_playlist_delete = None
         try:
             playlist = LocalPlaylistStore().delete(playlist_id)
         except FileNotFoundError as exc:

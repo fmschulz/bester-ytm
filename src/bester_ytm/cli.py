@@ -135,6 +135,7 @@ def search(
     query: Annotated[str, typer.Argument(help="Search query such as 'artist title'.")],
     limit: Annotated[int, typer.Option("--limit", "-l", min=1, max=25)] = 10,
 ) -> None:
+    """Search YouTube Music for songs."""
     try:
         candidates = YTMClient(authenticated=False).search_songs(query, limit=limit)
     except YTMClientError as exc:

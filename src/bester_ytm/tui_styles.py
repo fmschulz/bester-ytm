@@ -164,4 +164,42 @@ Button {
     height: auto;
     margin-top: 1;
 }
+HelpScreen {
+    align: center middle;
+}
+#help-panel {
+    width: 60;
+    max-width: 90%;
+    height: auto;
+    max-height: 90%;
+    border: heavy #e07a5f;
+    padding: 1 2;
+    scrollbar-size-vertical: 1;
+}
+#help-title {
+    color: #e07a5f;
+    text-style: bold;
+}
+#help-hint {
+    color: #6b7280;
+    margin-top: 1;
+}
+.help-section {
+    color: #e07a5f;
+    text-style: bold;
+    margin-top: 1;
+}
+.help-row {
+    height: 1;
+}
+.help-key {
+    width: 13;
+    text-align: right;
+    color: #f2cc8f;
+    text-style: bold;
+}
+.help-desc {
+    width: 1fr;
+    padding-left: 2;
+}
 """

@@ -62,6 +62,7 @@ class PlaybackRenderer:
     audio_meter: AudioLevelMeter
     _last_visual_state: str | None
     _rendered_now_playing_id: str | None
+    _synced_current_video_id: str | None
     selected_queue_video_id: str | None
     _queue_render_active: bool
     _queue_render_pending: bool
@@ -77,7 +78,9 @@ class PlaybackRenderer:
         self._announce_transition(status)
         if self._handle_auto_advance(status):
             return
-        if status.current_video_id:
+        # Resync only on an actual track change; a per-tick resync would stomp
+        # the Track Details pane and any text being typed into #tags-input.
+        if status.current_video_id and status.current_video_id != self._synced_current_video_id:
             self._sync_current_track(status.current_video_id)
         self._refresh_now_playing_marker(status.current_video_id)
         self._update_transport_widgets(status)
@@ -88,10 +91,18 @@ class PlaybackRenderer:
             return
         self.run_worker(self._render_queue(), exclusive=True, group="queue-render")
 
+    def _track_display_name(self, video_id: str | None) -> str | None:
+        """The human-readable name of a known track, or None when unresolvable."""
+        if not video_id:
+            return None
+        candidate = self.candidates_by_video_id.get(video_id)
+        return candidate.display_name if candidate else None
+
     def _announce_transition(self, status) -> None:
         is_mixing = status.mix_progress is not None
         if is_mixing and not self.was_mixing:
-            self._set_status(f"Mixing into {status.current_video_id}.")
+            name = self._track_display_name(status.current_video_id)
+            self._set_status(f"Mixing into {name}." if name else "Mixing into the next track.")
         self.was_mixing = is_mixing
         if status.transition_error:
             self._set_status(f"Mix failed; using cut: {status.transition_error}")
@@ -224,6 +235,7 @@ class PlaybackRenderer:
             remove_class(class_name)
 
     def _sync_current_track(self, video_id: str | None) -> None:
+        self._synced_current_video_id = video_id
         if not video_id:
             self.current_candidate = None
             self._update_track_label("No track playing.")
@@ -233,7 +245,10 @@ class PlaybackRenderer:
         self.current_candidate = candidate
         label = candidate.display_name if candidate else video_id
         self._update_track_label(label)
-        self._update_track_metadata(video_id)
+        # Track Details edits the highlighted queue row (r / Save Tags act on
+        # it), so keep showing that row; fall back to the playing track only
+        # when no row is highlighted.
+        self._update_track_metadata(self._highlighted_queue_video_id() or video_id)
 
     def _update_track_label(self, label: str) -> None:
         track = self._query_optional("#track", Static)
@@ -253,6 +268,9 @@ class PlaybackRenderer:
     ) -> None:
         output = self._query_optional("#track-metadata", Static)
         tags_input = self._query_optional("#tags-input", Input)
+        # Never clobber text the user is typing into the tags field.
+        if tags_input and getattr(tags_input, "has_focus", False):
+            sync_tags_input = False
         if not video_id:
             if output:
                 output.update("Rating --  Tags --")

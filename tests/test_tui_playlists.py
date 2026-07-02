@@ -16,6 +16,39 @@ def _item_label(item) -> str:
     return str(children[0].render())
 
 
+def _capture_workers(app, monkeypatch) -> list:
+    """Synchronous seam: collect scheduled workers instead of running threads."""
+    workers: list = []
+    monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: workers.append(work))
+    monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
+    return workers
+
+
+def _drain_workers(workers: list) -> None:
+    """Run captured thread-worker bodies and any coroutines they schedule.
+
+    Consumes the list so repeated drains only run newly scheduled work.
+    """
+    while workers:
+        work = workers.pop(0)
+        if asyncio.iscoroutine(work):
+            asyncio.run(work)
+        else:
+            work()
+
+
+def _inline_workers(app, monkeypatch) -> None:
+    """Seam for run_test flows: thread workers run inline, coroutines as tasks."""
+
+    def run_worker(work, **kwargs):
+        if asyncio.iscoroutine(work):
+            return asyncio.get_running_loop().create_task(work)
+        return work()
+
+    monkeypatch.setattr(app, "run_worker", run_worker)
+    monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
+
+
 class FakeListView:
     def __init__(self) -> None:
         self.items = []
@@ -106,8 +139,11 @@ def test_tui_show_playlists_uses_authenticated_library(monkeypatch, tmp_path) ->
     monkeypatch.setattr(tui, "YTMClient", FakeClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
     monkeypatch.setattr(app, "_set_status", statuses.append)
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app.action_show_playlists())
+    assert statuses[-1] == "Loading playlists..."
+    _drain_workers(workers)
 
     assert len(list_view.items) == 1
     assert list_view.items[0].playlist_id == "PL1"
@@ -142,8 +178,10 @@ def test_tui_show_playlists_includes_saved_local_playlists(monkeypatch, tmp_path
     monkeypatch.setattr(tui, "YTMClient", FakeClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
     monkeypatch.setattr(app, "_set_status", statuses.append)
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app.action_show_playlists())
+    _drain_workers(workers)
 
     assert len(list_view.items) == 2
     local_item = list_view.items[0]
@@ -183,8 +221,10 @@ def test_tui_show_playlists_shows_locals_when_youtube_unavailable(
     monkeypatch.setattr(tui, "YTMClient", FailingClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
     monkeypatch.setattr(app, "_set_status", statuses.append)
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app.action_show_playlists())
+    _drain_workers(workers)
 
     assert len(list_view.items) == 1
     assert list_view.items[0].playlist_id == "ai-mix"
@@ -256,8 +296,11 @@ def test_tui_selecting_playlist_loads_named_tracks(monkeypatch) -> None:
     app.playback = FakePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(tui, "YTMClient", FakeClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app.action_play_selected())
+    assert status.value == "Loading playlist tracks..."
+    _drain_workers(workers)
 
     assert app.playback.queue == ["v1", "v2"]
     assert [_item_label(item) for item in queue.items] == [
@@ -265,6 +308,106 @@ def test_tui_selecting_playlist_loads_named_tracks(monkeypatch) -> None:
         "02  Beach House - Silver Soul",
     ]
     assert status.value == "Loaded ByteFM Inspired 30: 2 track(s)."
+
+
+def test_tui_selecting_playlist_reports_load_error(monkeypatch) -> None:
+    class FailingClient:
+        def __init__(self, authenticated: bool = True) -> None:
+            pass
+
+        def get_playlist(self, playlist_id: str) -> PlaylistSnapshot:
+            raise YTMClientError("playlist unavailable")
+
+    results = FakeListView()
+    results.items.append(SimpleNamespace(playlist_id="PL1"))
+    status = FakeStatic()
+    widgets = {"#results": results, "#queue": FakeListView(), "#status": status}
+
+    app = tui.BesterYTMApp()
+    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    monkeypatch.setattr(tui, "YTMClient", FailingClient)
+    monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
+    workers = _capture_workers(app, monkeypatch)
+
+    asyncio.run(app.action_play_selected())
+    _drain_workers(workers)
+
+    assert app.playback.queue == []
+    assert status.value == "playlist unavailable"
+
+
+def test_tui_stale_playlist_load_never_stomps_playback_started_meanwhile(
+    monkeypatch,
+) -> None:
+    class SlowClient:
+        def __init__(self, authenticated: bool = True) -> None:
+            pass
+
+        def get_playlist(self, playlist_id: str) -> PlaylistSnapshot:
+            return PlaylistSnapshot(
+                playlist_id=playlist_id,
+                title="Old Mix",
+                video_ids=["old-v1", "old-v2"],
+                tracks=[
+                    SongCandidate(video_id="old-v1", title="One", artists=["A"]),
+                    SongCandidate(video_id="old-v2", title="Two", artists=["A"]),
+                ],
+            )
+
+    results = FakeListView()
+    results.items.append(SimpleNamespace(playlist_id="PL1"))
+    queue = FakeListView()
+    track = FakeStatic()
+    status = FakeStatic()
+    widgets = {"#results": results, "#queue": queue, "#track": track, "#status": status}
+
+    app = tui.BesterYTMApp()
+    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    monkeypatch.setattr(tui, "YTMClient", SlowClient)
+    monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
+    workers = _capture_workers(app, monkeypatch)
+
+    # Space starts the deferred playlist load (would auto-play once tracks arrive).
+    asyncio.run(app.action_pause_resume())
+    assert status.value == "Loading playlist tracks..."
+
+    # While the fetch is in flight the user plays a song from search instead.
+    candidate = SongCandidate(video_id="search-v1", title="Song", artists=["B"])
+    results.items[0] = SimpleNamespace(candidate=candidate)
+    asyncio.run(app.action_play_selected())
+    assert app.playback.current_video_id == "search-v1"
+
+    # The stale fetch lands late: it must not replace the queue, stop the
+    # playing track, or auto-start the old playlist.
+    _drain_workers(workers)
+
+    assert app.playback.current_video_id == "search-v1"
+    assert app.playback.queue == []
+    assert app.playlist_video_ids == ["search-v1"]
+    assert status.value == "Playing."
+
+
+def test_tui_playlist_apply_rechecks_load_id_after_scheduling(monkeypatch) -> None:
+    snapshot = PlaylistSnapshot(
+        playlist_id="PL1",
+        title="Old Mix",
+        video_ids=["old-v1"],
+        tracks=[SongCandidate(video_id="old-v1", title="One", artists=["A"])],
+    )
+    widgets = {"#queue": FakeListView(), "#status": FakeStatic()}
+
+    app = tui.BesterYTMApp()
+    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
+    workers = _capture_workers(app, monkeypatch)
+
+    app._queue_load_id = 1
+    app._finish_playlist_load(snapshot, "PL1", False, 1)  # schedules the apply coroutine
+    app._queue_load_id = 2  # a newer load starts before the coroutine runs
+    _drain_workers(workers)
+
+    assert app.playback.queue == []
+    assert app.playlist_video_ids == []
 
 
 def test_tui_space_on_selected_playlist_loads_and_starts_queue(monkeypatch) -> None:
@@ -336,8 +479,10 @@ def test_tui_space_on_selected_playlist_loads_and_starts_queue(monkeypatch) -> N
     app.playback = FakePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(tui, "YTMClient", FakeClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app.action_pause_resume())
+    _drain_workers(workers)
 
     assert app.playback.current_video_id == "v1"
     assert app.playback.queue == ["v2"]
@@ -846,6 +991,7 @@ def test_tui_keyboard_playlist_flow_loads_and_starts_queue(monkeypatch, tmp_path
         app = tui.BesterYTMApp()
         app.playback = FakePlayback()  # type: ignore[assignment]
         async with app.run_test() as pilot:
+            _inline_workers(app, monkeypatch)
             await pilot.press("ctrl+p")
             await pilot.pause()
 
@@ -925,10 +1071,14 @@ def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) ->
     app.client = FakeClient()  # type: ignore[assignment]
     app.playback = FakeQueuePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app._search("artist:sepultura,albums"))
+    _drain_workers(workers)
     # An artist album list stays in the results pane; Enter loads the album into the queue.
     asyncio.run(app.action_play_selected())
+    assert status.value == "Loading album tracks..."
+    _drain_workers(workers)
 
     assert app.playback.queue == ["v1", "v2"]
     assert app.playlist_title == "Against"

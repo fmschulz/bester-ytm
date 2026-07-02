@@ -28,6 +28,7 @@ class QueueEditActions:
         if not candidates:
             self._set_status(f"{message} No resolved tracks to queue.")
             return
+        self._supersede_queue_load()
         for candidate in candidates:
             self.candidates_by_video_id[candidate.video_id] = candidate
         video_ids = [candidate.video_id for candidate in candidates]
@@ -61,6 +62,7 @@ class QueueEditActions:
         current = self.playback.current_video_id
         is_playing = bool(self.playback.status().running and current)
         kept = current if is_playing else None
+        self._supersede_queue_load()
         self.playback.queue = []
         self.playlist_video_ids = [kept] if kept else []
         self.playlist_title = "New Playlist"
@@ -88,6 +90,7 @@ class QueueEditActions:
             return
         current = self.playback.current_video_id
         is_playing = self.playback.status().running and current
+        self._supersede_queue_load()
         self.playback.queue = []
         self.playlist_video_ids = [current] if is_playing and current else []
         if not is_playing:
@@ -107,12 +110,18 @@ class QueueEditActions:
         if video_id == self.playback.current_video_id:
             self._set_status("Cannot remove the playing track; press n to skip it.")
             return
+        if video_id not in self.playlist_video_ids:
+            self._set_status("That track is no longer in the queue.")
+            return
         removed_index = self.playlist_video_ids.index(video_id)
         self.playlist_video_ids = [v for v in self.playlist_video_ids if v != video_id]
         self.playback.queue = [v for v in self.playback.queue if v != video_id]
         focus = self._neighbor_after_removal(removed_index)
         await self._render_queue(focus_video_id=focus)
-        self._set_status(f"Removed {video_id} from the queue.")
+        name = self._track_display_name(video_id)
+        self._set_status(
+            f"Removed {name} from the queue." if name else "Removed track from the queue."
+        )
 
     def _neighbor_after_removal(self, removed_index: int) -> str | None:
         """The track now occupying the removed slot, else the previous one."""
@@ -144,7 +153,9 @@ class QueueEditActions:
         upcoming = set(self.playback.queue)
         self.playback.queue = [v for v in order if v in upcoming]
         await self._render_queue(focus_video_id=video_id)
-        self._set_status(f"Moved {video_id} {'up' if delta < 0 else 'down'}.")
+        name = self._track_display_name(video_id)
+        direction = "up" if delta < 0 else "down"
+        self._set_status(f"Moved {name} {direction}." if name else f"Moved track {direction}.")
 
     def action_save_queue_playlist(self) -> None:
         candidates = self._queue_candidates()

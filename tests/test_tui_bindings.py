@@ -64,7 +64,7 @@ def test_footer_stays_compact_and_palette_enabled(monkeypatch) -> None:
     assert "save_queue_playlist" in queue and "save_queue_playlist" not in everywhere
     assert "play_selected" in results and "play_selected" in queue
     for context_bindings in (everywhere, results, queue):
-        assert len(context_bindings) <= 13
+        assert len(context_bindings) <= 14
     # The Header icon opens the command palette, which is where theme
     # selection lives, so the palette must stay enabled.
     assert BesterYTMApp.ENABLE_COMMAND_PALETTE is True
@@ -131,6 +131,42 @@ def test_volume_buttons_send_playback_commands() -> None:
             await pilot.click("#mute-button")
             await pilot.pause()
             assert app.playback.muted is True
+
+    asyncio.run(run_flow())
+
+
+def test_punctuation_keys_trigger_bound_actions(monkeypatch) -> None:
+    """Press real characters so key-name typos in BINDINGS fail the test."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/nonexistent-bytm-config")
+    expected = {
+        "-": "volume_down",
+        "+": "volume_up",
+        "=": "volume_up",
+        ",": "seek_large_backward",
+        ".": "seek_large_forward",
+        "[": "fade_shorter",
+        "]": "fade_longer",
+    }
+
+    async def run_flow() -> None:
+        app = BesterYTMApp()
+        calls: list[str] = []
+        for action in set(expected.values()):
+
+            def record(action: str = action) -> None:
+                calls.append(action)
+
+            setattr(app, f"action_{action}", record)
+        async with app.run_test() as pilot:
+            app.set_focus(None)  # the search Input would swallow the characters
+            await pilot.pause()
+            for character, action in expected.items():
+                calls.clear()
+                await pilot.press(character)
+                await pilot.pause()
+                assert calls == [action], (
+                    f"key {character!r} did not trigger action_{action}"
+                )
 
     asyncio.run(run_flow())
 

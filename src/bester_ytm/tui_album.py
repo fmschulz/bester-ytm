@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+from functools import partial
 
 from textual import events
 from textual.widgets import ListView, Tree
@@ -12,7 +13,7 @@ from .config import ConfigError
 from .playback import PlaybackError
 from .playlist_plan import SongCandidate
 from .search_query import SearchItem
-from .ytm_client import YTMClientError
+from .ytm_client import PlaylistSnapshot, YTMClientError
 
 SELECTED_PREFIX = "* "
 
@@ -139,24 +140,59 @@ class AlbumActions:
             return []
         if not data.get("loaded"):
             item: SearchItem = data["item"]
-            snapshot = self.client.get_album(str(item.browse_id))
-            data["loaded"] = True
-            for track in snapshot.tracks:
-                self.candidates_by_video_id[track.video_id] = track
-                selected = track.video_id in self.selected_result_video_ids
-                node.add_leaf(
-                    self._song_label(track, selected),
-                    data={"kind": "song", "candidate": track},
-                )
+            self._attach_album_tracks(node, self.client.get_album(str(item.browse_id)))
         return [self._song_candidate(child) for child in self._song_children(node)]
+
+    def _attach_album_tracks(self, node: TreeNode, snapshot: PlaylistSnapshot) -> None:
+        data = _node_data(node)
+        if data.get("loaded"):
+            return
+        data["loaded"] = True
+        for track in snapshot.tracks:
+            self.candidates_by_video_id[track.video_id] = track
+            selected = track.video_id in self.selected_result_video_ids
+            node.add_leaf(
+                self._song_label(track, selected),
+                data={"kind": "song", "candidate": track},
+            )
 
     # --- tree events ------------------------------------------------------
 
     def on_tree_node_expanded(self, event: Tree.NodeExpanded) -> None:
+        data = _node_data(event.node)
+        if data.get("kind") != "album" or data.get("loaded") or data.get("loading"):
+            return
+        data["loading"] = True
+        item: SearchItem = data["item"]
+        self._set_status(f"Loading album {item.title}...")
+        self.run_worker(
+            partial(self._album_node_worker, event.node),
+            name="album",
+            group="album",
+            thread=True,
+        )
+
+    def _album_node_worker(self, node: TreeNode) -> None:
+        """Runs on a worker thread so slow album fetches never freeze the UI."""
+        item: SearchItem = _node_data(node)["item"]
         try:
-            self._load_album_node(event.node)
+            snapshot = self.client.get_album(str(item.browse_id))
         except (ConfigError, YTMClientError) as exc:
-            self._set_status(str(exc))
+            self.call_from_thread(self._finish_album_node_error, node, str(exc))
+            return
+        self.call_from_thread(self._finish_album_node, node, snapshot)
+
+    def _finish_album_node_error(self, node: TreeNode, message: str) -> None:
+        _node_data(node)["loading"] = False
+        self._set_status(message)
+
+    def _finish_album_node(self, node: TreeNode, snapshot: PlaylistSnapshot) -> None:
+        _node_data(node)["loading"] = False
+        self._attach_album_tracks(node, snapshot)
+        self._set_status(
+            f"Loaded album {self._album_title(node)}: "
+            f"{len(self._song_children(node))} track(s)."
+        )
 
     async def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         data = _node_data(event.node)
@@ -254,6 +290,7 @@ class AlbumActions:
         if not candidates:
             self._set_status("Highlight an album or song to play it now.")
             return
+        self._supersede_queue_load()
         for candidate in candidates:
             self.candidates_by_video_id[candidate.video_id] = candidate
         video_ids = [candidate.video_id for candidate in candidates]

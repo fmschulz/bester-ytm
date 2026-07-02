@@ -7,6 +7,7 @@ from textual.binding import Binding
 from bester_ytm import tui, tui_playback
 from bester_ytm.config import ConfigError
 from bester_ytm.playback import PlaybackStatus
+from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.transitions import DEFAULT_APP_SETTINGS, TransitionSettings, TransitionStyle
 
 
@@ -189,6 +190,9 @@ def test_visualizer_renders_mix_meter_and_announces_mix_once(monkeypatch, tmp_pa
     widgets = _status_widgets()
     playback = FakeTransitionPlayback(style=TransitionStyle.CROSSFADE)
     app, statuses = _make_app(monkeypatch, tmp_path, playback)
+    app.candidates_by_video_id = {
+        "v2": SongCandidate(video_id="v2", title="Two", artists=["Band"]),
+    }
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: work.close())
 
@@ -206,11 +210,11 @@ def test_visualizer_renders_mix_meter_and_announces_mix_once(monkeypatch, tmp_pa
     app._refresh_playback()
 
     assert widgets["#visualizer"].value == "MIX  A [######------] B  xfade 6s"
-    assert statuses == ["Mixing into v2."]
+    assert statuses == ["Mixing into Band - Two."]
 
     playback.current = replace(playback.current, mix_progress=0.75)
     app._refresh_playback()
-    assert statuses == ["Mixing into v2."]
+    assert statuses == ["Mixing into Band - Two."]
 
     playback.current = replace(playback.current, mix_progress=None, fade_seconds=8.0)
     app._refresh_playback()

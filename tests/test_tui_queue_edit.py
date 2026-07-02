@@ -221,6 +221,7 @@ def test_new_playlist_keeps_the_playing_track(monkeypatch, tmp_path) -> None:
 def test_remove_from_queue_updates_playlist_and_playback(monkeypatch, tmp_path) -> None:
     playback = FakePlayback(current="now", queue=["v1", "v2"])
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
+    app.candidates_by_video_id["v1"] = _candidate("v1")
     app.playlist_video_ids = ["now", "v1", "v2"]
     app.selected_queue_video_id = "v1"
 
@@ -228,7 +229,32 @@ def test_remove_from_queue_updates_playlist_and_playback(monkeypatch, tmp_path) 
 
     assert app.playlist_video_ids == ["now", "v2"]
     assert playback.queue == ["v2"]
-    assert statuses[-1] == "Removed v1 from the queue."
+    assert statuses[-1] == "Removed Band - V1 from the queue."
+
+
+def test_remove_from_queue_without_display_name_stays_generic(monkeypatch, tmp_path) -> None:
+    playback = FakePlayback(current="now", queue=["v1"])
+    app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
+    app.playlist_video_ids = ["now", "v1"]
+    app.selected_queue_video_id = "v1"
+
+    asyncio.run(app.action_remove_from_queue())
+
+    assert app.playlist_video_ids == ["now"]
+    assert statuses[-1] == "Removed track from the queue."
+
+
+def test_remove_from_queue_with_stale_selection_is_graceful(monkeypatch, tmp_path) -> None:
+    playback = FakePlayback(current="now", queue=["v1"])
+    app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
+    app.playlist_video_ids = ["now", "v1"]
+    app.selected_queue_video_id = "gone"
+
+    asyncio.run(app.action_remove_from_queue())
+
+    assert app.playlist_video_ids == ["now", "v1"]
+    assert playback.queue == ["v1"]
+    assert statuses[-1] == "That track is no longer in the queue."
 
 
 def test_cannot_remove_the_playing_track(monkeypatch, tmp_path) -> None:
@@ -253,7 +279,7 @@ def test_move_queue_track_up_keeps_playback_order_in_sync(monkeypatch, tmp_path)
 
     assert app.playlist_video_ids == ["now", "v1", "v3", "v2"]
     assert playback.queue == ["v1", "v3", "v2"]
-    assert statuses[-1] == "Moved v3 up."
+    assert statuses[-1] == "Moved track up."
 
 
 def test_move_queue_track_down_at_end_is_a_noop(monkeypatch, tmp_path) -> None:

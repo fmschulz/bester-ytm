@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import inspect
 import random
+from collections.abc import Mapping
+from functools import partial
 
 from textual import events
+from textual.actions import ActionParseResult
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.dom import DOMNode
@@ -30,11 +33,13 @@ from .config import (
 from .config_options import AppOptions, load_app_options, save_ui_options
 from .intelligence.llm import IntelligenceSettings
 from .playback import PlaybackController, PlaybackError, PlaybackStatus
+from .search_query import SearchItem
 from .stores import LocalPlaylistStore
 from .transitions import DEFAULT_APP_SETTINGS
 from .tui_album import AlbumActions
 from .tui_builder import BuilderActions
 from .tui_effects import PlaybackRenderer, render_deck_status
+from .tui_help import HelpScreen
 from .tui_layout import BuilderTextArea, build_layout
 from .tui_library import LibraryActions
 from .tui_playback import PlaybackActions
@@ -45,7 +50,7 @@ from .tui_splitter import PaneSplitter
 from .tui_styles import APP_CSS
 from .tui_theme import EMBER_THEME
 from .tui_visuals import EFFECT_ORDER, AudioLevelMeter
-from .ytm_client import YTMClient, YTMClientError
+from .ytm_client import PlaylistSnapshot, YTMClient, YTMClientError
 
 
 class BesterYTMApp(
@@ -85,9 +90,9 @@ class BesterYTMApp(
         Binding("left", "seek_backward", "-10s", show=False),
         Binding("right", "seek_forward", "+10s", show=False),
         Binding("comma", "seek_large_backward", "-30s", key_display=",", show=False),
-        Binding("period", "seek_large_forward", "+30s", key_display=".", show=False),
+        Binding("full_stop", "seek_large_forward", "+30s", key_display=".", show=False),
         Binding("minus", "volume_down", "Vol-", key_display="-", show=False),
-        Binding("equals", "volume_up", "Vol+", key_display="=", show=False),
+        Binding("equals_sign", "volume_up", "Vol+", key_display="=", show=False),
         Binding("plus", "volume_up", "Vol+", key_display="+", show=False),
         Binding("m", "mute", "Mute", show=False),
         Binding("r", "cycle_rating", "Rate", show=False),
@@ -102,6 +107,7 @@ class BesterYTMApp(
         Binding("a", "add_to_queue", "Add"),
         Binding("A", "play_album", "Play album", show=False),
         Binding("ctrl+a", "auth_status", "Auth", show=False),
+        Binding("question_mark", "help", "Help", key_display="?"),
     ]
 
     BUTTON_ACTIONS = {
@@ -172,8 +178,12 @@ class BesterYTMApp(
         self.active_local_playlist_id: str | None = None
         self.active_youtube_playlist_id: str | None = None
         self._pending_playlist_delete: str | None = None
+        self._results_load_id = 0
+        self._queue_load_id = 0
+        self._play_queue_after_load = False
         self.selected_queue_video_id: str | None = None
         self._rendered_now_playing_id: str | None = None
+        self._synced_current_video_id: str | None = None
         self._queue_render_active = False
         self._queue_render_pending = False
         self._queue_render_focus: str | None = None
@@ -304,6 +314,17 @@ class BesterYTMApp(
     async def on_builder_text_area_submitted(self, event: BuilderTextArea.Submitted) -> None:
         await self.action_build_playlist()
 
+    async def run_action(
+        self,
+        action: str | ActionParseResult,
+        default_namespace: DOMNode | None = None,
+        namespaces: Mapping[str, DOMNode] | None = None,
+    ) -> bool:
+        """Any action other than d (remove/delete) disarms a pending playlist delete."""
+        if isinstance(action, str) and action != "remove_from_queue":
+            self._pending_playlist_delete = None
+        return await super().run_action(action, default_namespace, namespaces)
+
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Hide queue/results-specific footer keys unless that pane is focused."""
         contexts = self.CONTEXT_ACTIONS.get(action)
@@ -346,6 +367,7 @@ class BesterYTMApp(
         action_name = self.BUTTON_ACTIONS.get(event.button.id or "")
         if action_name is None:
             return
+        self._pending_playlist_delete = None
         result = getattr(self, f"action_{action_name}")()
         if inspect.iscoroutine(result):
             await result
@@ -401,17 +423,62 @@ class BesterYTMApp(
         results = self.query_one("#results", ListView)
         await results.clear()
         self._set_status("Loading playlists...")
+        # A newer search or playlist listing supersedes any in-flight one.
+        self._results_load_id += 1
         local_items = LocalPlaylistStore().search_items()
         for search_item in local_items:
             await results.append(self._result_item(search_item))
+        self.run_worker(
+            partial(self._list_playlists_worker, local_items, self._results_load_id),
+            name="playlists",
+            group="playlists",
+            thread=True,
+        )
+
+    def _list_playlists_worker(self, local_items: list[SearchItem], load_id: int) -> None:
+        """Runs on a worker thread so a slow YouTube library never freezes the UI."""
         try:
             playlists = YTMClient(authenticated=True).list_playlists(limit=25)
         except (ConfigError, YTMClientError) as exc:
-            self._focus_first_result(results, bool(local_items))
-            self._set_status(
-                f"{len(local_items)} local playlist(s). YouTube library unavailable: {exc}"
+            self.call_from_thread(
+                self._finish_show_playlists_error, local_items, str(exc), load_id
             )
             return
+        self.call_from_thread(self._finish_show_playlists, local_items, playlists, load_id)
+
+    def _finish_show_playlists_error(
+        self, local_items: list[SearchItem], message: str, load_id: int
+    ) -> None:
+        if load_id != self._results_load_id:
+            return
+        results = self.query_one("#results", ListView)
+        self._focus_first_result(results, bool(local_items))
+        self._set_status(
+            f"{len(local_items)} local playlist(s). YouTube library unavailable: {message}"
+        )
+
+    def _finish_show_playlists(
+        self,
+        local_items: list[SearchItem],
+        playlists: list[PlaylistSnapshot],
+        load_id: int,
+    ) -> None:
+        if load_id != self._results_load_id:
+            return  # superseded by a newer search or playlist listing
+        self.run_worker(
+            self._append_youtube_playlists(local_items, playlists, load_id),
+            exclusive=False,
+        )
+
+    async def _append_youtube_playlists(
+        self,
+        local_items: list[SearchItem],
+        playlists: list[PlaylistSnapshot],
+        load_id: int,
+    ) -> None:
+        if load_id != self._results_load_id:
+            return  # a newer search or listing started after this was scheduled
+        results = self.query_one("#results", ListView)
         for playlist in playlists:
             title = playlist.title or playlist.playlist_id
             item = ListItem(Label(f"{title} ({playlist.track_count})"))
@@ -423,28 +490,159 @@ class BesterYTMApp(
             f"{len(local_items)} local + {len(playlists)} YouTube playlist(s)."
         )
 
-    async def _load_playlist_queue(self, playlist_id: str) -> bool:
-        self._set_status("Loading playlist tracks...")
+    async def action_pause_resume(self) -> None:
+        """Space: when it triggers a deferred playlist load, play once tracks arrive."""
+        self._play_queue_after_load = True
         try:
-            snapshot = YTMClient(authenticated=True).get_playlist(playlist_id)
+            await super().action_pause_resume()
+        finally:
+            self._play_queue_after_load = False
+
+    def _supersede_queue_load(self) -> None:
+        """Queue or playback state the user builds cancels any in-flight deferred load."""
+        self._queue_load_id += 1
+
+    async def _load_playlist_queue(
+        self, playlist_id: str, *, authenticated: bool = True
+    ) -> bool:
+        """Start fetching playlist tracks off the UI thread; returns False (deferred)."""
+        self._set_status("Loading playlist tracks...")
+        self._queue_load_id += 1
+        self.run_worker(
+            partial(
+                self._playlist_load_worker,
+                playlist_id,
+                authenticated,
+                self._play_queue_after_load,
+                self._queue_load_id,
+            ),
+            name="playlist-load",
+            group="playlist-load",
+            thread=True,
+        )
+        return False
+
+    def _playlist_load_worker(
+        self, playlist_id: str, authenticated: bool, play_after: bool, load_id: int
+    ) -> None:
+        """Runs on a worker thread so slow playlist fetches never freeze the UI."""
+        try:
+            client = YTMClient(authenticated=True) if authenticated else self.client
+            snapshot = client.get_playlist(playlist_id)
         except (ConfigError, YTMClientError) as exc:
-            self._set_status(str(exc))
-            return False
+            self.call_from_thread(self._finish_playlist_load_error, str(exc), load_id)
+            return
+        self.call_from_thread(
+            self._finish_playlist_load, snapshot, playlist_id, play_after, load_id
+        )
+
+    def _load_album_queue(self, browse_id: str, title: str) -> None:
+        """Start fetching album tracks off the UI thread; the queue fills when they land."""
+        self._set_status("Loading album tracks...")
+        self._queue_load_id += 1
+        self.run_worker(
+            partial(
+                self._album_load_worker,
+                browse_id,
+                title,
+                self._play_queue_after_load,
+                self._queue_load_id,
+            ),
+            name="album-load",
+            group="playlist-load",
+            thread=True,
+        )
+
+    def _album_load_worker(
+        self, browse_id: str, title: str, play_after: bool, load_id: int
+    ) -> None:
+        """Runs on a worker thread so slow album fetches never freeze the UI."""
+        try:
+            snapshot = self.client.get_album(browse_id)
+        except (ConfigError, YTMClientError) as exc:
+            self.call_from_thread(self._finish_playlist_load_error, str(exc), load_id)
+            return
+        self.call_from_thread(self._finish_album_load, snapshot, title, play_after, load_id)
+
+    def _finish_playlist_load_error(self, message: str, load_id: int) -> None:
+        if load_id == self._queue_load_id:
+            self._set_status(message)
+
+    def _finish_playlist_load(
+        self,
+        snapshot: PlaylistSnapshot,
+        playlist_id: str,
+        play_after: bool,
+        load_id: int,
+    ) -> None:
+        if load_id != self._queue_load_id:
+            return  # superseded by a newer load or a queue the user built meanwhile
         if not snapshot.video_ids:
             self._set_status(f"Playlist {playlist_id} has no playable tracks.")
-            return False
+            return
+        self.run_worker(
+            self._apply_playlist_snapshot(snapshot, playlist_id, play_after, load_id),
+            exclusive=False,
+        )
 
-        for track in snapshot.tracks:
-            self.candidates_by_video_id[track.video_id] = track
+    def _finish_album_load(
+        self, snapshot: PlaylistSnapshot, title: str, play_after: bool, load_id: int
+    ) -> None:
+        if load_id != self._queue_load_id:
+            return  # superseded by a newer load or a queue the user built meanwhile
+        if not snapshot.video_ids:
+            self._set_status(f"Album {title} has no playable tracks.")
+            return
+        self.run_worker(
+            self._apply_album_snapshot(snapshot, title, play_after, load_id),
+            exclusive=False,
+        )
+
+    async def _apply_playlist_snapshot(
+        self, snapshot: PlaylistSnapshot, playlist_id: str, play_after: bool, load_id: int
+    ) -> None:
+        if load_id != self._queue_load_id:
+            return  # a newer load or user-built queue landed after this was scheduled
+        title = snapshot.title or playlist_id
         await self._load_snapshot(
             snapshot,
-            snapshot.title or playlist_id,
+            title,
             local_playlist_id=None,
             youtube_playlist_id=playlist_id,
         )
-        title = snapshot.title or playlist_id
-        self._set_status(f"Loaded {title}: {len(snapshot.video_ids)} track(s).")
-        return True
+        await self._finish_deferred_load(
+            f"Loaded {title}: {len(snapshot.video_ids)} track(s).", play_after
+        )
+
+    async def _apply_album_snapshot(
+        self, snapshot: PlaylistSnapshot, title: str, play_after: bool, load_id: int
+    ) -> None:
+        if load_id != self._queue_load_id:
+            return  # a newer load or user-built queue landed after this was scheduled
+        name = snapshot.title or title
+        await self._load_snapshot(snapshot, name, local_playlist_id=None)
+        await self._finish_deferred_load(
+            f"Loaded album {name}: {len(snapshot.video_ids)} track(s).", play_after
+        )
+
+    async def _finish_deferred_load(self, message: str, play_after: bool) -> None:
+        self._set_status(message)
+        if play_after and self.playback.queue and not self.playback.status().running:
+            await self._start_loaded_queue()
+
+    async def _start_loaded_queue(self) -> None:
+        try:
+            status = self.playback.play_queue()
+            self.playback_was_active = True
+        except PlaybackError as exc:
+            await self._report_playback_error(exc)
+            return
+        await self._show_playback_status(
+            status, "Playing." if status.running else "Nothing to play."
+        )
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen())
 
     async def action_quit(self) -> None:
         """Stop the live mpv and any crossfade decks before exiting."""
