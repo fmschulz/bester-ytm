@@ -11,8 +11,8 @@ Install `yt-dlp`. `mpv` uses it to resolve YouTube Music streams.
 **`auth status` fails but search works**
 
 Search uses unauthenticated YouTube Music access; library playlists and
-playlist editing require a login (`bester-ytm auth login`). If a browser
-login used to work, the copied session has likely expired — run
+playlist editing require a login (`bester-ytm auth login`). A browser
+login that stops working means the copied session has expired — run
 `bester-ytm auth login` again and paste fresh headers.
 
 **`Error 403: access_denied` during OAuth login**

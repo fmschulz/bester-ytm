@@ -34,7 +34,8 @@ provider = "auto"          # auto | heuristic | codex | openai | anthropic
   when you change the visual style, pick a theme from the command palette (the
   circle in the header), or drag the pane splitters in the TUI (mouse support
   required; inside tmux enable `set -g mouse on`).
-- `left_width` / `right_width`: pane widths in terminal cells (the values
+- `left_width` / `right_width`: pane widths in terminal cells, valid range
+  10-400 (values outside it raise a `ConfigError` at startup; the values
   above are examples). Unset by default — the panes then fall back to the
   stylesheet's fractional widths.
 - `visual_fps`: how often the audio-reactive panels redraw and sample live

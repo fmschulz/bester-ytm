@@ -9,6 +9,11 @@ focused pane; `?` opens an overlay with every binding.
 
 ### Keys
 
+Pane-scoped keys act only while their pane has focus: `x`, `Shift+Space`,
+`a`, `A`, and `Enter`-on-results need the results pane; `j`/`k`, `c`, and
+`w` need the queue pane; `s`, `d`, `Space`-as-select, and `Enter`-on-queue
+work from either list pane. The footer always shows which keys are live.
+
 ```text
 /          focus search
 Enter      play selected search result, playlist, or queue item
@@ -17,16 +22,18 @@ Shift+Space  range-select: mark every song from the first marked one
            through the highlighted row (shift+click does the same)
 a          add the highlighted song or album to the queue, or every row
            marked with x (keeps what is already queued)
-A          play now, replacing the queue (album searches; shift+a)
+A          play now, replacing the queue: the highlighted or marked songs
+           in song results, or the album/highlighted song in album
+           searches (shift+a)
 Space      play/pause; in the results pane it marks the highlighted
            song instead (same as x)
 n          next track
 p or b     previous track
 s          shuffle playlist/queue
 c          clear the queue (keeps the playing track)
-d          remove the highlighted queue track; in search results, delete
-           the highlighted playlist (local or YouTube) after a confirming
-           second press
+d          remove the highlighted queue track (the playing row is kept;
+           press n to skip it); in search results, delete the highlighted
+           playlist (local or YouTube) after a confirming second press
 j / k      move the highlighted queue track down / up
 w          save the queue as a local playlist (also the Save button)
 g          add AI-suggested similar tracks to the queue
@@ -58,7 +65,7 @@ album:metallica,year:1986           albums from a given year
 artist:sepultura                    popular songs by the artist
 artist:sepultura,albums             the artist's albums
 artist:sepultura,year:1998,songs    tracks from the artist's 1998 releases
-playlist:                           your local playlists
+playlist:                           your local playlists (playlists: also works)
 playlist:indie                      community playlists on YouTube Music
 favs:                               your faved songs (favorites: also works)
 favs:sepultura                      faved songs matching the text
@@ -86,8 +93,8 @@ left pane (album search)
 ```
 
 `a` keeps the current queue and appends; `A` clears it and starts the album
-immediately. When nothing is playing, `a` (or Enter on a song) also starts
-playback. `artist:...,albums`
+immediately. With an empty queue, `a` (or Enter on a song) also starts
+playback; with a loaded but stopped queue it only appends. `artist:...,albums`
 still lists albums in the normal results pane, where `Enter` loads the whole
 album into the queue. Selecting a playlist loads its tracks into the center
 queue pane. `Ctrl+P` lists all your playlists in one place: locally saved
@@ -99,9 +106,10 @@ playlists when logged in.
 In song results, mark songs with `x` or `Space` (marked rows show a `*`);
 `Shift+Space` or shift+click marks the whole range from the first marked
 song through the highlighted one. Press `a` to add every marked song to the
-queue in list order, or `Enter` to do the same. While something is playing,
-the songs are appended without interrupting it; otherwise the first one
-starts and auto-advance plays the rest.
+queue in list order, or `Enter` to do the same. While something is playing
+(or a loaded queue is stopped), the songs are appended without interrupting
+it; with an empty queue the first one starts and auto-advance plays the
+rest.
 
 ### Playback and transitions
 
@@ -113,13 +121,14 @@ The `DECK` line in the right pane shows the active deck and becomes a `MIX`
 meter while two tracks blend. While audio plays, glowing audio-reactive
 panels run in the bottom of every pane; pick a style with the `Visuals`
 dropdown or cycle with `v`, and choose a theme from the command palette (the
-circle in the header). On slow or remote terminals, lower `ui.visual_fps` in
+circle in the header). Clicking anywhere on the progress bar seeks to that
+position. On slow or remote terminals, lower `ui.visual_fps` in
 the config (or set it to `0`) to ease the rendering load.
 
 ### Favorites
 
-`f` favs the highlighted song in the queue or search results — or, when
-neither pane has a song highlighted, the track that is playing. Faved songs
+`f` favs the highlighted song when the queue or results pane has focus, and
+the playing track otherwise. Faved songs
 show a trailing `*` in the queue, in search results, and on the Now Playing
 label; pressing `f` on a faved song removes it again. Type `favs:` in the
 search box to list your favorites (add text, e.g. `favs:sepultura`, to
@@ -143,11 +152,13 @@ transition controls sit under Now Playing, next to the volume row):
 - `Save` (also `w`) saves the queue exactly as a local playlist under the
   typed name — falling back to the loaded playlist's title, then
   `Saved Queue` — so removals and reordering done with `d`/`j`/`k` persist.
-- `Add` adds the current track to the local playlist named in the field;
-  without a name it uses the loaded local playlist, or creates
-  `TUI Playlist`.
-- `Remove` removes the current track from the loaded playlist: local
-  playlists are edited on disk, YouTube playlists in your account.
+- `Add` adds the selected track — the highlighted queue row, else the
+  highlighted search song, else the playing track — to the local playlist
+  named in the field; without a name it uses the loaded local playlist, or
+  creates `TUI Playlist`.
+- `Remove` removes the selected track (same resolution as `Add`) from the
+  loaded playlist: local playlists are edited on disk, YouTube playlists in
+  your account.
 
 ## The CLI
 

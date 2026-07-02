@@ -4,7 +4,7 @@
 
 - Linux or macOS
 - Python 3.11+ and [`uv`](https://docs.astral.sh/uv/)
-- `mpv` and `yt-dlp` on `PATH`
+- `mpv` and `yt-dlp` on `PATH` (`youtube-dl` is accepted as a fallback)
 
 ```bash
 # macOS (Homebrew)

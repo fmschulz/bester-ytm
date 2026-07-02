@@ -5,18 +5,19 @@ testable; all external systems (YouTube Music, mpv) are isolated behind one
 module each.
 
 ```text
-CLI (cli.py, cli_play.py, cli_config.py)      TUI (tui.py + mixins)
+CLI (cli.py, cli_play.py, cli_config.py)      TUI (tui.py + tui_* mixins)
         \                                        /
-         services: playlist_builder, playlist_create, resolver, stores
+   services: playlist_builder, playlist_create, resolver, similar, stores
                   |                          |
           ytm_client.py                 playback.py
-        (only YouTube Music access)   (only mpv process control)
-                                            |
-                            transitions.py / deck.py / fader.py / mpv_ipc.py
+   (YouTube Music access: a facade    (only mpv process control)
+    over ytm_session / ytm_search /         |
+    ytm_library / ytm_models)  transitions.py / deck.py / fader.py / mpv_ipc.py
 ```
 
-Every ytmusicapi response is normalized into local dataclasses at the
-`ytm_client.py` boundary; nothing above it depends on raw API shapes.
+Every ytmusicapi response is normalized into pydantic models (`ytm_models.py`)
+at the `ytm_client` boundary; nothing above it depends on raw API shapes. The
+only other module touching ytmusicapi is `auth.py`, for login setup.
 
 ## Playback: the dual-deck transition engine
 
@@ -55,8 +56,11 @@ up to two mpv processes at once, like a two-deck DJ setup:
    promotion and the track ends with a plain cut.
 3. **Failed fades restore volume.** If a fader thread errors, the live deck's
    volume is restored to the master volume so playback is never left quiet.
-4. **Both decks are always reaped.** `stop()` (and TUI quit) shuts down the
-   engine, terminating live and prebuffer decks and unlinking their sockets.
+4. **Both decks are always reaped.** Retiring a deck never blocks the tick
+   thread: the `DeckReaper` (`deck.py`) sends SIGTERM and unlinks the socket
+   immediately, polls the dying process on subsequent ticks, and escalates
+   to SIGKILL after a 5-second grace period. `stop()` (and TUI quit) shuts
+   down the engine and ends with a blocking flush so no mpv outlives the app.
 
 Manual `next` during crossfade mode performs a quick-mix (ramp capped at 2s);
 `previous` and pause snap the mix immediately before acting. Mute is mirrored
@@ -65,7 +69,8 @@ to the draining deck so a muted mix stays silent.
 ## Playlist planning pipeline
 
 ```text
-seeds (favorites, pasted text) -> intelligence provider (heuristic | codex)
+seeds (favorites, pasted text) or a prose brief
+  -> intelligence provider (heuristic | codex | openai | anthropic)
   -> resolver (search candidates, penalize live/cover/remix, confidence)
   -> plan JSON/Markdown in ~/.local/share/bester-ytm/plans/
   -> playlist create/update via ytm_client -> verification against the plan
@@ -77,7 +82,8 @@ silently accepted.
 ## Storage and configuration
 
 ```text
-~/.config/bester-ytm/config.toml   [playback] transition + fade_seconds
+~/.config/bester-ytm/config.toml   [playback], [ui], [builder], [intelligence]
+~/.config/bester-ytm/browser.json  browser login headers (0600, never in git)
 ~/.config/bester-ytm/oauth*.json   OAuth client and token (0600, never in git)
 ~/.local/share/bester-ytm/         plans, favorites, local playlists
 ```
@@ -88,7 +94,9 @@ sections it does not own, so user edits are never destroyed.
 
 ## Testing strategy
 
-The suite (200+ tests, a few seconds, no network/mpv/sleeps) fakes mpv at the
+The suite (550+ tests, ~15 seconds, no network/mpv/sleeps) fakes mpv at the
 `subprocess.Popen` and IPC seams, drives the fader with injected clocks, and
-exercises the Textual app through `run_test()` pilots. Manual, audio-producing
-checks live in [Manual Testing](manual-testing.md).
+exercises the Textual app through `run_test()` pilots. `tests/conftest.py`
+isolates XDG config/data into temp dirs for every test and tunes Textual's
+idle polling so pilot tests stay fast. Manual, audio-producing checks live in
+[Manual Testing](manual-testing.md).

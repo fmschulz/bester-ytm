@@ -6,7 +6,8 @@
 uv sync                          # install with dev dependencies
 uv run bester-ytm                # run the TUI from the working tree
 uv run pytest -q                 # tests (fast: no network, no mpv, no sleeps)
-uv run pytest -q --cov=bester_ytm --cov-report=term   # coverage (CI gate: 80%)
+uv run pytest -q --cov=bester_ytm --cov-report=term   # coverage report
+# CI enforces the 80% gate (--cov-fail-under=80 in .github/workflows/ci.yml)
 uv run ruff check .              # lint
 uv run mypy src                  # type check
 ```
@@ -31,6 +32,7 @@ src/bester_ytm/
 ├── tui.py + tui_*.py                    Textual app shell and action mixins
 ├── playback.py                          PlaybackController: queue, history, mpv
 ├── transitions.py, deck.py, fader.py    dual-deck crossfade engine
+├── playback_status.py, transition_settings.py   shared dataclasses
 ├── mpv_ipc.py                           mpv JSON IPC transport
 ├── ytm_client.py + ytm_*.py             YouTube Music access: facade over
 │                                        session, search, library, models

@@ -12,9 +12,11 @@ Music account:
 2. **Plan** — the builder keeps your seeds and fills the remaining slots with
    related tracks, recording a reason for every pick.
 3. **Resolve** — each planned track is matched to a concrete YouTube Music
-   video ID; obvious live/cover/remix/karaoke variants are skipped unless
-   you pass `--allow-variants`. "27/30 resolved" means 3 tracks found no
-   confident match — open the plan file to review them.
+   video ID; obvious variants (live, cover, remix, karaoke, demo,
+   instrumental, remaster, sped-up/slowed, tribute, lyric video) are skipped
+   unless you pass `--allow-variants` (CLI builds only; TUI builds always
+   filter variants). "27/30 resolved" means 3 tracks found no confident
+   match — open the plan file to review them.
 4. **Plan saved** — every plan is written as JSON and Markdown under
    `~/.local/share/bester-ytm/plans/` so you can inspect or edit it before
    anything touches your account.
@@ -37,13 +39,19 @@ Builds run in the background while music keeps playing. When the build
 finishes, it becomes a new named local playlist and loads into the queue
 (after the current song, if one is playing). An explicit count in the brief
 ("15 songs") is honored; the default is 30. The playlist name comes from the
-brief: an explicit "save it as X" is used verbatim, otherwise the AI (or a
-heuristic) derives a short fitting name.
+brief: an explicit "save it as X" seeds the name (a few words, trimmed at
+filler words), and the AI providers may refine it into a short fitting title.
+
+Pressing `i` (or Build) with an empty builder box builds from your favorites
+file instead: set `[builder] favorites_file` in `config.toml` to a seeds
+markdown file (a sibling `../tuiradio/favs.md` is picked up automatically
+when present).
 
 From there the queue is your editable working playlist: `d` removes, `j`/`k`
-move, `g` adds AI suggestions, and `w` saves back to the named playlist.
-`bester-ytm playlist create <plan-id>` publishes it to your account when you
-are happy with it.
+move, `g` adds AI suggestions, and `w` saves back to the named local
+playlist. `bester-ytm playlist create <plan-id>` publishes the saved plan's
+resolved tracks to your account — queue edits live in the local playlist,
+not the plan, so publish reflects the plan as built.
 
 ## AI providers
 
