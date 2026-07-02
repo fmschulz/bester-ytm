@@ -3,27 +3,30 @@
 ## The TUI
 
 Launch with `bester-ytm`. The layout has three panes: search results on the
-left, the playlist/queue in the center, and playback, metadata, and the
-playlist builder on the right. The footer shows the shortcuts for the
-focused pane.
+left, the playlist/queue in the center, and playback, metadata, playlist
+controls, and the playlist builder on the right. The footer shows the
+shortcuts for the focused pane; `?` opens an overlay with every binding.
 
 ### Keys
 
 ```text
 /          focus search
 Enter      play selected search result, playlist, or queue item
-x          select/deselect the highlighted search result (also shift+click)
+x          mark/unmark the highlighted search result
+Shift+Space  range-select: mark every song from the first marked one
+           through the highlighted row (shift+click does the same)
 a          add the highlighted song or album to the queue, or every row
            marked with x (keeps what is already queued)
 A          play now, replacing the queue (album searches; shift+a)
-Space      play/pause
+Space      play/pause; in the results pane it marks the highlighted
+           song instead (same as x)
 n          next track
 p or b     previous track
 s          shuffle playlist/queue
 c          clear the queue (keeps the playing track)
-d          remove the highlighted queue track; in search results, delete the
-           highlighted playlist (local ones immediately, YouTube ones from
-           your account after a confirming second press)
+d          remove the highlighted queue track; in search results, delete
+           the highlighted playlist (local or YouTube) after a confirming
+           second press
 j / k      move the highlighted queue track down / up
 w          save the queue as a local playlist (also the Save button)
 g          add AI-suggested similar tracks to the queue
@@ -33,13 +36,14 @@ t          toggle transition style (cut / crossfade)
 v          cycle the visualizer (Mythos, Oracle, Bars, Wave, Pulse, Scope)
 Left/Right seek -10s/+10s
 ,/.        seek -30s/+30s
-- / =      volume down / up
+- / = / +  volume down / up (both = and + raise it)
 m          mute/unmute
 r          cycle the selected track's rating (0 to 3, then back to 0)
 f          save the current track to favorites
 Ctrl+P     show playlists (local first, then your YouTube library)
 Ctrl+A     show auth status
-Tab        cycle panes
+Tab / Shift+Tab  cycle panes forwards / backwards
+?          show all key bindings in an overlay (Escape, q, or ? closes it)
 q          quit
 ```
 
@@ -65,8 +69,10 @@ left pane. Each album title is a branch you expand to its songs:
 left pane (album search)
 - Enter on an album title    expand/collapse it (songs load on first expand)
 - Enter on a song            play it now (or queue it if something is playing)
-- x                          select/deselect the highlighted row (marked *)
-                               on an album title this selects all its songs
+- Space / x                  mark/unmark the highlighted row (marked *)
+                               on an album title this marks all its songs
+- Shift+Space                range-select from the first marked song to the
+                               highlighted one (shift+click does the same)
 - a                          add to the queue (keeps what is already there):
                                album title -> all its songs
                                song        -> that one song
@@ -88,10 +94,12 @@ playlists when logged in.
 
 ### Building a queue from search
 
-In song results, mark songs with `x` (marked rows show a `*`), then press
-`a` to add every marked song to the queue in list order, or `Enter` to do the
-same. While something is playing, the songs are appended without interrupting
-it; otherwise the first one starts and auto-advance plays the rest.
+In song results, mark songs with `x` or `Space` (marked rows show a `*`);
+`Shift+Space` or shift+click marks the whole range from the first marked
+song through the highlighted one. Press `a` to add every marked song to the
+queue in list order, or `Enter` to do the same. While something is playing,
+the songs are appended without interrupting it; otherwise the first one
+starts and auto-advance plays the rest.
 
 ### Playback and transitions
 
@@ -112,25 +120,52 @@ The right pane edits the highlighted queue row, selected search song, or
 current track. Local playlists are independent of YouTube playlists — useful
 for collecting tracks before creating a real YouTube playlist.
 
+The right-pane `Playlist / Queue` section manages the queue as a named
+playlist. It holds the playlist name field, the New / Save / Add / Remove
+buttons, and the Shuffle / Mix / Clear and Fade- / Fade+ controls:
+
+- `New` starts a fresh playlist: the queue is cleared (a playing track keeps
+  playing and stays as the first row), the loaded playlist is detached, and
+  the name field is emptied and focused so you can name the new one.
+- `Save` (also `w`) saves the queue exactly as a local playlist under the
+  typed name — falling back to the loaded playlist's title, then
+  `Saved Queue` — so removals and reordering done with `d`/`j`/`k` persist.
+- `Add` adds the current track to the local playlist named in the field;
+  without a name it uses the loaded local playlist, or creates
+  `TUI Playlist`.
+- `Remove` removes the current track from the loaded playlist: local
+  playlists are edited on disk, YouTube playlists in your account.
+
 ## The CLI
 
 ```bash
 bester-ytm                          # launch the TUI
-bester-ytm search "Artist Song"     # search songs
-bester-ytm play search "Artist Song"
-bester-ytm play video VIDEO_ID
+bester-ytm search "Artist Song" --limit 15    # search songs (1-25, default 10)
+bester-ytm play search "Artist Song" --seconds 20
+bester-ytm play video VIDEO_ID --seconds 20
 bester-ytm play playlist PLAYLIST_ID --transition crossfade --fade 8
 
-bester-ytm playlist build --from seeds.md --name "My Mix" --count 30
+bester-ytm playlist build --from seeds.md --name "My Mix" --count 30 \
+    --brief "high-energy openers" --allow-variants
 bester-ytm playlist create PLAN_ID --privacy PRIVATE
 bester-ytm playlist export PLAN_ID --format md
 
 bester-ytm favorites import-tuiradio path/to/favs.md
 
-bester-ytm auth login | status | logout
+bester-ytm auth login [--oauth] [--no-browser]
+bester-ytm auth status
+bester-ytm auth logout --yes
 bester-ytm config show
 ```
 
-`--transition` and `--fade` override the saved configuration for one run;
-without them, `play playlist` uses the settings from
-[`config.toml`](configuration.md).
+- `--seconds` on the `play` commands plays a sample of that length, then
+  exits.
+- `playlist build` takes `--brief` for a free-form prompt or constraints and
+  `--allow-variants` to permit obvious live/remix/cover candidates.
+- `auth login --no-browser` (with `--oauth`) skips opening the web browser
+  automatically; `auth logout --yes` skips the confirmation prompt.
+- `play playlist` requires a login even for public playlist ids, because it
+  fetches the playlist through the authenticated client.
+- `--transition` and `--fade` override the saved configuration for one run;
+  without them, `play playlist` uses the settings from
+  [`config.toml`](configuration.md).

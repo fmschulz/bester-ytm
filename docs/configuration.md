@@ -4,7 +4,8 @@
 
 Playback, layout, and builder options live in
 `~/.config/bester-ytm/config.toml`. The file is optional; without it the
-defaults below are in effect.
+defaults below are in effect (the lines marked "example" have no default
+and stay unset until you write them).
 
 ```toml
 [playback]
@@ -15,12 +16,12 @@ volume = 100               # startup volume, 0-100
 [ui]
 visualizer = "mythos"      # mythos | oracle | bars | wave | pulse | scope
 theme = "ember"            # ember (branded) or any built-in Textual theme
-visual_fps = 20            # visualizer animation rate; 0 turns the panels off
-left_width = 30            # pane widths in terminal cells
-right_width = 44
+visual_fps = 20            # animation rate, 0 (panels off) to 30
+left_width = 30            # example; unset by default (see below)
+right_width = 44           # example; unset by default
 
 [builder]
-favorites_file = "~/music/favs.md"   # favorites used by seed-less builds
+favorites_file = "~/music/favs.md"   # example; unset by default
 
 [intelligence]
 provider = "auto"          # auto | heuristic | codex | openai | anthropic
@@ -33,14 +34,21 @@ provider = "auto"          # auto | heuristic | codex | openai | anthropic
   when you change the visual style, pick a theme from the command palette (the
   circle in the header), or drag the pane splitters in the TUI (mouse support
   required; inside tmux enable `set -g mouse on`).
+- `left_width` / `right_width`: pane widths in terminal cells (the values
+  above are examples). Unset by default — the panes then fall back to the
+  stylesheet's fractional widths.
 - `visual_fps`: how often the audio-reactive panels redraw and sample live
   loudness. Lower it (or set `0` to freeze the panels) on slow or remote
   terminals — beat tracking loosens below ~15 — it is read at startup only.
+  Capped at 30: values above 30 (or below 0) are rejected with a
+  `ConfigError` at startup.
 - `favorites_file`: path to a favorites markdown file used by
-  favorites-based playlist builds.
+  favorites-based playlist builds (the value above is an example; unset by
+  default).
 - `[intelligence]`: see [Playlist Builder & AI](builder.md#ai-providers).
 
-Inspect the effective settings with:
+Inspect the effective transition settings (`[playback]` `transition` and
+`fade_seconds`) with:
 
 ```bash
 bester-ytm config show

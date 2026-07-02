@@ -13,7 +13,7 @@ tests intentionally do not perform.
       device flow; `oauth-client.json` exists with mode `0600`.
 - [ ] `uv run bester-ytm auth status` reports an authenticated YouTube Music library request without printing tokens.
 - [ ] Launching the TUI without a login shows the login hint in the status
-      line; with one it shows `Ready.`.
+      line; with one it shows `Logged in to YouTube Music.`.
 
 ## Playlists
 

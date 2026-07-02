@@ -5,6 +5,53 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Album search as an expandable tree: `album:` queries render album titles
+  in the left pane; Enter expands an album (its songs load in the background
+  on first expand), `a` adds an album, song, or the marked rows to the queue,
+  and `A` (shift+a) plays the album now — from the top or from the
+  highlighted song on.
+- Range selection in search results and the album tree: `Shift+Space` and
+  shift+click mark every song from the first marked one through the
+  highlighted row.
+- A dedicated Playlist / Queue section in the right pane: a playlist name
+  field with New / Save / Add / Remove buttons plus the Shuffle / Mix /
+  Clear and Fade- / Fade+ controls. New starts a fresh playlist while the
+  playing track keeps playing, and freshly built or saved playlists appear
+  in the left library immediately.
+- A keyboard help overlay: `?` opens a modal listing every key binding,
+  grouped by purpose; Escape, `q`, or `?` closes it.
+- Login state at startup: the status line reports
+  `Logged in to YouTube Music.` or a hint to run `bester-ytm auth login`;
+  the volume buttons moved into their own row under the transport controls.
+
+### Changed
+
+- Playback status messages name the track instead of showing raw video ids,
+  including the remove, move, skip-unplayable, and mixing messages.
+- Deleting a local playlist with `d` now requires a confirming second press,
+  matching YouTube playlist deletion.
+- Search, playlist loading, YouTube library listing, and album expansion run
+  on worker threads, so slow YouTube Music responses no longer freeze the
+  TUI.
+- The visualizers lock their motion to the audible beat.
+
+### Fixed
+
+- The `=` (volume up) and `.` (seek +30s) keys were dead because the
+  bindings used the wrong Textual key names; both work again, and `+` also
+  raises the volume.
+- The periodic refresh tick no longer overwrites the tags input while you
+  type and no longer resets the Track Details pane to the playing track on
+  every tick.
+- Variant filtering (live/remix/cover detection) matches whole words only,
+  so titles like "Alive" or "Deliverance" are no longer rejected as "live"
+  variants.
+- `bester-ytm search --help` now shows a description of the command.
+
 ## [1.0.0] - 2026-06-11
 
 First public release.
