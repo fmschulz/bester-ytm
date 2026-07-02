@@ -1,5 +1,32 @@
+import pytest
+
 from bester_ytm.playlist_plan import PlannedTrack, SongCandidate
-from bester_ytm.resolver import Resolver
+from bester_ytm.resolver import Resolver, variant_term
+
+
+@pytest.mark.parametrize(
+    "title", ["Stayin' Alive", "Demons", "Discovery", "Alive", "Nine Lives"]
+)
+def test_variant_term_ignores_substring_matches(title: str) -> None:
+    assert variant_term(title) is None
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("Song (Live)", "live"),
+        ("Live at Wembley", "live"),
+        ("Acoustic Cover", "cover"),
+        ("Demo Version", "demo"),
+        ("Sped Up Remix", "remix"),
+        ("Song (Sped Up)", "sped up"),
+        ("Song (The Remixes)", "remix"),
+        ("Acoustic Covers", "cover"),
+        ("Demos 1988", "demo"),
+    ],
+)
+def test_variant_term_flags_whole_word_variants(title: str, expected: str) -> None:
+    assert variant_term(title) == expected
 
 
 def test_resolver_penalizes_cover_live_remix_variants() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from difflib import SequenceMatcher
 
 from .playlist_plan import PlannedTrack, RankedCandidate, SongCandidate
@@ -25,10 +26,25 @@ def _similarity(left: str, right: str) -> float:
     return SequenceMatcher(None, left.casefold(), right.casefold()).ratio()
 
 
+# Terms whose plural forms also mark a variant ("The Remixes", "Acoustic Covers").
+# "live" is excluded: "lives" is a different word ("Nine Lives").
+_PLURAL_VARIANT_TERMS = frozenset(
+    {"cover", "demo", "instrumental", "remaster", "remix", "tribute"}
+)
+
+
+def _variant_pattern(term: str) -> re.Pattern[str]:
+    suffix = "(?:e?s)?" if term in _PLURAL_VARIANT_TERMS else ""
+    return re.compile(rf"\b{re.escape(term)}{suffix}\b")
+
+
+_VARIANT_PATTERNS = tuple((term, _variant_pattern(term)) for term in VARIANT_TERMS)
+
+
 def variant_term(title: str) -> str | None:
     folded = title.casefold()
-    for term in VARIANT_TERMS:
-        if term in folded:
+    for term, pattern in _VARIANT_PATTERNS:
+        if pattern.search(folded):
             return term
     return None
 
