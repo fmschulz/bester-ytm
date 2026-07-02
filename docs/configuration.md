@@ -63,8 +63,8 @@ bester-ytm config show
 ~/.config/bester-ytm/oauth.json         OAuth token (--oauth)
 ~/.local/share/bester-ytm/plans/        playlist plans (JSON + Markdown)
 ~/.local/share/bester-ytm/local-playlists/      TUI local playlists
-~/.local/share/bester-ytm/track-metadata.json   ratings and tags
-~/.local/share/bester-ytm/favorites.md          imported favorites
+~/.local/share/bester-ytm/favorites.json        faved songs (f / favs:)
+~/.local/share/bester-ytm/favorites.md          legacy/imported favorites
 ```
 
 Auth files are written with mode `0600` in a `0700` directory and never

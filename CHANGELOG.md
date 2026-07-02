@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Favorites as a first-class feature: `f` favs or unfavs the highlighted
+  song (falling back to the playing track), faved songs show a trailing `*`
+  in the queue, search results, and the Now Playing label, and a `favs:`
+  search prefix lists them (`favs:text` filters). Favorites persist as full
+  track records in `favorites.json`; entries from the legacy `favorites.md`
+  are migrated on first use.
 - Album search as an expandable tree: `album:` queries render album titles
   in the left pane; Enter expands an album (its songs load in the background
   on first expand), `a` adds an album, song, or the marked rows to the queue,
@@ -30,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The right pane got simpler: the Track Details section is gone, and the
+  Mix / Fade- / Fade+ transition controls moved from the Playlist / Queue
+  section into Now Playing next to the volume row, since they act on live
+  playback rather than the queue.
 - Playback status messages name the track instead of showing raw video ids,
   including the remove, move, skip-unplayable, and mixing messages.
 - Deleting a local playlist with `d` now requires a confirming second press,
@@ -42,14 +52,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`tui_*` action mixins; session, search, library, and models behind the
   `ytm_client` facade), and the test suite runs markedly faster.
 
+### Removed
+
+- Track ratings and tags: the Track Details section, the `r` key, and the
+  Rate- / Rate+ / Save Tags buttons are gone in favor of the simpler
+  favorites toggle. An existing `track-metadata.json` is left untouched on
+  disk but is no longer read.
+
 ### Fixed
 
 - The `=` (volume up) and `.` (seek +30s) keys were dead because the
   bindings used the wrong Textual key names; both work again, and `+` also
   raises the volume.
-- The periodic refresh tick no longer overwrites the tags input while you
-  type and no longer resets the Track Details pane to the playing track on
-  every tick.
+- The periodic refresh tick redraws the Now Playing label only when the
+  track actually changes.
 - Variant filtering (live/remix/cover detection) matches whole words only,
   so titles like "Alive" or "Deliverance" are no longer rejected as "live"
   variants.
@@ -62,7 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When pause falls back to process signals (mpv IPC unavailable), resume
   works again, and status polling, seeking, volume, and mute no longer stall
   against the signal-stopped mpv.
-- Corrupt store files (track metadata, plans, local playlists) now produce
+- Corrupt store files (favorites, plans, local playlists) now produce
   an actionable "move the file aside and retry" error that the TUI shows in
   the status bar instead of crashing; corrupt local playlists are skipped
   with a warning when listing.

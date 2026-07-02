@@ -28,7 +28,7 @@ src/bester_ytm/
 ├── cli.py, cli_play.py, cli_config.py   # Typer commands (thin; no API logic)
 ├── tui.py                               # Textual app shell (bindings, compose)
 ├── tui_*.py                             # TUI action mixins (playback, library,
-│                                        #   album, metadata, playlists, queue,
+│                                        #   album, favorites, playlists, queue,
 │                                        #   selection, builder, events, options)
 │                                        # plus rendering/layout/CSS (tui_effects,
 │                                        #   tui_layout, tui_styles, tui_visuals,

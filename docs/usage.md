@@ -3,9 +3,9 @@
 ## The TUI
 
 Launch with `bester-ytm`. The layout has three panes: search results on the
-left, the playlist/queue in the center, and playback, metadata, playlist
-controls, and the playlist builder on the right. The footer shows the
-shortcuts for the focused pane; `?` opens an overlay with every binding.
+left, the playlist/queue in the center, and playback, playlist controls, and
+the playlist builder on the right. The footer shows the shortcuts for the
+focused pane; `?` opens an overlay with every binding.
 
 ### Keys
 
@@ -38,8 +38,8 @@ Left/Right seek -10s/+10s
 ,/.        seek -30s/+30s
 - / = / +  volume down / up (both = and + raise it)
 m          mute/unmute
-r          cycle the selected track's rating (0 to 3, then back to 0)
-f          save the current track to favorites
+f          fav/unfav the highlighted song (or the playing track); faved
+           songs show a trailing * and pressing f again removes them
 Ctrl+P     show playlists (local first, then your YouTube library)
 Ctrl+A     show auth status
 Tab / Shift+Tab  cycle panes forwards / backwards
@@ -60,6 +60,8 @@ artist:sepultura,albums             the artist's albums
 artist:sepultura,year:1998,songs    tracks from the artist's 1998 releases
 playlist:                           your local playlists
 playlist:indie                      community playlists on YouTube Music
+favs:                               your faved songs (favorites: also works)
+favs:sepultura                      faved songs matching the text
 ```
 
 `song:` lists individual tracks; `album:` shows a tree of album names in the
@@ -114,15 +116,26 @@ dropdown or cycle with `v`, and choose a theme from the command palette (the
 circle in the header). On slow or remote terminals, lower `ui.visual_fps` in
 the config (or set it to `0`) to ease the rendering load.
 
-### Ratings, tags, and local playlists
+### Favorites
 
-The right pane edits the highlighted queue row, selected search song, or
-current track. Local playlists are independent of YouTube playlists — useful
-for collecting tracks before creating a real YouTube playlist.
+`f` favs the highlighted song in the queue or search results — or, when
+neither pane has a song highlighted, the track that is playing. Faved songs
+show a trailing `*` in the queue, in search results, and on the Now Playing
+label; pressing `f` on a faved song removes it again. Type `favs:` in the
+search box to list your favorites (add text, e.g. `favs:sepultura`, to
+filter); the rows behave like any song result, so `Enter`, `a`, and `f` all
+work there. Favorites live in `favorites.json` under the app's data
+directory.
+
+### Local playlists
+
+Local playlists are independent of YouTube playlists — useful for collecting
+tracks before creating a real YouTube playlist.
 
 The right-pane `Playlist / Queue` section manages the queue as a named
 playlist. It holds the playlist name field, the New / Save / Add / Remove
-buttons, and the Shuffle / Mix / Clear and Fade- / Fade+ controls:
+buttons, and the Shuffle / Clear controls (the Mix and Fade- / Fade+
+transition controls sit under Now Playing, next to the volume row):
 
 - `New` starts a fresh playlist: the queue is cleared (a playing track keeps
   playing and stays as the first row), the loaded playlist is detached, and

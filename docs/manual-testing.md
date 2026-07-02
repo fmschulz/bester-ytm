@@ -24,7 +24,7 @@ tests intentionally do not perform.
 ## Playback
 
 - [ ] `uv run bester-ytm play search "Beach House Myth" --seconds 20` starts `mpv`, plays audio, and exits cleanly.
-- [ ] `uv run bester-ytm` opens the player TUI; search, queue, play/pause, skip, favorite, auth status, and playlist builder views respond to the documented keys.
+- [ ] `uv run bester-ytm` opens the player TUI; search, queue, play/pause, skip, favorite toggle (f, trailing * marker, favs: listing), auth status, and playlist builder views respond to the documented keys.
 
 ## DJ transitions
 

@@ -113,7 +113,7 @@ def test_any_other_action_rearms_the_local_delete_confirmation(
     assert app._pending_playlist_delete == "yahoo"
 
     # Any action other than d (via key binding or button) disarms the confirm.
-    asyncio.run(app.run_action("rate_down"))
+    asyncio.run(app.run_action("toggle_favorite"))
     assert app._pending_playlist_delete is None
 
     asyncio.run(app.action_remove_from_queue())

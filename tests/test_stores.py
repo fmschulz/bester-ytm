@@ -5,23 +5,72 @@ import pytest
 
 from bester_ytm.config import ConfigError
 from bester_ytm.playlist_plan import SongCandidate
-from bester_ytm.stores import LocalPlaylist, LocalPlaylistStore, PlanStore, TrackMetadataStore
+from bester_ytm.stores import FavoritesStore, LocalPlaylist, LocalPlaylistStore, PlanStore
 
 
-def test_track_metadata_store_clamps_ratings_and_normalizes_tags(
-    tmp_path: Path,
-) -> None:
-    store = TrackMetadataStore(path=tmp_path / "metadata.json")
+def _favorites(tmp_path: Path) -> FavoritesStore:
+    return FavoritesStore(
+        path=tmp_path / "favorites.json", legacy_path=tmp_path / "favorites.md"
+    )
 
-    assert store.set_rating("v1", 9).rating == 3
-    assert store.set_rating("v1", -2).rating == 0
-    # Legacy entries rated on the old 0-5 scale clamp to the new maximum.
-    assert store.set_rating("v2", 5).rating == 3
 
-    metadata = store.set_tags("v1", [" Metal ", "metal", "", "Thrash"])
+def test_favorites_store_toggle_favs_and_unfavs(tmp_path: Path) -> None:
+    store = _favorites(tmp_path)
+    candidate = SongCandidate(video_id="v1", title="Myth", artists=["Beach House"])
 
-    assert metadata.tags == ["metal", "thrash"]
-    assert store.get("v1").tags == ["metal", "thrash"]
+    assert store.toggle(candidate) is True
+    assert store.ids() == {"v1"}
+    assert store.list()[0].display_name == "Beach House - Myth"
+
+    assert store.toggle(candidate) is False
+    assert store.ids() == set()
+
+
+def test_favorites_store_search_items_filter_by_text(tmp_path: Path) -> None:
+    store = _favorites(tmp_path)
+    store.toggle(SongCandidate(video_id="v1", title="Myth", artists=["Beach House"]))
+    store.toggle(SongCandidate(video_id="v2", title="Territory", artists=["Sepultura"]))
+
+    items = store.search_items()
+    assert [item.candidate.video_id for item in items] == ["v1", "v2"]
+    assert items[0].item_type == "song"
+
+    filtered = store.search_items("sepul")
+    assert [item.candidate.video_id for item in filtered] == ["v2"]
+
+
+def test_favorites_store_migrates_legacy_markdown_once(tmp_path: Path) -> None:
+    legacy = tmp_path / "favorites.md"
+    legacy.write_text(
+        "# bester-ytm Favorites\n"
+        "\n"
+        "- Sepultura - Territory (v1)\n"
+        "- Artist Only - No Id Line\n",  # tuiradio import line: no video id, skipped
+        encoding="utf-8",
+    )
+    store = _favorites(tmp_path)
+
+    favorites = store.list()
+
+    assert [candidate.video_id for candidate in favorites] == ["v1"]
+    assert favorites[0].title == "Sepultura - Territory"
+    assert store.path.exists()  # migrated to JSON so later toggles persist there
+
+
+def test_favorites_store_raises_config_error_for_corrupt_json(tmp_path: Path) -> None:
+    store = _favorites(tmp_path)
+    store.path.write_text("{broken", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="favorites.json"):
+        store.list()
+
+
+def test_favorites_store_raises_config_error_for_non_array_payload(tmp_path: Path) -> None:
+    store = _favorites(tmp_path)
+    store.path.write_text('{"v1": {}}', encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="favorites.json"):
+        store.ids()
 
 
 def test_local_playlist_store_adds_removes_and_lists_tracks(tmp_path: Path) -> None:
@@ -52,32 +101,6 @@ def test_plan_store_load_raises_config_error_for_corrupt_json(tmp_path: Path) ->
 
     with pytest.raises(ConfigError, match="myplan.json"):
         PlanStore(plans_dir=plans_dir).load("myplan")
-
-
-def test_track_metadata_store_raises_config_error_for_corrupt_json(tmp_path: Path) -> None:
-    path = tmp_path / "metadata.json"
-    path.write_text("{broken", encoding="utf-8")
-
-    with pytest.raises(ConfigError, match="metadata.json"):
-        TrackMetadataStore(path=path).get("v1")
-
-
-def test_track_metadata_store_raises_config_error_for_non_object_payload(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "metadata.json"
-    path.write_text("[1, 2]", encoding="utf-8")
-
-    with pytest.raises(ConfigError, match="metadata.json"):
-        TrackMetadataStore(path=path).get("v1")
-
-
-def test_track_metadata_store_raises_config_error_for_invalid_entry(tmp_path: Path) -> None:
-    path = tmp_path / "metadata.json"
-    path.write_text('{"v1": {"rating": "loud"}}', encoding="utf-8")
-
-    with pytest.raises(ConfigError, match="metadata.json"):
-        TrackMetadataStore(path=path).get("v1")
 
 
 def test_local_playlist_store_load_raises_config_error_for_corrupt_json(

@@ -10,7 +10,7 @@ YouTube Music account.
 ## What it does
 
 - **Terminal player** — a Textual TUI with search, an editable queue,
-  ratings, tags, and audio-reactive visuals.
+  favorites, and audio-reactive visuals.
 - **DJ transitions** — the next track is prebuffered on a second silent
   `mpv` deck and blended in with an equal-power crossfade.
 - **Playlist builder** — turn seed songs or a prose brief ("15 songs in the

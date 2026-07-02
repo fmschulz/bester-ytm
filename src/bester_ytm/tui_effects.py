@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from textual.widgets import Button, Input, Label, ListItem, ListView, ProgressBar, Static
+from textual.widgets import Button, Label, ListItem, ListView, ProgressBar, Static
 
-from .config import ConfigError
 from .playback import PlaybackError, PlaybackStatus
 from .playlist_plan import SongCandidate
-from .stores import MAX_RATING, TrackMetadataStore
+from .stores import FAVORITE_SUFFIX
 from .tui_visuals import AudioLevelMeter, render_visual_panel
 
 METER_SLOTS = 12
@@ -79,8 +78,8 @@ class PlaybackRenderer:
         self._announce_transition(status)
         if self._handle_auto_advance(status):
             return
-        # Resync only on an actual track change; a per-tick resync would stomp
-        # the Track Details pane and any text being typed into #tags-input.
+        # Resync only on an actual track change; a per-tick resync would
+        # redraw the Now Playing label and queue for no reason.
         if status.current_video_id and status.current_video_id != self._synced_current_video_id:
             self._sync_current_track(status.current_video_id)
         self._refresh_now_playing_marker(status.current_video_id)
@@ -240,16 +239,13 @@ class PlaybackRenderer:
         if not video_id:
             self.current_candidate = None
             self._update_track_label("No track playing.")
-            self._update_track_metadata(None)
             return
         candidate = self.candidates_by_video_id.get(video_id)
         self.current_candidate = candidate
         label = candidate.display_name if candidate else video_id
+        if video_id in self._favorite_video_ids():
+            label += FAVORITE_SUFFIX
         self._update_track_label(label)
-        # Track Details edits the highlighted queue row (r / Save Tags act on
-        # it), so keep showing that row; fall back to the playing track only
-        # when no row is highlighted.
-        self._update_track_metadata(self._highlighted_queue_video_id() or video_id)
 
     def _update_track_label(self, label: str) -> None:
         track = self._query_optional("#track", Static)
@@ -260,37 +256,6 @@ class PlaybackRenderer:
         title = self._query_optional("#queue-title", Label)
         if title:
             title.update(f"{self.playlist_title} ({count})")
-
-    def _update_track_metadata(
-        self,
-        video_id: str | None,
-        *,
-        sync_tags_input: bool = True,
-    ) -> None:
-        output = self._query_optional("#track-metadata", Static)
-        tags_input = self._query_optional("#tags-input", Input)
-        # Never clobber text the user is typing into the tags field.
-        if tags_input and getattr(tags_input, "has_focus", False):
-            sync_tags_input = False
-        if not video_id:
-            if output:
-                output.update("Rating --  Tags --")
-            if tags_input and sync_tags_input:
-                tags_input.value = ""
-            return
-        try:
-            metadata = TrackMetadataStore().get(video_id)
-        except ConfigError as exc:
-            # A corrupt store must degrade to a status message, not crash the app.
-            if output:
-                output.update("Rating --  Tags --")
-            self._set_status(str(exc))
-            return
-        tags = ", ".join(metadata.tags) if metadata.tags else "--"
-        if output:
-            output.update(f"Rating {metadata.rating}/{MAX_RATING}  Tags {tags}")
-        if tags_input and sync_tags_input:
-            tags_input.value = ", ".join(metadata.tags)
 
     async def _render_queue(self, focus_video_id: str | None = None) -> None:
         """Serialize rebuilds so a direct render and a tick render cannot interleave into dupes."""
@@ -318,9 +283,12 @@ class PlaybackRenderer:
         await queue.clear()
         video_ids = self.playlist_video_ids or self.playback.queue
         self._update_queue_title(len(video_ids))
+        favorite_ids = self._favorite_video_ids()
         for index, video_id in enumerate(video_ids, start=1):
             candidate = self.candidates_by_video_id.get(video_id)
             label = candidate.display_name if candidate else video_id
+            if video_id in favorite_ids:
+                label += FAVORITE_SUFFIX
             prefix = "NOW" if video_id == current else f"{index:02d}"
             item = ListItem(Label(f"{prefix}  {label}"))
             if video_id == current:

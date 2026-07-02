@@ -79,7 +79,7 @@ silently accepted.
 ```text
 ~/.config/bester-ytm/config.toml   [playback] transition + fade_seconds
 ~/.config/bester-ytm/oauth*.json   OAuth client and token (0600, never in git)
-~/.local/share/bester-ytm/         plans, favorites, local playlists, metadata
+~/.local/share/bester-ytm/         plans, favorites, local playlists
 ```
 
 `config.py` owns all paths (XDG-aware) and enforces private file modes.

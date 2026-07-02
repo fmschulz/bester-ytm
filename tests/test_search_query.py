@@ -75,3 +75,24 @@ def test_parse_playlist_text_query_searches_community_playlists() -> None:
     assert parsed.text == "sepultura"
     assert parsed.view == "playlists"
     assert parsed.lists_local_playlists is False
+
+
+def test_parse_favs_query_lists_favorites() -> None:
+    parsed = parse_search_query("favs:")
+
+    assert parsed.kind == "favorites"
+    assert parsed.text == ""
+    assert parsed.view == "songs"
+    assert parsed.lists_favorites is True
+
+
+def test_parse_favs_text_query_filters_favorites() -> None:
+    parsed = parse_search_query("favorites:sepultura")
+
+    assert parsed.kind == "favorites"
+    assert parsed.text == "sepultura"
+    assert parsed.lists_favorites is True
+
+
+def test_free_query_does_not_list_favorites() -> None:
+    assert parse_search_query("favourite tunes").lists_favorites is False

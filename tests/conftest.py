@@ -32,12 +32,24 @@ from __future__ import annotations
 import gc
 import os
 
+import pytest
+
 # Must be set before textual.constants is imported (conftest runs first).
 os.environ.setdefault("TEXTUAL_ANIMATIONS", "NONE")
 os.environ.setdefault("TEXTUAL_FPS", "500")
 
 import textual._wait as _textual_wait
 from textual.css.stylesheet import Stylesheet
+
+
+@pytest.fixture(autouse=True)
+def _isolated_xdg(tmp_path_factory: pytest.TempPathFactory, monkeypatch) -> None:
+    """Never let tests read the user's real config or data (a saved splitter
+    width in ~/.config/bester-ytm/config.toml can push widgets off the pilot's
+    80x24 screen and break clicks). Tests that set their own XDG dirs still
+    win: their in-test monkeypatch applies after this fixture."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg-config")))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path_factory.mktemp("xdg-data")))
 
 _FAST_GRANULARITY = 0.002
 _textual_wait.SLEEP_GRANULARITY = _FAST_GRANULARITY

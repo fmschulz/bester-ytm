@@ -7,7 +7,7 @@ from bester_ytm import tui, tui_playlists
 from bester_ytm.playback import PlaybackError, PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.search_query import SearchItem
-from bester_ytm.stores import LocalPlaylistStore, TrackMetadataStore
+from bester_ytm.stores import FavoritesStore, LocalPlaylistStore
 from bester_ytm.ytm_client import PlaylistSnapshot, YTMClientError
 
 
@@ -1052,8 +1052,6 @@ def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) ->
     queue = FakeListView()
     status = FakeStatic()
     track = FakeStatic()
-    track_metadata = FakeStatic()
-    tags_input = FakeInput()
     playlist_name = FakeInput()
     queue_title = FakeStatic()
     widgets = {
@@ -1061,8 +1059,6 @@ def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) ->
         "#queue": queue,
         "#status": status,
         "#track": track,
-        "#track-metadata": track_metadata,
-        "#tags-input": tags_input,
         "#playlist-name": playlist_name,
         "#queue-title": queue_title,
     }
@@ -1102,8 +1098,6 @@ def test_tui_playlist_query_lists_and_loads_local_playlists(monkeypatch, tmp_pat
     queue = FakeListView()
     status = FakeStatic()
     track = FakeStatic()
-    track_metadata = FakeStatic()
-    tags_input = FakeInput()
     playlist_name = FakeInput()
     queue_title = FakeStatic()
     widgets = {
@@ -1111,8 +1105,6 @@ def test_tui_playlist_query_lists_and_loads_local_playlists(monkeypatch, tmp_pat
         "#queue": queue,
         "#status": status,
         "#track": track,
-        "#track-metadata": track_metadata,
-        "#tags-input": tags_input,
         "#playlist-name": playlist_name,
         "#queue-title": queue_title,
     }
@@ -1133,7 +1125,7 @@ def test_tui_playlist_query_lists_and_loads_local_playlists(monkeypatch, tmp_pat
     assert status.value == "Loaded local playlist Local Metal: 1 track(s)."
 
 
-def test_tui_track_metadata_and_local_playlist_controls_target_highlighted_queue_song(
+def test_tui_favorite_and_local_playlist_controls_target_highlighted_queue_song(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1143,8 +1135,6 @@ def test_tui_track_metadata_and_local_playlist_controls_target_highlighted_queue
     queue = FakeListView()
     status = FakeStatic()
     track = FakeStatic()
-    track_metadata = FakeStatic()
-    tags_input = FakeInput("thrash, favorite")
     playlist_name = FakeInput("Selected Tracks")
     queue_title = FakeStatic()
     widgets = {
@@ -1152,8 +1142,6 @@ def test_tui_track_metadata_and_local_playlist_controls_target_highlighted_queue
         "#queue": queue,
         "#status": status,
         "#track": track,
-        "#track-metadata": track_metadata,
-        "#tags-input": tags_input,
         "#playlist-name": playlist_name,
         "#queue-title": queue_title,
     }
@@ -1166,22 +1154,28 @@ def test_tui_track_metadata_and_local_playlist_controls_target_highlighted_queue
         "v2": SongCandidate(video_id="v2", title="Choke", artists=["Sepultura"]),
     }
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
+    workers = _capture_workers(app, monkeypatch)
 
     asyncio.run(app._render_queue())
     queue.index = 1
     app.selected_queue_video_id = "v2"
 
-    app.action_rate_up()
-    app.action_save_tags()
+    app.action_toggle_favorite()
     app.action_add_to_local_playlist()
+    _drain_workers(workers)
 
-    metadata = TrackMetadataStore().get("v2")
     playlist = LocalPlaylistStore().load("selected-tracks")
 
-    assert metadata.rating == 1
-    assert metadata.tags == ["thrash", "favorite"]
+    assert FavoritesStore().ids() == {"v2"}
+    assert status.value == "Added to Selected Tracks."
     assert playlist.video_ids == ["v2"]
     assert playlist.tracks[0].title == "Choke"
+
+    # The queue re-render after the toggle marks the faved row.
+    assert [_item_label(item) for item in queue.items] == [
+        "01  Sepultura - Against",
+        "02  Sepultura - Choke *",
+    ]
 
     asyncio.run(app.action_remove_from_playlist())
 

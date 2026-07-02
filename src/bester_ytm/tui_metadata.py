@@ -1,16 +1,16 @@
-"""Rating, tagging, favorites, and playlist maintenance actions for the TUI."""
+"""Favorites and playlist maintenance actions for the TUI."""
 
 from __future__ import annotations
 
 from textual.widgets import Input, ListView
 
 from .config import ConfigError
-from .stores import MAX_RATING, FavoritesStore, LocalPlaylistStore, TrackMetadataStore
+from .stores import FavoritesStore, LocalPlaylistStore
 from .ytm_client import PlaylistSnapshot, YTMClient, YTMClientError
 
 
 class TrackMetadataActions:
-    """Mixin with rating, tag, favorite, and playlist add/remove/delete actions."""
+    """Mixin with favorite toggle and playlist add/remove/delete actions."""
 
     active_local_playlist_id: str | None
     active_youtube_playlist_id: str | None
@@ -18,57 +18,22 @@ class TrackMetadataActions:
     playlist_video_ids: list[str]
     _pending_playlist_delete: str | None
 
-    def action_rate_up(self) -> None:
-        self._change_rating(1)
-
-    def action_rate_down(self) -> None:
-        self._change_rating(-1)
-
-    def action_cycle_rating(self) -> None:
-        video_id = self._current_video_id()
-        if not video_id:
-            self._set_status("No track selected for rating.")
+    def action_toggle_favorite(self) -> None:
+        """Fav/unfav the highlighted song, falling back to the playing track."""
+        candidate = self._current_candidate()
+        if candidate is None:
+            self._set_status("No track to favorite.")
             return
-        store = TrackMetadataStore()
         try:
-            next_rating = (store.get(video_id).rating + 1) % (MAX_RATING + 1)
-            metadata = store.set_rating(video_id, next_rating)
+            faved = FavoritesStore().toggle(candidate)
         except ConfigError as exc:
             self._set_status(str(exc))
             return
-        self._update_track_metadata(video_id, sync_tags_input=False)
-        self._set_status(f"Rating {metadata.rating}/{MAX_RATING}.")
-
-    def _change_rating(self, delta: int) -> None:
-        video_id = self._current_video_id()
-        if not video_id:
-            self._set_status("No track selected for rating.")
-            return
-        store = TrackMetadataStore()
-        try:
-            current = store.get(video_id)
-            metadata = store.set_rating(video_id, current.rating + delta)
-        except ConfigError as exc:
-            self._set_status(str(exc))
-            return
-        self._update_track_metadata(video_id, sync_tags_input=False)
-        self._set_status(f"Rating {metadata.rating}/{MAX_RATING}.")
-
-    def action_save_tags(self) -> None:
-        video_id = self._current_video_id()
-        if not video_id:
-            self._set_status("No track selected for tags.")
-            return
-        tags_input = self._query_optional("#tags-input", Input)
-        raw = tags_input.value if tags_input else ""
-        tags = [part.strip() for part in raw.split(",")]
-        try:
-            metadata = TrackMetadataStore().set_tags(video_id, tags)
-        except ConfigError as exc:
-            self._set_status(str(exc))
-            return
-        self._update_track_metadata(video_id)
-        self._set_status("Tags saved: " + (", ".join(metadata.tags) or "none"))
+        self._refresh_favorite_markers(candidate.video_id, faved)
+        if faved:
+            self._set_status(f"Favorited {candidate.display_name}.")
+        else:
+            self._set_status(f"Removed {candidate.display_name} from favorites.")
 
     def action_add_to_local_playlist(self) -> None:
         candidate = self._current_candidate()
@@ -199,10 +164,3 @@ class TrackMetadataActions:
             return
         await item.remove()  # type: ignore[attr-defined]
         self._set_status(f"Deleted YouTube playlist {title!r}.")
-
-    async def action_favorite_current(self) -> None:
-        if self.current_candidate is None:
-            self._set_status("No current track to favorite.")
-            return
-        FavoritesStore().append(self.current_candidate)
-        self._set_status("Favorite saved.")

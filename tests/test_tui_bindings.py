@@ -34,9 +34,9 @@ def test_plain_s_shuffles_queue() -> None:
     assert _bound_actions()["s"] == "shuffle_queue"
 
 
-def test_r_cycles_rating_and_g_adds_similar() -> None:
+def test_f_toggles_favorite_and_g_adds_similar() -> None:
     actions = _bound_actions()
-    assert actions["r"] == "cycle_rating"
+    assert actions["f"] == "toggle_favorite"
     assert actions["g"] == "add_similar"
 
 

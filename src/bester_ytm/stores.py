@@ -3,13 +3,14 @@ from __future__ import annotations
 import builtins
 import json
 import logging
+import re
 from pathlib import Path
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError
 
-from .config import ConfigError, get_paths, write_private_json, write_private_text
+from .config import ConfigError, get_paths, write_private_text
 from .playlist_plan import PlaylistPlan, SongCandidate, parse_seed_file, plan_to_markdown, slugify
-from .search_query import SearchItem
+from .search_query import SearchItem, search_item_from_song
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +86,22 @@ class PlanStore:
         raise ValueError(f"Unsupported export format: {fmt}")
 
 
+# Marker appended to a faved song's row label in the results and queue lists.
+# Distinct from the multi-select marker, which is a "* " prefix on the left.
+FAVORITE_SUFFIX = " *"
+
+_LEGACY_FAVORITE_LINE = re.compile(r"^- (?P<name>.+) \((?P<video_id>[^()\s]+)\)$")
+
+
 class FavoritesStore:
-    def __init__(self, path: Path | None = None) -> None:
-        self.path = path or get_paths().favorites_file
+    """Faved tracks as SongCandidates in favorites.json; the legacy favorites.md
+    (written by older versions and `favorites import-tuiradio`) is migrated on
+    first read and still used as the tuiradio import target."""
+
+    def __init__(self, path: Path | None = None, legacy_path: Path | None = None) -> None:
+        paths = get_paths()
+        self.path = path or paths.favorites_store_file
+        self.legacy_path = legacy_path or paths.favorites_file
 
     def import_tuiradio(self, source: Path) -> int:
         seeds = parse_seed_file(source)
@@ -95,93 +109,66 @@ class FavoritesStore:
         for seed in seeds:
             station = f" [{seed.station}]" if seed.station else ""
             lines.append(f"- {seed.artist} - {seed.title}{station}")
-        write_private_text(self.path, "\n".join(lines) + "\n")
+        write_private_text(self.legacy_path, "\n".join(lines) + "\n")
         return len(seeds)
 
-    def append(self, candidate: SongCandidate) -> None:
-        existing = self.path.read_text(encoding="utf-8") if self.path.exists() else ""
-        line = f"- {candidate.display_name} ({candidate.video_id})\n"
-        if line not in existing:
-            write_private_text(self.path, existing + line)
-
-
-MAX_RATING = 3
-
-
-class TrackMetadata(BaseModel):
-    video_id: str
-    rating: int = 0
-    tags: list[str] = Field(default_factory=list)
-
-    @field_validator("rating")
-    @classmethod
-    def clamp_rating(cls, value: int) -> int:
-        return max(0, min(MAX_RATING, value))
-
-
-class TrackMetadataStore:
-    def __init__(self, path: Path | None = None) -> None:
-        self.path = path or get_paths().track_metadata_file
-
-    def _read_all(self) -> dict[str, TrackMetadata]:
+    def list(self) -> builtins.list[SongCandidate]:
         if not self.path.exists():
-            return {}
+            return self._migrate_legacy()
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise _corrupt_store_error(self.path, exc) from exc
-        if not isinstance(payload, dict):
+        if not isinstance(payload, list):
             raise _corrupt_store_error(
-                self.path, ValueError("expected a JSON object mapping video ids to metadata")
+                self.path, ValueError("expected a JSON array of favorite tracks")
             )
-        items: dict[str, TrackMetadata] = {}
-        for video_id, data in payload.items():
-            if not isinstance(data, dict):
-                raise _corrupt_store_error(
-                    self.path, ValueError(f"entry {video_id!r} is not a JSON object")
+        try:
+            return [SongCandidate.model_validate(entry) for entry in payload]
+        except ValidationError as exc:
+            raise _corrupt_store_error(self.path, exc) from exc
+
+    def ids(self) -> set[str]:
+        return {candidate.video_id for candidate in self.list()}
+
+    def toggle(self, candidate: SongCandidate) -> bool:
+        """Fav an unfaved track / unfav a faved one; returns the new faved state."""
+        favorites = self.list()
+        remaining = [item for item in favorites if item.video_id != candidate.video_id]
+        if len(remaining) < len(favorites):
+            self._write(remaining)
+            return False
+        favorites.append(candidate)
+        self._write(favorites)
+        return True
+
+    def search_items(self, text: str = "") -> builtins.list[SearchItem]:
+        needle = text.strip().casefold()
+        return [
+            search_item_from_song(candidate, source="favorites")
+            for candidate in self.list()
+            if not needle or needle in candidate.display_name.casefold()
+        ]
+
+    def _write(self, favorites: builtins.list[SongCandidate]) -> None:
+        payload = [candidate.model_dump(mode="json") for candidate in favorites]
+        write_private_text(self.path, json.dumps(payload, indent=2) + "\n")
+
+    def _migrate_legacy(self) -> builtins.list[SongCandidate]:
+        """Carry `- Display Name (video_id)` lines from favorites.md into the JSON
+        store once; tuiradio-imported lines have no video id and are skipped."""
+        if not self.legacy_path.exists():
+            return []
+        favorites: builtins.list[SongCandidate] = []
+        for line in self.legacy_path.read_text(encoding="utf-8").splitlines():
+            match = _LEGACY_FAVORITE_LINE.match(line.strip())
+            if match:
+                favorites.append(
+                    SongCandidate(video_id=match.group("video_id"), title=match.group("name"))
                 )
-            try:
-                items[str(video_id)] = TrackMetadata.model_validate({"video_id": video_id, **data})
-            except ValidationError as exc:
-                raise _corrupt_store_error(self.path, exc) from exc
-        return items
-
-    def _write_all(self, items: dict[str, TrackMetadata]) -> None:
-        write_private_json(
-            self.path,
-            {
-                video_id: {
-                    "rating": metadata.rating,
-                    "tags": metadata.tags,
-                }
-                for video_id, metadata in sorted(items.items())
-            },
-        )
-
-    def get(self, video_id: str) -> TrackMetadata:
-        return self._read_all().get(video_id, TrackMetadata(video_id=video_id))
-
-    def set_rating(self, video_id: str, rating: int) -> TrackMetadata:
-        items = self._read_all()
-        metadata = items.get(video_id, TrackMetadata(video_id=video_id))
-        metadata.rating = max(0, min(MAX_RATING, rating))
-        items[video_id] = metadata
-        self._write_all(items)
-        return metadata
-
-    def set_tags(self, video_id: str, tags: list[str]) -> TrackMetadata:
-        items = self._read_all()
-        metadata = items.get(video_id, TrackMetadata(video_id=video_id))
-        seen: set[str] = set()
-        metadata.tags = []
-        for tag in tags:
-            cleaned = tag.strip().lower()
-            if cleaned and cleaned not in seen:
-                metadata.tags.append(cleaned)
-                seen.add(cleaned)
-        items[video_id] = metadata
-        self._write_all(items)
-        return metadata
+        if favorites:
+            self._write(favorites)
+        return favorites
 
 
 class LocalPlaylist(BaseModel):

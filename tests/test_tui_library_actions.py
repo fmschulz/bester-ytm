@@ -201,8 +201,6 @@ def test_load_search_item_loads_remote_playlist_off_the_ui_thread(
         "#results": FakeListView(),
         "#queue": FakeListView(),
         "#track": FakeStatic(),
-        "#track-metadata": FakeStatic(),
-        "#tags-input": FakeInput(),
         "#playlist-name": FakeInput(),
         "#queue-title": FakeStatic(),
     }
@@ -241,8 +239,6 @@ def test_load_search_item_loads_album_off_the_ui_thread(monkeypatch, tmp_path) -
         "#results": FakeListView(),
         "#queue": FakeListView(),
         "#track": FakeStatic(),
-        "#track-metadata": FakeStatic(),
-        "#tags-input": FakeInput(),
         "#playlist-name": FakeInput(),
         "#queue-title": FakeStatic(),
     }
@@ -317,54 +313,6 @@ def test_focus_first_result_tolerates_unfocusable_widgets(monkeypatch, tmp_path)
 
     app._focus_first_result(results, has_items=True)
     assert results.focused is True
-
-
-def test_rating_and_tags_require_selection(monkeypatch, tmp_path) -> None:
-    app, _, statuses = _make_app(monkeypatch, tmp_path)
-
-    app.action_rate_down()
-    app.action_save_tags()
-
-    assert statuses == [
-        "No track selected for rating.",
-        "No track selected for tags.",
-    ]
-
-
-def test_rate_down_clamps_rating_at_zero(monkeypatch, tmp_path) -> None:
-    app, _, statuses = _make_app(monkeypatch, tmp_path)
-    app.selected_queue_video_id = "v1"
-
-    app.action_rate_down()
-
-    assert statuses[-1] == "Rating 0/3."
-
-
-def test_r_key_cycles_rating_and_wraps_to_zero(monkeypatch, tmp_path) -> None:
-    app, _, statuses = _make_app(monkeypatch, tmp_path)
-    app.selected_queue_video_id = "v1"
-
-    for _ in range(4):
-        app.action_cycle_rating()
-
-    assert statuses[-4:] == ["Rating 1/3.", "Rating 2/3.", "Rating 3/3.", "Rating 0/3."]
-
-
-def test_rating_on_corrupt_store_reports_error_instead_of_crashing(
-    monkeypatch, tmp_path
-) -> None:
-    from bester_ytm.stores import TrackMetadataStore
-
-    app, _, statuses = _make_app(monkeypatch, tmp_path)
-    app.selected_queue_video_id = "v1"
-    store = TrackMetadataStore()
-    store.path.parent.mkdir(parents=True, exist_ok=True)
-    store.path.write_text("[1, 2]", encoding="utf-8")  # not an object mapping
-
-    app.action_cycle_rating()
-
-    assert "corrupt" in statuses[-1]
-    assert "Move the file aside" in statuses[-1]
 
 
 def test_add_to_local_playlist_requires_candidate(monkeypatch, tmp_path) -> None:
@@ -501,15 +449,132 @@ def _noop_render(app):
     return _render
 
 
-def test_favorite_current_requires_and_saves_track(monkeypatch, tmp_path) -> None:
+def test_toggle_favorite_requires_a_track(monkeypatch, tmp_path) -> None:
     app, _, statuses = _make_app(monkeypatch, tmp_path)
 
-    asyncio.run(app.action_favorite_current())
-    assert statuses[-1] == "No current track to favorite."
+    app.action_toggle_favorite()
 
+    assert statuses == ["No track to favorite."]
+
+
+def test_toggle_favorite_favs_then_unfavs_the_playing_track(monkeypatch, tmp_path) -> None:
+    from bester_ytm.stores import FavoritesStore
+
+    app, _, statuses = _make_app(monkeypatch, tmp_path)
+    workers = _capture_workers(app, monkeypatch)
+    candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
+    app.current_candidate = candidate
+
+    app.action_toggle_favorite()
+    _drain_workers(workers)
+    assert statuses[-1] == "Favorited A - One."
+    assert FavoritesStore().ids() == {"v1"}
+
+    app.action_toggle_favorite()
+    _drain_workers(workers)
+    assert statuses[-1] == "Removed A - One from favorites."
+    assert FavoritesStore().ids() == set()
+
+
+def test_toggle_favorite_targets_the_highlighted_result(monkeypatch, tmp_path) -> None:
+    from bester_ytm.stores import FavoritesStore
+
+    widgets = {"#results": FakeListView(), "#queue": FakeListView()}
+    app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
+    workers = _capture_workers(app, monkeypatch)
+    highlighted = SongCandidate(video_id="v2", title="Two", artists=["B"])
+    widgets["#results"].highlighted_child = SimpleNamespace(candidate=highlighted)
     app.current_candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
-    asyncio.run(app.action_favorite_current())
-    assert statuses[-1] == "Favorite saved."
+
+    app.action_toggle_favorite()
+    _drain_workers(workers)
+
+    assert statuses[-1] == "Favorited B - Two."
+    assert FavoritesStore().ids() == {"v2"}
+
+
+def test_favs_query_lists_favorites_with_marker(monkeypatch, tmp_path) -> None:
+    from bester_ytm.stores import FavoritesStore
+
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path)
+    FavoritesStore().toggle(
+        SongCandidate(video_id="v1", title="Myth", artists=["Beach House"])
+    )
+    FavoritesStore().toggle(
+        SongCandidate(video_id="v2", title="Territory", artists=["Sepultura"])
+    )
+
+    asyncio.run(app._search("favs:sepul"))
+
+    items = widgets["#results"].items
+    assert [item.candidate.video_id for item in items] == ["v2"]
+    assert items[0].base_label == "SONG  Territory - Sepultura *"
+    assert statuses[-1] == "1 songs result(s)."
+
+
+def test_search_results_mark_faved_songs(monkeypatch, tmp_path) -> None:
+    from bester_ytm.stores import FavoritesStore
+
+    faved = SongCandidate(video_id="v1", title="Myth", artists=["Beach House"])
+    other = SongCandidate(video_id="v2", title="Space Song", artists=["Beach House"])
+
+    class SongClient:
+        def structured_search(self, parsed, limit: int = 25):
+            return [search_item_from_song(faved), search_item_from_song(other)]
+
+    app, widgets, _ = _make_app(monkeypatch, tmp_path)
+    app.client = SongClient()  # type: ignore[assignment]
+    workers = _capture_workers(app, monkeypatch)
+    FavoritesStore().toggle(faved)
+
+    asyncio.run(app._search("beach house"))
+    _drain_workers(workers)
+
+    labels = [item.base_label for item in widgets["#results"].items]
+    assert labels[0].endswith(" *")
+    assert not labels[1].endswith(" *")
+
+
+def test_toggle_favorite_relabels_the_result_row(monkeypatch, tmp_path) -> None:
+    from bester_ytm.stores import FavoritesStore
+
+    class ChildListView(FakeListView):
+        @property
+        def children(self):
+            return self.items
+
+    widgets = {"#results": ChildListView(), "#queue": FakeListView()}
+    app, _, _ = _make_app(monkeypatch, tmp_path, widgets)
+    workers = _capture_workers(app, monkeypatch)
+    candidate = SongCandidate(video_id="v1", title="Myth", artists=["Beach House"])
+    FavoritesStore().toggle(candidate)
+
+    asyncio.run(app._search("favs:"))
+    item = widgets["#results"].items[0]
+    assert item.base_label.endswith(" *")
+
+    widgets["#results"].highlighted_child = item
+    app.action_toggle_favorite()  # unfav from the favs list
+    _drain_workers(workers)
+
+    assert not item.base_label.endswith(" *")
+    assert str(item.label_widget.render()) == item.base_label
+    assert FavoritesStore().ids() == set()
+
+
+def test_toggle_favorite_reports_corrupt_store(monkeypatch, tmp_path) -> None:
+    from bester_ytm.stores import FavoritesStore
+
+    app, _, statuses = _make_app(monkeypatch, tmp_path)
+    store = FavoritesStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text("{broken", encoding="utf-8")
+    app.current_candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
+
+    app.action_toggle_favorite()
+
+    assert "corrupt" in statuses[-1]
+    assert "Move the file aside" in statuses[-1]
 
 
 class FakeBuilder:

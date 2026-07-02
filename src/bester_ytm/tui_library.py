@@ -11,7 +11,7 @@ from .config import ConfigError
 from .playback import PlaybackError
 from .playlist_plan import SongCandidate
 from .search_query import ParsedSearch, SearchItem, parse_search_query
-from .stores import LocalPlaylistStore
+from .stores import FAVORITE_SUFFIX, FavoritesStore, LocalPlaylistStore
 from .ytm_client import PlaylistSnapshot, YTMClientError
 
 
@@ -56,6 +56,14 @@ class LibraryActions:
                 parsed, LocalPlaylistStore().search_items(), self._results_load_id
             )
             return
+        if parsed.lists_favorites:
+            try:
+                items = FavoritesStore().search_items(parsed.text)
+            except ConfigError as exc:
+                self._set_status(str(exc))
+                return
+            await self._show_search_results(parsed, items, self._results_load_id)
+            return
         self.run_worker(
             partial(self._search_worker, parsed, self._results_load_id),
             name="search",
@@ -97,8 +105,9 @@ class LibraryActions:
             return
         results = self.query_one("#results", ListView)
         self._show_results_list()
+        favorite_ids = self._favorite_video_ids()
         for search_item in items:
-            await results.append(self._result_item(search_item))
+            await results.append(self._result_item(search_item, favorite_ids))
         self._focus_first_result(results, bool(items))
         self._set_status(f"{len(items)} {parsed.view} result(s).")
 
@@ -121,11 +130,17 @@ class LibraryActions:
             except AttributeError:
                 pass
 
-    def _result_item(self, search_item: SearchItem) -> ListItem:
-        label_widget = Label(search_item.display_name)
+    def _result_item(
+        self, search_item: SearchItem, favorite_ids: set[str] | None = None
+    ) -> ListItem:
+        display = search_item.display_name
+        candidate_id = search_item.candidate.video_id if search_item.candidate else None
+        if favorite_ids and candidate_id in favorite_ids:
+            display += FAVORITE_SUFFIX
+        label_widget = Label(display)
         item = ResultListItem(label_widget)
         item.search_item = search_item  # type: ignore[attr-defined]
-        item.base_label = search_item.display_name  # type: ignore[attr-defined]
+        item.base_label = display  # type: ignore[attr-defined]
         item.label_widget = label_widget  # type: ignore[attr-defined]
         if search_item.candidate:
             item.candidate = search_item.candidate  # type: ignore[attr-defined]
@@ -202,8 +217,41 @@ class LibraryActions:
             name_input.value = title
         self.current_candidate = None
         self._update_track_label("No track playing.")
-        self._update_track_metadata(self.selected_queue_video_id)
         await self._render_queue()
+
+    def _favorite_video_ids(self) -> set[str]:
+        """Faved ids for row markers; a corrupt store degrades to a status message."""
+        try:
+            return FavoritesStore().ids()
+        except ConfigError as exc:
+            self._set_status(str(exc))
+            return set()
+
+    def _refresh_favorite_markers(self, video_id: str, faved: bool) -> None:
+        """Reflect a favorite toggle in the result rows, the queue, and Now Playing."""
+        self._relabel_result_favorite(video_id, faved)
+        self.run_worker(self._render_queue(), exclusive=True, group="queue-render")
+        current = self.current_candidate
+        if current is not None and current.video_id == video_id:
+            self._update_track_label(
+                current.display_name + (FAVORITE_SUFFIX if faved else "")
+            )
+
+    def _relabel_result_favorite(self, video_id: str, faved: bool) -> None:
+        results = self._query_optional("#results", ListView)
+        if results is None:
+            return
+        for item in getattr(results, "children", []):
+            candidate = getattr(item, "candidate", None)
+            base = getattr(item, "base_label", None)
+            if candidate is None or base is None or candidate.video_id != video_id:
+                continue
+            if base.endswith(FAVORITE_SUFFIX):
+                base = base[: -len(FAVORITE_SUFFIX)]
+            if faved:
+                base += FAVORITE_SUFFIX
+            item.base_label = base
+            self._render_result_marker(item, video_id in self.selected_result_video_ids)
 
     def _focus_first_result(self, results: ListView, has_items: bool) -> None:
         if not has_items:

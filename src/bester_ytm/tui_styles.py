@@ -53,7 +53,7 @@ PaneSplitter:hover {
     dock: top;
     margin-bottom: 1;
 }
-#queue-title, #player-title, #track-details-title,
+#queue-title, #player-title,
 #playlist-section-title, #builder-title {
     color: #e07a5f;
     text-style: bold;
@@ -126,19 +126,16 @@ PaneSplitter:hover {
 #visualizer.paused-effect {
     color: #9ca3af;
 }
-#transport, #queue-actions, #fade-row, #volume-row, #track-actions, #playlist-actions {
+#transport, #queue-actions, #volume-row, #transition-row, #playlist-actions {
     height: auto;
     layout: horizontal;
 }
-#volume-row, #fade-row {
+#transition-row {
     margin-bottom: 1;
 }
 Button {
     margin-right: 1;
     min-width: 5;
-}
-#save-tags-button {
-    min-width: 10;
 }
 #builder {
     height: 4;

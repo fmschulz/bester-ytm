@@ -75,13 +75,10 @@ def _build_player_panel(visualizer_text: str, effect: str = "mythos") -> Compose
         yield Button("Vol-", id="volume-down-button", compact=True)
         yield Button("Vol+", id="volume-up-button", compact=True)
         yield Button("Mute", id="mute-button", compact=True)
-    yield Label("Track Details", id="track-details-title")
-    yield Static("Rating --  Tags --", id="track-metadata")
-    yield Input(placeholder="tags for this track", id="tags-input")
-    with Horizontal(id="track-actions"):
-        yield Button("Rate-", id="rate-down-button", compact=True)
-        yield Button("Rate+", id="rate-up-button", compact=True)
-        yield Button("Save Tags", id="save-tags-button", compact=True)
+    with Horizontal(id="transition-row"):
+        yield Button("Mix", id="transition-button", compact=True)
+        yield Button("Fade-", id="fade-down-button", compact=True)
+        yield Button("Fade+", id="fade-up-button", compact=True)
     yield Label("Playlist / Queue", id="playlist-section-title")
     yield Input(placeholder="playlist name", id="playlist-name")
     with Horizontal(id="playlist-actions"):
@@ -91,11 +88,7 @@ def _build_player_panel(visualizer_text: str, effect: str = "mythos") -> Compose
         yield Button("Remove", id="remove-local-playlist-button", compact=True)
     with Horizontal(id="queue-actions"):
         yield Button("Shuffle", id="shuffle-button", compact=True)
-        yield Button("Mix", id="transition-button", compact=True)
         yield Button("Clear", id="clear-button", compact=True)
-    with Horizontal(id="fade-row"):
-        yield Button("Fade-", id="fade-down-button", compact=True)
-        yield Button("Fade+", id="fade-up-button", compact=True)
     yield Label("Playlist Builder", id="builder-title")
     yield BuilderTextArea(id="builder", language="markdown")
     with Horizontal(id="builder-actions"):

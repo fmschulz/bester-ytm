@@ -34,8 +34,8 @@ class AppPaths:
     config_file: Path
     plans_dir: Path
     favorites_file: Path
+    favorites_store_file: Path
     local_playlists_dir: Path
-    track_metadata_file: Path
 
 
 def _xdg_dir(env_name: str, fallback: str) -> Path:
@@ -57,8 +57,8 @@ def get_paths() -> AppPaths:
         config_file=config_dir / "config.toml",
         plans_dir=data_dir / "plans",
         favorites_file=data_dir / "favorites.md",
+        favorites_store_file=data_dir / "favorites.json",
         local_playlists_dir=data_dir / "local-playlists",
-        track_metadata_file=data_dir / "track-metadata.json",
     )
 
 

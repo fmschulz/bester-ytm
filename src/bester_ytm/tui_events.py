@@ -36,9 +36,6 @@ class EventHandlers:
         "volume-down-button": "volume_down",
         "volume-up-button": "volume_up",
         "mute-button": "mute",
-        "rate-down-button": "rate_down",
-        "rate-up-button": "rate_up",
-        "save-tags-button": "save_tags",
         "new-playlist-button": "new_playlist",
         "add-local-playlist-button": "add_to_local_playlist",
         "remove-local-playlist-button": "remove_from_playlist",
@@ -116,7 +113,6 @@ class EventHandlers:
         if event.control.id != "queue":
             return
         self.selected_queue_video_id = getattr(event.item, "video_id", None)
-        self._update_track_metadata(self.selected_queue_video_id)
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         action_name = self.BUTTON_ACTIONS.get(event.button.id or "")
