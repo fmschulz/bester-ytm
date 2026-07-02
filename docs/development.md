@@ -32,7 +32,8 @@ src/bester_ytm/
 ├── playback.py                          PlaybackController: queue, history, mpv
 ├── transitions.py, deck.py, fader.py    dual-deck crossfade engine
 ├── mpv_ipc.py                           mpv JSON IPC transport
-├── ytm_client.py                        the ONLY module that talks to YouTube Music
+├── ytm_client.py + ytm_*.py             YouTube Music access: facade over
+│                                        session, search, library, models
 ├── auth.py, config.py, config_options.py   logins, paths, config.toml
 ├── playlist_plan.py, playlist_builder.py, playlist_create.py, resolver.py
 ├── stores.py, search_query.py, similar.py

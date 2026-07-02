@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on worker threads, so slow YouTube Music responses no longer freeze the
   TUI.
 - The visualizers lock their motion to the audible beat.
+- Internal: `tui.py` and `ytm_client.py` were split into focused modules
+  (`tui_*` action mixins; session, search, library, and models behind the
+  `ytm_client` facade), and the test suite runs markedly faster.
 
 ### Fixed
 
@@ -50,6 +53,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Variant filtering (live/remix/cover detection) matches whole words only,
   so titles like "Alive" or "Deliverance" are no longer rejected as "live"
   variants.
+- Deferred loads (search, playlist listing, album results) that finish while
+  you are typing in the search input or the builder text area no longer steal
+  the focus mid-keystroke.
+- `a` / `A` / `x` on a collapsed album fetch its tracks on a worker thread
+  and apply the action when they land, instead of freezing the TUI during
+  the fetch.
+- When pause falls back to process signals (mpv IPC unavailable), resume
+  works again, and status polling, seeking, volume, and mute no longer stall
+  against the signal-stopped mpv.
+- Corrupt store files (track metadata, plans, local playlists) now produce
+  an actionable "move the file aside and retry" error that the TUI shows in
+  the status bar instead of crashing; corrupt local playlists are skipped
+  with a warning when listing.
+- Retiring a crossfade deck no longer blocks playback: decks terminate in
+  the background and are force-killed after a 5-second grace period.
 - `bester-ytm search --help` now shows a description of the command.
 
 ## [1.0.0] - 2026-06-11

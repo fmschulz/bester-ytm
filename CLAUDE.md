@@ -27,17 +27,21 @@ uv run mypy src                  # type check
 src/bester_ytm/
 ├── cli.py, cli_play.py, cli_config.py   # Typer commands (thin; no API logic)
 ├── tui.py                               # Textual app shell (bindings, compose)
-├── tui_playback.py, tui_library.py      # TUI action mixins
-├── tui_effects.py, tui_layout.py, tui_styles.py  # rendering, layout, CSS
-├── tui_splitter.py                      # draggable pane-resize handles
+├── tui_*.py                             # TUI action mixins (playback, library,
+│                                        #   album, metadata, playlists, queue,
+│                                        #   selection, builder, events, options)
+│                                        # plus rendering/layout/CSS (tui_effects,
+│                                        #   tui_layout, tui_styles, tui_visuals,
+│                                        #   tui_splitter, tui_theme, tui_help)
 ├── playback.py                          # PlaybackController: queue, history, mpv
 ├── transitions.py, deck.py, fader.py    # dual-deck crossfade engine
 ├── mpv_ipc.py                           # mpv JSON IPC transport
 ├── playback_status.py, transition_settings.py    # shared dataclasses
-├── ytm_client.py                        # ONLY module that talks to YouTube Music
+├── ytm_client.py                        # YouTube Music facade over ytm_*.py
+├── ytm_session.py, ytm_search.py, ytm_library.py, ytm_models.py
 ├── auth.py, config.py, config_options.py  # OAuth flow, paths, config.toml
 ├── playlist_plan.py, playlist_builder.py, playlist_create.py, resolver.py
-├── stores.py, search_query.py
+├── stores.py, search_query.py, similar.py
 └── intelligence/                        # playlist plan providers (heuristic, codex)
 ```
 
