@@ -64,6 +64,8 @@ module = [
     "bester_ytm.tui_queue",
     "bester_ytm.tui_builder",
     "bester_ytm.tui_album",
+    "bester_ytm.tui_album_actions",
+    "bester_ytm.tui_metadata",
 ]
 disable_error_code = ["attr-defined"]
 

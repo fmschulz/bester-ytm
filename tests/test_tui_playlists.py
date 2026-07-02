@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from bester_ytm import tui
+from bester_ytm import tui, tui_playlists
 from bester_ytm.playback import PlaybackError, PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.search_query import SearchItem
@@ -136,7 +136,7 @@ def test_tui_show_playlists_uses_authenticated_library(monkeypatch, tmp_path) ->
     list_view = FakeListView()
     statuses: list[str] = []
 
-    monkeypatch.setattr(tui, "YTMClient", FakeClient)
+    monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
@@ -175,7 +175,7 @@ def test_tui_show_playlists_includes_saved_local_playlists(monkeypatch, tmp_path
     app = tui.BesterYTMApp()
     list_view = FakeListView()
     statuses: list[str] = []
-    monkeypatch.setattr(tui, "YTMClient", FakeClient)
+    monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
@@ -218,7 +218,7 @@ def test_tui_show_playlists_shows_locals_when_youtube_unavailable(
     app = tui.BesterYTMApp()
     list_view = FakeListView()
     statuses: list[str] = []
-    monkeypatch.setattr(tui, "YTMClient", FailingClient)
+    monkeypatch.setattr(tui_playlists, "YTMClient", FailingClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
@@ -294,7 +294,7 @@ def test_tui_selecting_playlist_loads_named_tracks(monkeypatch) -> None:
 
     app = tui.BesterYTMApp()
     app.playback = FakePlayback()  # type: ignore[assignment]
-    monkeypatch.setattr(tui, "YTMClient", FakeClient)
+    monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     workers = _capture_workers(app, monkeypatch)
 
@@ -325,7 +325,7 @@ def test_tui_selecting_playlist_reports_load_error(monkeypatch) -> None:
 
     app = tui.BesterYTMApp()
     app.playback = FakeQueuePlayback()  # type: ignore[assignment]
-    monkeypatch.setattr(tui, "YTMClient", FailingClient)
+    monkeypatch.setattr(tui_playlists, "YTMClient", FailingClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     workers = _capture_workers(app, monkeypatch)
 
@@ -363,7 +363,7 @@ def test_tui_stale_playlist_load_never_stomps_playback_started_meanwhile(
 
     app = tui.BesterYTMApp()
     app.playback = FakeQueuePlayback()  # type: ignore[assignment]
-    monkeypatch.setattr(tui, "YTMClient", SlowClient)
+    monkeypatch.setattr(tui_playlists, "YTMClient", SlowClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     workers = _capture_workers(app, monkeypatch)
 
@@ -477,7 +477,7 @@ def test_tui_space_on_selected_playlist_loads_and_starts_queue(monkeypatch) -> N
 
     app = tui.BesterYTMApp()
     app.playback = FakePlayback()  # type: ignore[assignment]
-    monkeypatch.setattr(tui, "YTMClient", FakeClient)
+    monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     workers = _capture_workers(app, monkeypatch)
 
@@ -1015,7 +1015,7 @@ def test_tui_keyboard_playlist_flow_loads_and_starts_queue(monkeypatch, tmp_path
             assert app.playback.queue == ["v2"]
             assert str(app.query_one("#track").render()) == "Artist A - One"
 
-    monkeypatch.setattr(tui, "YTMClient", FakeClient)
+    monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
 
     asyncio.run(run_flow())
 

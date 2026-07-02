@@ -91,7 +91,7 @@ def test_youtube_data_request_wraps_network_errors(
     def fail_request(*args: Any, **kwargs: Any) -> FakeResponse:
         raise requests.RequestException("connection reset")
 
-    monkeypatch.setattr("bester_ytm.ytm_client.requests.request", fail_request)
+    monkeypatch.setattr("bester_ytm.ytm_session.requests.request", fail_request)
 
     with pytest.raises(YTMClientError, match="connection reset"):
         oauth_client._youtube_data_request("GET", "playlists")
@@ -105,7 +105,7 @@ def test_youtube_data_request_handles_empty_and_unparsable_bodies(
         FakeResponse(status_code=500, payload=ValueError("no json"), reason="Server Error"),
     ]
     monkeypatch.setattr(
-        "bester_ytm.ytm_client.requests.request",
+        "bester_ytm.ytm_session.requests.request",
         lambda *args, **kwargs: responses.pop(0),
     )
 
@@ -134,7 +134,7 @@ def test_youtube_playlist_items_paginates_and_retries_404(
         return response
 
     monkeypatch.setattr(client, "_youtube_data_request", fake_request)
-    monkeypatch.setattr("bester_ytm.ytm_client.time.sleep", sleeps.append)
+    monkeypatch.setattr("bester_ytm.ytm_session.time.sleep", sleeps.append)
 
     items = client._youtube_playlist_items("PL1")
 

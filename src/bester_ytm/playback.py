@@ -37,6 +37,7 @@ class PlaybackController:
     active_deck: str = "A"
     last_transition_error: str | None = None
     _engine: TransitionEngine | None = field(default=None, init=False, repr=False)
+    _paused_via_signal: bool = field(default=False, init=False, repr=False)
 
     def _mpv_path(self) -> str:
         mpv = shutil.which("mpv")
@@ -134,21 +135,35 @@ class PlaybackController:
         self._snap_active_transition()
         if not self.process or self.process.poll() is not None:
             return self.status()
-        try:
-            self._send_ipc({"command": ["cycle", "pause"]})
-        except PlaybackError:
-            self.process.send_signal(signal.SIGSTOP if not self.paused else signal.SIGCONT)
+        if self._paused_via_signal:
+            # A stopped mpv cannot answer IPC; resume it with SIGCONT directly.
+            self.process.send_signal(signal.SIGCONT)
+            self._paused_via_signal = False
+        else:
+            try:
+                self._send_ipc({"command": ["cycle", "pause"]})
+            except PlaybackError:
+                self.process.send_signal(
+                    signal.SIGSTOP if not self.paused else signal.SIGCONT
+                )
+                self._paused_via_signal = not self.paused
         self.paused = not self.paused
         return self.status()
 
-    def seek_relative(self, seconds: float) -> PlaybackStatus:
+    def _transport_ipc_unavailable(self) -> bool:
+        """No live mpv, or a SIGSTOP-paused one that cannot answer IPC."""
         if not self.process or self.process.poll() is not None:
+            return True
+        return self._paused_via_signal
+
+    def seek_relative(self, seconds: float) -> PlaybackStatus:
+        if self._transport_ipc_unavailable():
             return self.status()
         self._send_ipc({"command": ["seek", seconds, "relative"]})
         return self.status()
 
     def seek_absolute(self, seconds: float) -> PlaybackStatus:
-        if not self.process or self.process.poll() is not None:
+        if self._transport_ipc_unavailable():
             return self.status()
         self._send_ipc({"command": ["seek", max(0.0, seconds), "absolute"]})
         return self.status()
@@ -159,7 +174,7 @@ class PlaybackController:
         if self._is_mixing():
             # The fader re-reads master_volume every step; no IPC fight here.
             return self.status()
-        if not self.process or self.process.poll() is not None:
+        if self._transport_ipc_unavailable():
             return self.status()
         self._send_ipc({"command": ["set_property", "volume", clamped]})
         return self.status()
@@ -170,7 +185,7 @@ class PlaybackController:
         return self.set_volume(current + delta)
 
     def toggle_mute(self) -> PlaybackStatus:
-        if not self.process or self.process.poll() is not None:
+        if self._transport_ipc_unavailable():
             return self.status()
         self._send_ipc({"command": ["cycle", "mute"]})
         if self._is_mixing():
@@ -213,6 +228,7 @@ class PlaybackController:
         if self.ipc_socket is not None:
             remove_socket_file(self.ipc_socket)
         self.paused = False
+        self._paused_via_signal = False
 
     def status(self) -> PlaybackStatus:
         self.tick()
@@ -222,7 +238,9 @@ class PlaybackController:
         volume = None
         muted = False
         paused = self.paused and running
-        if running and self.ipc_socket:
+        # A SIGSTOP-paused mpv cannot answer IPC; skip the poll so status
+        # returns promptly with the cached paused state instead of wedging.
+        if running and self.ipc_socket and not self._paused_via_signal:
             client = self._live_client()
             try:
                 position = client.get_float("time-pos")
@@ -257,6 +275,8 @@ class PlaybackController:
         """Current overall RMS loudness in dB from the live deck, if available."""
         if not self.process or self.process.poll() is not None or not self.ipc_socket:
             return None
+        if self._paused_via_signal:
+            return None
         try:
             # Polled every visual frame (~50ms); a slow reply must not stall the tick.
             metadata = self._live_client().get_property("af-metadata/astats", 0.05)
@@ -271,6 +291,10 @@ class PlaybackController:
         return error
 
     def tick(self) -> None:
+        if self._paused_via_signal:
+            # A stopped mpv cannot answer the engine's timing reads, and
+            # pause_resume() snapped any active fade before signalling.
+            return
         if self.transition.style is TransitionStyle.CUT:
             if self._engine is not None:
                 self._engine.discard_idle_deck()

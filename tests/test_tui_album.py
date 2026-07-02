@@ -88,6 +88,21 @@ def _inline_workers(app, monkeypatch) -> None:
     monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
 
 
+def _captured_workers(app, monkeypatch) -> list:
+    """Seam that parks thread workers so tests control when a fetch lands."""
+    parked: list = []
+
+    def run_worker(work, **kwargs):
+        if asyncio.iscoroutine(work):
+            return asyncio.get_running_loop().create_task(work)
+        parked.append(work)
+        return None
+
+    monkeypatch.setattr(app, "run_worker", run_worker)
+    monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
+    return parked
+
+
 def test_album_search_populates_tree_and_lazy_loads(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
@@ -412,5 +427,253 @@ def test_album_expand_error_sets_status_and_allows_retry(monkeypatch, tmp_path) 
                 "Metallica - Battery",
                 "Metallica - Master of Puppets",
             ]
+
+    asyncio.run(run())
+
+
+def test_add_on_collapsed_album_defers_fetch_off_ui_thread(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FakeClient()
+            app.playback = FakePlayback()
+            parked = _captured_workers(app, monkeypatch)
+            app.playback.running = True
+            app.playback.current_video_id = "playing"
+            await app._search("album:metallica")
+            parked.pop(0)()  # run the parked search worker to populate the tree
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            await app.action_add_to_queue()  # cursor on collapsed album 1
+            # The UI thread never fetched; the fetch is parked on the worker.
+            assert app.client.album_calls == []
+            assert app.playback.queue == []
+            assert len(parked) == 1
+
+            await app.action_add_to_queue()  # repeat: reuses the in-flight fetch
+            assert len(parked) == 1
+
+            parked.pop(0)()  # the album fetch lands
+            await pilot.pause()
+            assert app.client.album_calls == ["b1"]
+            assert app.playback.queue == ["t1", "t2"]
+
+    asyncio.run(run())
+
+
+def test_play_on_collapsed_album_defers_then_plays(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FakeClient()
+            app.playback = FakePlayback()
+            parked = _captured_workers(app, monkeypatch)
+            await app._search("album:metallica")
+            parked.pop(0)()  # run the parked search worker to populate the tree
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            await app.action_play_album()  # cursor on collapsed album 1
+            assert app.client.album_calls == []
+            assert app.playback.current_video_id is None
+
+            parked.pop(0)()
+            await pilot.pause()
+            assert app.playback.current_video_id == "t1"
+            assert app.playback.queue == ["t2"]
+            assert app.playlist_title == "Master of Puppets"
+
+    asyncio.run(run())
+
+
+def test_toggle_select_on_collapsed_album_defers_then_selects(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FakeClient()
+            app.playback = FakePlayback()
+            parked = _captured_workers(app, monkeypatch)
+            await app._search("album:metallica")
+            parked.pop(0)()  # run the parked search worker to populate the tree
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            app.action_toggle_select()  # x on collapsed album 1
+            assert app.client.album_calls == []
+            assert app.selected_result_video_ids == set()
+
+            parked.pop(0)()
+            await pilot.pause()
+            assert app.selected_result_video_ids == {"t1", "t2"}
+            first = tree.root.children[0]
+            assert str(first.label).startswith("* ")
+
+    asyncio.run(run())
+
+
+def test_newer_album_action_supersedes_pending_one(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FakeClient()
+            app.playback = FakePlayback()
+            parked = _captured_workers(app, monkeypatch)
+            await app._search("album:metallica")
+            parked.pop(0)()  # run the parked search worker to populate the tree
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            await app.action_add_to_queue()  # a on collapsed album 1
+            await pilot.press("down")  # cursor -> collapsed album 2
+            await pilot.pause()
+            await app.action_play_album()  # A on album 2 supersedes the add
+            assert len(parked) == 2
+
+            parked.pop(0)()  # album 1 lands: its pending add was superseded
+            await pilot.pause()
+            assert app.playback.queue == []
+
+            parked.pop(0)()  # album 2 lands: the play fires
+            await pilot.pause()
+            assert app.playback.current_video_id == "t3"
+            assert app.playlist_title == "Ride the Lightning"
+
+    asyncio.run(run())
+
+
+def test_competing_queue_state_drops_pending_album_add(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FakeClient()
+            app.playback = FakePlayback()
+            parked = _captured_workers(app, monkeypatch)
+            await app._search("album:metallica")
+            parked.pop(0)()  # run the parked search worker to populate the tree
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            await app.action_add_to_queue()  # a on collapsed album 1
+            # The user builds a queue elsewhere while the album is loading.
+            app._start_or_extend_queue(["z1", "z2"])
+            queue_before = list(app.playback.queue)
+
+            parked.pop(0)()  # the album fetch lands too late
+            await pilot.pause()
+            assert app.playback.queue == queue_before
+
+    asyncio.run(run())
+
+
+def test_stale_album_expansion_does_not_touch_newer_results(monkeypatch, tmp_path) -> None:
+    """An expansion fetch that lands after a newer search must not attach tracks
+    to the obsolete node or clobber the new search's status message."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FakeClient()
+            app.playback = FakePlayback()
+            parked = _captured_workers(app, monkeypatch)
+            statuses: list[str] = []
+            monkeypatch.setattr(app, "_set_status", statuses.append)
+            await app._search("album:metallica")
+            parked.pop(0)()  # run the parked search worker to populate the tree
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            await pilot.press("enter")  # expand album 1; the fetch parks
+            await pilot.pause()
+            first = tree.root.children[0]
+
+            await app._search("song:metallica")  # a newer search supersedes it
+            parked.pop(1)()  # the new search lands first
+            await pilot.pause()
+            newest_status = statuses[-1]
+
+            parked.pop(0)()  # the stale album fetch lands last
+            await pilot.pause()
+
+            assert _labels(first) == []  # no tracks attached to the obsolete node
+            assert statuses[-1] == newest_status  # status not clobbered
+
+    asyncio.run(run())
+
+
+def test_deferred_add_error_clears_pending_and_allows_retry(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    class FlakyClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.fail = True
+
+        def get_album(self, browse_id: str) -> PlaylistSnapshot:
+            if self.fail:
+                raise YTMClientError("album fetch failed")
+            return super().get_album(browse_id)
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.client = FlakyClient()
+            app.playback = FakePlayback()
+            parked = _captured_workers(app, monkeypatch)
+            statuses: list[str] = []
+            monkeypatch.setattr(app, "_set_status", statuses.append)
+            await app._search("album:metallica")
+            parked.pop(0)()  # run the parked search worker to populate the tree
+            await pilot.pause()
+            tree = app.query_one("#album-tree", AlbumTree)
+            tree.focus()
+            await pilot.pause()
+
+            await app.action_add_to_queue()  # a on collapsed album 1
+            parked.pop(0)()  # the fetch fails
+            await pilot.pause()
+            assert statuses[-1] == "album fetch failed"
+            assert app._pending_album_action is None
+
+            app.client.fail = False
+            await app.action_add_to_queue()  # retry starts a fresh fetch
+            parked.pop(0)()
+            await pilot.pause()
+            assert app.playback.current_video_id == "t1"
+            assert app.playback.queue == ["t2"]
 
     asyncio.run(run())

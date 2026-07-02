@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -12,6 +14,7 @@ from pathlib import Path
 from .mpv_ipc import MpvIpcClient, MpvIpcError
 
 PROBE_DEADLINE_SECONDS = 0.15
+KILL_ESCALATION_SECONDS = 5.0
 
 
 class DeckState(StrEnum):
@@ -153,3 +156,51 @@ def spawn_prebuffer_deck(name: str, video_id: str, mpv_path: str) -> Deck:
     except OSError as exc:
         raise MpvIpcError(f"failed to spawn mpv deck {name}: {exc}") from exc
     return Deck(name=name, video_id=video_id, process=process, ipc_socket=ipc_socket)
+
+
+@dataclass
+class DyingDeck:
+    deck: Deck
+    retired_at: float
+    killed: bool = False
+
+
+@dataclass
+class DeckReaper:
+    """Retires decks without ever blocking the caller.
+
+    retire() sends SIGTERM and frees the socket path immediately (unlinking
+    the file does not disturb the running mpv, and frees the deck name for
+    reuse); reap() polls dying processes on subsequent ticks, escalating to
+    SIGKILL after a grace period. flush() is the blocking final sweep for
+    shutdown, preserving the both-decks-are-always-reaped invariant.
+    """
+
+    clock: Callable[[], float] = time.monotonic
+    dying: list[DyingDeck] = field(default_factory=list)
+
+    def retire(self, deck: Deck) -> None:
+        deck.state = DeckState.STOPPED
+        remove_socket_file(deck.ipc_socket)
+        if deck.process.poll() is not None:
+            return
+        deck.process.terminate()
+        self.dying.append(DyingDeck(deck=deck, retired_at=self.clock()))
+
+    def reap(self) -> None:
+        self.dying = [dying for dying in self.dying if self._still_dying(dying)]
+
+    def flush(self) -> None:
+        # Sockets were already unlinked in retire(); the path may since have
+        # been reused by a newer deck, so only the processes are touched here.
+        for dying in self.dying:
+            terminate_process(dying.deck.process)
+        self.dying = []
+
+    def _still_dying(self, dying: DyingDeck) -> bool:
+        if dying.deck.process.poll() is not None:
+            return False
+        if not dying.killed and self.clock() - dying.retired_at >= KILL_ESCALATION_SECONDS:
+            dying.deck.process.kill()
+            dying.killed = True
+        return True

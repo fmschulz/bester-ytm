@@ -155,7 +155,7 @@ class FakeYTMClient:
 def fake_client(monkeypatch) -> type[FakeYTMClient]:
     FakeYTMClient.deleted = []
     FakeYTMClient.error = None
-    monkeypatch.setattr("bester_ytm.tui_library.YTMClient", FakeYTMClient)
+    monkeypatch.setattr("bester_ytm.tui_metadata.YTMClient", FakeYTMClient)
     return FakeYTMClient
 
 

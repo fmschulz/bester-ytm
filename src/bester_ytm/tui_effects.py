@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from textual.widgets import Button, Input, Label, ListItem, ListView, ProgressBar, Static
 
+from .config import ConfigError
 from .playback import PlaybackError, PlaybackStatus
 from .playlist_plan import SongCandidate
 from .stores import MAX_RATING, TrackMetadataStore
@@ -277,7 +278,14 @@ class PlaybackRenderer:
             if tags_input and sync_tags_input:
                 tags_input.value = ""
             return
-        metadata = TrackMetadataStore().get(video_id)
+        try:
+            metadata = TrackMetadataStore().get(video_id)
+        except ConfigError as exc:
+            # A corrupt store must degrade to a status message, not crash the app.
+            if output:
+                output.update("Rating --  Tags --")
+            self._set_status(str(exc))
+            return
         tags = ", ".join(metadata.tags) if metadata.tags else "--"
         if output:
             output.update(f"Rating {metadata.rating}/{MAX_RATING}  Tags {tags}")

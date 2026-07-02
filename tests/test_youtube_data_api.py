@@ -100,7 +100,7 @@ def test_youtube_data_api_creates_adds_and_reads_playlist(
             return FakeResponse(payload={"id": f"item-{len(playlist_items)}"})
         raise AssertionError(f"Unexpected request: {method} {url}")
 
-    monkeypatch.setattr("bester_ytm.ytm_client.requests.request", fake_request)
+    monkeypatch.setattr("bester_ytm.ytm_session.requests.request", fake_request)
 
     playlist_id = oauth_client.create_playlist("Mix", "Description", "PRIVATE", ["v1"])
     result = oauth_client.add_playlist_items(playlist_id, ["v1", "v2", "v2"])
@@ -158,8 +158,8 @@ def test_youtube_data_api_retries_transient_playlist_item_conflict(
             return FakeResponse(payload={"id": "item-1"})
         raise AssertionError(f"Unexpected request: {method} {url}")
 
-    monkeypatch.setattr("bester_ytm.ytm_client.requests.request", fake_request)
-    monkeypatch.setattr("bester_ytm.ytm_client.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("bester_ytm.ytm_session.requests.request", fake_request)
+    monkeypatch.setattr("bester_ytm.ytm_session.time.sleep", lambda seconds: None)
 
     result = oauth_client.add_playlist_items("PL1", ["v1"])
 
@@ -207,8 +207,8 @@ def test_youtube_data_api_treats_conflict_as_success_when_item_lands(
             )
         raise AssertionError(f"Unexpected request: {method} {url}")
 
-    monkeypatch.setattr("bester_ytm.ytm_client.requests.request", fake_request)
-    monkeypatch.setattr("bester_ytm.ytm_client.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("bester_ytm.ytm_session.requests.request", fake_request)
+    monkeypatch.setattr("bester_ytm.ytm_session.time.sleep", lambda seconds: None)
 
     result = oauth_client.add_playlist_items("PL1", ["v1"])
 
@@ -255,8 +255,8 @@ def test_youtube_data_api_does_not_retry_conflict_that_landed(
             )
         raise AssertionError(f"Unexpected request: {method} {url}")
 
-    monkeypatch.setattr("bester_ytm.ytm_client.requests.request", fake_request)
-    monkeypatch.setattr("bester_ytm.ytm_client.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("bester_ytm.ytm_session.requests.request", fake_request)
+    monkeypatch.setattr("bester_ytm.ytm_session.time.sleep", lambda seconds: None)
 
     result = oauth_client.add_playlist_items("PL1", ["v1"])
 
@@ -287,7 +287,7 @@ def test_youtube_data_api_auth_status_success(
             return FakeResponse(payload={"items": [{"snippet": {"title": "Mix"}}]})
         raise AssertionError(f"Unexpected request: {method} {url}")
 
-    monkeypatch.setattr("bester_ytm.ytm_client.requests.request", fake_request)
+    monkeypatch.setattr("bester_ytm.ytm_session.requests.request", fake_request)
 
     status = oauth_client.auth_status()
 
@@ -315,7 +315,7 @@ def test_youtube_data_api_auth_status_failure(
             payload={"error": {"message": "insufficient permissions"}},
         )
 
-    monkeypatch.setattr("bester_ytm.ytm_client.requests.request", fake_request)
+    monkeypatch.setattr("bester_ytm.ytm_session.requests.request", fake_request)
 
     status = oauth_client.auth_status()
 

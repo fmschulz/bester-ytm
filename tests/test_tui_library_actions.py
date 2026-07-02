@@ -350,6 +350,23 @@ def test_r_key_cycles_rating_and_wraps_to_zero(monkeypatch, tmp_path) -> None:
     assert statuses[-4:] == ["Rating 1/3.", "Rating 2/3.", "Rating 3/3.", "Rating 0/3."]
 
 
+def test_rating_on_corrupt_store_reports_error_instead_of_crashing(
+    monkeypatch, tmp_path
+) -> None:
+    from bester_ytm.stores import TrackMetadataStore
+
+    app, _, statuses = _make_app(monkeypatch, tmp_path)
+    app.selected_queue_video_id = "v1"
+    store = TrackMetadataStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text("[1, 2]", encoding="utf-8")  # not an object mapping
+
+    app.action_cycle_rating()
+
+    assert "corrupt" in statuses[-1]
+    assert "Move the file aside" in statuses[-1]
+
+
 def test_add_to_local_playlist_requires_candidate(monkeypatch, tmp_path) -> None:
     app, _, statuses = _make_app(monkeypatch, tmp_path)
 
@@ -436,7 +453,7 @@ def test_remove_targets_active_youtube_playlist(monkeypatch, tmp_path) -> None:
             return 1
 
     FakeRemovalClient.removed = []
-    monkeypatch.setattr("bester_ytm.tui_library.YTMClient", FakeRemovalClient)
+    monkeypatch.setattr("bester_ytm.tui_metadata.YTMClient", FakeRemovalClient)
     widgets = {
         "#results": FakeListView(),
         "#queue": FakeListView(),
@@ -466,7 +483,7 @@ def test_remove_reports_track_missing_from_youtube_playlist(monkeypatch, tmp_pat
         def remove_playlist_item(self, playlist_id: str, video_id: str) -> int:
             return 0
 
-    monkeypatch.setattr("bester_ytm.tui_library.YTMClient", EmptyRemovalClient)
+    monkeypatch.setattr("bester_ytm.tui_metadata.YTMClient", EmptyRemovalClient)
     app, _, statuses = _make_app(monkeypatch, tmp_path)
     app.active_youtube_playlist_id = "PL1"
     app.playlist_title = "Mix"

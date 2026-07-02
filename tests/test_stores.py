@@ -1,7 +1,11 @@
+import logging
 from pathlib import Path
 
+import pytest
+
+from bester_ytm.config import ConfigError
 from bester_ytm.playlist_plan import SongCandidate
-from bester_ytm.stores import LocalPlaylistStore, TrackMetadataStore
+from bester_ytm.stores import LocalPlaylist, LocalPlaylistStore, PlanStore, TrackMetadataStore
 
 
 def test_track_metadata_store_clamps_ratings_and_normalizes_tags(
@@ -39,3 +43,62 @@ def test_local_playlist_store_adds_removes_and_lists_tracks(tmp_path: Path) -> N
     updated = store.remove_track("metal-picks", "v1")
 
     assert updated.video_ids == []
+
+
+def test_plan_store_load_raises_config_error_for_corrupt_json(tmp_path: Path) -> None:
+    plans_dir = tmp_path / "plans"
+    plans_dir.mkdir()
+    (plans_dir / "myplan.json").write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="myplan.json"):
+        PlanStore(plans_dir=plans_dir).load("myplan")
+
+
+def test_track_metadata_store_raises_config_error_for_corrupt_json(tmp_path: Path) -> None:
+    path = tmp_path / "metadata.json"
+    path.write_text("{broken", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="metadata.json"):
+        TrackMetadataStore(path=path).get("v1")
+
+
+def test_track_metadata_store_raises_config_error_for_non_object_payload(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "metadata.json"
+    path.write_text("[1, 2]", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="metadata.json"):
+        TrackMetadataStore(path=path).get("v1")
+
+
+def test_track_metadata_store_raises_config_error_for_invalid_entry(tmp_path: Path) -> None:
+    path = tmp_path / "metadata.json"
+    path.write_text('{"v1": {"rating": "loud"}}', encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="metadata.json"):
+        TrackMetadataStore(path=path).get("v1")
+
+
+def test_local_playlist_store_load_raises_config_error_for_corrupt_json(
+    tmp_path: Path,
+) -> None:
+    store = LocalPlaylistStore(playlists_dir=tmp_path)
+    (tmp_path / "mix.json").write_text("not json", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="mix.json"):
+        store.load("mix")
+
+
+def test_local_playlist_store_list_skips_corrupt_file_with_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    store = LocalPlaylistStore(playlists_dir=tmp_path)
+    store.save(LocalPlaylist(id="good", name="Good"))
+    (tmp_path / "bad.json").write_text("{oops", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="bester_ytm.stores"):
+        playlists = store.list()
+
+    assert [playlist.id for playlist in playlists] == ["good"]
+    assert "bad.json" in caplog.text

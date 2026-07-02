@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+from dataclasses import dataclass
 from functools import partial
 
 from textual import events
@@ -10,7 +11,6 @@ from textual.widgets import ListView, Tree
 from textual.widgets.tree import TreeNode
 
 from .config import ConfigError
-from .playback import PlaybackError
 from .playlist_plan import SongCandidate
 from .search_query import SearchItem
 from .ytm_client import PlaylistSnapshot, YTMClientError
@@ -56,6 +56,16 @@ def _node_data(node: TreeNode) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+@dataclass(frozen=True)
+class _PendingAlbumAction:
+    """An a/A/x press on a collapsed album, waiting for its tracks to load."""
+
+    action_id: int
+    node: TreeNode
+    action: str  # "add" | "play" | "select"
+    queue_load_id: int
+
+
 class AlbumActions:
     """Mixin that renders album searches as a tree and adds songs whole-album or one by one."""
 
@@ -67,6 +77,10 @@ class AlbumActions:
     active_youtube_playlist_id: str | None
     selected_queue_video_id: str | None
     result_selection_anchor_video_id: str | None
+    _queue_load_id: int
+    _results_load_id: int
+    _album_action_id: int = 0
+    _pending_album_action: _PendingAlbumAction | None = None
 
     # --- visibility -------------------------------------------------------
 
@@ -86,6 +100,7 @@ class AlbumActions:
             tree.display = True
 
     def _show_results_list(self) -> None:
+        self._cancel_pending_album_action()
         tree = self._album_tree()
         if tree is not None:
             tree.display = False
@@ -115,9 +130,15 @@ class AlbumActions:
         candidate: SongCandidate = _node_data(node)["candidate"]
         return candidate
 
+    @staticmethod
+    def _album_title(node: TreeNode) -> str:
+        item = _node_data(node).get("item")
+        return getattr(item, "title", None) or "Queue"
+
     # --- population -------------------------------------------------------
 
     async def _populate_album_tree(self, items: list[SearchItem]) -> None:
+        self._cancel_pending_album_action()
         self._show_album_tree()
         tree = self.query_one("#album-tree", AlbumTree)
         tree.auto_expand = False
@@ -131,16 +152,12 @@ class AlbumActions:
                 data={"kind": "album", "item": item, "loaded": False},
                 expand=False,
             )
+        if self._input_focus_changed_since_load():
+            return  # the user is typing in an input; do not yank focus away
         tree.focus()
 
-    def _load_album_node(self, node: TreeNode) -> list[SongCandidate]:
-        """Fetch and attach an album's songs once; safe to call repeatedly."""
-        data = _node_data(node)
-        if data.get("kind") != "album":
-            return []
-        if not data.get("loaded"):
-            item: SearchItem = data["item"]
-            self._attach_album_tracks(node, self.client.get_album(str(item.browse_id)))
+    def _album_songs(self, node: TreeNode) -> list[SongCandidate]:
+        """Return an album node's already-loaded songs; never fetches."""
         return [self._song_candidate(child) for child in self._song_children(node)]
 
     def _attach_album_tracks(self, node: TreeNode, snapshot: PlaylistSnapshot) -> None:
@@ -156,6 +173,57 @@ class AlbumActions:
                 data={"kind": "song", "candidate": track},
             )
 
+    # --- deferred a/A/x on collapsed albums ---------------------------------
+
+    def _cancel_pending_album_action(self) -> None:
+        """Any new a/A/x press or tree rebuild supersedes an in-flight deferred action."""
+        self._album_action_id += 1
+        self._pending_album_action = None
+
+    def _defer_album_action(self, node: TreeNode, action: str) -> None:
+        """Fetch a collapsed album off the UI thread; the action runs when tracks land."""
+        self._album_action_id += 1
+        self._pending_album_action = _PendingAlbumAction(
+            action_id=self._album_action_id,
+            node=node,
+            action=action,
+            queue_load_id=self._queue_load_id,
+        )
+        data = _node_data(node)
+        item: SearchItem = data["item"]
+        self._set_status(f"Loading album {item.title}...")
+        if data.get("loading"):
+            return  # reuse the in-flight fetch; the pending action fires when it lands
+        data["loading"] = True
+        self.run_worker(
+            partial(self._album_node_worker, node, self._results_load_id),
+            name="album",
+            group="album",
+            thread=True,
+        )
+
+    async def _run_album_action(self, pending: _PendingAlbumAction) -> None:
+        """Deferred action; staleness must be rechecked here, not only when scheduled."""
+        if pending.action_id != self._album_action_id:
+            return  # superseded by a newer action after this coroutine was scheduled
+        self._pending_album_action = None
+        node = pending.node
+        if pending.action == "select":
+            self._toggle_album_node(node)
+            count = len(self.selected_result_video_ids)
+            self._set_status(f"{count} track(s) selected; Enter queues them in order.")
+            return
+        if pending.queue_load_id != self._queue_load_id:
+            return  # the user built competing queue state while the album loaded
+        candidates = self._album_songs(node)
+        if not candidates:
+            self._set_status(f"Album {self._album_title(node)} has no playable tracks.")
+            return
+        if pending.action == "play":
+            await self._play_candidates_now(candidates, self._album_title(node))
+            return
+        await self._add_candidates_to_queue(candidates)
+
     # --- tree events ------------------------------------------------------
 
     def on_tree_node_expanded(self, event: Tree.NodeExpanded) -> None:
@@ -166,33 +234,45 @@ class AlbumActions:
         item: SearchItem = data["item"]
         self._set_status(f"Loading album {item.title}...")
         self.run_worker(
-            partial(self._album_node_worker, event.node),
+            partial(self._album_node_worker, event.node, self._results_load_id),
             name="album",
             group="album",
             thread=True,
         )
 
-    def _album_node_worker(self, node: TreeNode) -> None:
+    def _album_node_worker(self, node: TreeNode, load_id: int) -> None:
         """Runs on a worker thread so slow album fetches never freeze the UI."""
         item: SearchItem = _node_data(node)["item"]
         try:
             snapshot = self.client.get_album(str(item.browse_id))
         except (ConfigError, YTMClientError) as exc:
-            self.call_from_thread(self._finish_album_node_error, node, str(exc))
+            self.call_from_thread(self._finish_album_node_error, node, str(exc), load_id)
             return
-        self.call_from_thread(self._finish_album_node, node, snapshot)
+        self.call_from_thread(self._finish_album_node, node, snapshot, load_id)
 
-    def _finish_album_node_error(self, node: TreeNode, message: str) -> None:
+    def _finish_album_node_error(self, node: TreeNode, message: str, load_id: int) -> None:
         _node_data(node)["loading"] = False
+        pending = self._pending_album_action
+        if pending is not None and pending.node is node:
+            self._pending_album_action = None
+        if load_id != self._results_load_id:
+            return  # a newer search replaced these results; keep its status
         self._set_status(message)
 
-    def _finish_album_node(self, node: TreeNode, snapshot: PlaylistSnapshot) -> None:
+    def _finish_album_node(
+        self, node: TreeNode, snapshot: PlaylistSnapshot, load_id: int
+    ) -> None:
         _node_data(node)["loading"] = False
+        if load_id != self._results_load_id:
+            return  # a newer search detached this node while the album loaded
         self._attach_album_tracks(node, snapshot)
         self._set_status(
             f"Loaded album {self._album_title(node)}: "
             f"{len(self._song_children(node))} track(s)."
         )
+        pending = self._pending_album_action
+        if pending is not None and pending.node is node:
+            self.run_worker(self._run_album_action(pending), exclusive=False)
 
     async def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         data = _node_data(event.node)
@@ -208,209 +288,3 @@ class AlbumActions:
             event.node.toggle()
         elif kind == "song":
             await self._queue_or_play_candidate(data["candidate"])
-
-    # --- selection (x) ----------------------------------------------------
-
-    def _toggle_album_tree_selection(self) -> None:
-        tree = self.query_one("#album-tree", AlbumTree)
-        node = tree.cursor_node
-        data = _node_data(node) if node else {}
-        if not node or not data:
-            self._set_status("Highlight an album or song to select.")
-            return
-        if data.get("kind") == "song":
-            self._toggle_song_node(node)
-        elif data.get("kind") == "album":
-            try:
-                self._toggle_album_node(node)
-            except (ConfigError, YTMClientError) as exc:
-                self._set_status(str(exc))
-                return
-        count = len(self.selected_result_video_ids)
-        self._set_status(f"{count} track(s) selected; Enter queues them in order.")
-
-    def _toggle_song_node(self, node: TreeNode) -> None:
-        candidate = self._song_candidate(node)
-        selected = candidate.video_id not in self.selected_result_video_ids
-        self._mark_selected(candidate.video_id, selected)
-        node.set_label(self._song_label(candidate, selected))
-        if node.parent is not None:
-            self._refresh_album_marker(node.parent)
-
-    def _toggle_album_node(self, node: TreeNode) -> None:
-        candidates = self._load_album_node(node)
-        select_all = not (
-            candidates
-            and all(c.video_id in self.selected_result_video_ids for c in candidates)
-        )
-        for candidate in candidates:
-            self._mark_selected(candidate.video_id, select_all)
-        for child in self._song_children(node):
-            song = self._song_candidate(child)
-            child.set_label(
-                self._song_label(song, song.video_id in self.selected_result_video_ids)
-            )
-        node.set_label(self._album_label(_node_data(node)["item"], select_all and bool(candidates)))
-
-    def _refresh_album_marker(self, node: TreeNode) -> None:
-        data = _node_data(node)
-        if data.get("kind") != "album":
-            return
-        songs = [self._song_candidate(child) for child in self._song_children(node)]
-        all_selected = bool(songs) and all(
-            song.video_id in self.selected_result_video_ids for song in songs
-        )
-        node.set_label(self._album_label(data["item"], all_selected))
-
-    def _mark_selected(self, video_id: str, selected: bool) -> None:
-        if selected:
-            self.selected_result_video_ids.add(video_id)
-            if self.result_selection_anchor_video_id is None:
-                self.result_selection_anchor_video_id = video_id
-        else:
-            self.selected_result_video_ids.discard(video_id)
-            if self.result_selection_anchor_video_id == video_id:
-                self.result_selection_anchor_video_id = self._first_selected_result_video_id()
-
-    def _reset_album_tree_markers(self) -> None:
-        tree = self._album_tree()
-        if tree is None:
-            return
-        for album_node in tree.root.children:
-            for song_node in self._song_children(album_node):
-                song_node.set_label(self._song_label(self._song_candidate(song_node), False))
-            album_data = _node_data(album_node)
-            if album_data.get("kind") == "album":
-                album_node.set_label(self._album_label(album_data["item"], False))
-
-    # --- play now, replacing the queue (shift+a) --------------------------
-
-    async def action_play_album(self) -> None:
-        candidates, title = self._candidates_to_play_now()
-        if not candidates:
-            self._set_status("Highlight an album or song to play it now.")
-            return
-        self._supersede_queue_load()
-        for candidate in candidates:
-            self.candidates_by_video_id[candidate.video_id] = candidate
-        video_ids = [candidate.video_id for candidate in candidates]
-        try:
-            self.playback.replace_queue(video_ids)
-            self.playlist_video_ids = list(video_ids)
-            self.playlist_title = title
-            status = self.playback.play_queue()
-            self.playback_was_active = True
-        except PlaybackError as exc:
-            await self._report_playback_error(exc)
-            return
-        self.active_local_playlist_id = None
-        self.active_youtube_playlist_id = None
-        self.selected_queue_video_id = video_ids[0]
-        self._reset_album_tree_markers()
-        self._clear_selection_markers()
-        self._sync_current_track(status.current_video_id)
-        await self._render_queue()
-        self._refresh_playback(status)
-        self._set_status(f"Playing {title}: {len(video_ids)} track(s).")
-
-    def _candidates_to_play_now(self) -> tuple[list[SongCandidate], str]:
-        if self.selected_result_video_ids:
-            selected = self._selected_candidates_for_add()
-            if selected:
-                return selected, "Queue"
-        if self._album_tree_active():
-            return self._cursor_play_candidates()
-        candidate = self._highlighted_result_candidate()
-        return ([candidate], "Queue") if candidate else ([], "Queue")
-
-    def _cursor_play_candidates(self) -> tuple[list[SongCandidate], str]:
-        tree = self.query_one("#album-tree", AlbumTree)
-        node = tree.cursor_node
-        data = _node_data(node) if node else {}
-        if not node or not data:
-            return [], "Queue"
-        try:
-            if data.get("kind") == "album":
-                return self._load_album_node(node), self._album_title(node)
-            if data.get("kind") == "song" and node.parent is not None:
-                album_songs = self._load_album_node(node.parent)
-                ids = [candidate.video_id for candidate in album_songs]
-                current = self._song_candidate(node).video_id
-                if current in ids:
-                    return album_songs[ids.index(current) :], self._album_title(node.parent)
-        except (ConfigError, YTMClientError) as exc:
-            self._set_status(str(exc))
-            return [], "Queue"
-        if data.get("kind") == "song":
-            return [self._song_candidate(node)], "Queue"
-        return [], "Queue"
-
-    @staticmethod
-    def _album_title(node: TreeNode) -> str:
-        item = _node_data(node).get("item")
-        return getattr(item, "title", None) or "Queue"
-
-    # --- add (a) ----------------------------------------------------------
-
-    async def action_add_to_queue(self) -> None:
-        candidates = self._candidates_for_add()
-        if not candidates:
-            self._set_status(
-                "Nothing to add. Highlight a song or album row, or mark rows with x."
-            )
-            return
-        for candidate in candidates:
-            self.candidates_by_video_id[candidate.video_id] = candidate
-        video_ids = [candidate.video_id for candidate in candidates]
-        try:
-            message = self._start_or_extend_queue(video_ids)
-        except PlaybackError as exc:
-            await self._report_playback_error(exc)
-            return
-        self._reset_album_tree_markers()
-        self._clear_selection_markers()
-        await self._render_queue()
-        self._set_status(message)
-
-    def _candidates_for_add(self) -> list[SongCandidate]:
-        if self.selected_result_video_ids:
-            ordered = self._selected_candidates_for_add()
-            if ordered:
-                return ordered
-        if self._album_tree_active():
-            return self._cursor_candidates()
-        candidate = self._highlighted_result_candidate()
-        return [candidate] if candidate else []
-
-    def _selected_candidates_for_add(self) -> list[SongCandidate]:
-        if self._album_tree_active():
-            return self._album_tree_selected_candidates()
-        return self._selected_candidates_in_display_order()
-
-    def _cursor_candidates(self) -> list[SongCandidate]:
-        tree = self.query_one("#album-tree", AlbumTree)
-        node = tree.cursor_node
-        data = _node_data(node) if node else {}
-        if not node or not data:
-            return []
-        if data.get("kind") == "song":
-            return [data["candidate"]]
-        if data.get("kind") == "album":
-            try:
-                return self._load_album_node(node)
-            except (ConfigError, YTMClientError) as exc:
-                self._set_status(str(exc))
-                return []
-        return []
-
-    def _album_tree_selected_candidates(self) -> list[SongCandidate]:
-        tree = self._album_tree()
-        if tree is None:
-            return []
-        ordered: list[SongCandidate] = []
-        for album_node in tree.root.children:
-            for song_node in self._song_children(album_node):
-                candidate = self._song_candidate(song_node)
-                if candidate.video_id in self.selected_result_video_ids:
-                    ordered.append(candidate)
-        return ordered

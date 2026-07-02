@@ -2,13 +2,23 @@ from __future__ import annotations
 
 import builtins
 import json
+import logging
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from .config import get_paths, write_private_json, write_private_text
+from .config import ConfigError, get_paths, write_private_json, write_private_text
 from .playlist_plan import PlaylistPlan, SongCandidate, parse_seed_file, plan_to_markdown, slugify
 from .search_query import SearchItem
+
+logger = logging.getLogger(__name__)
+
+
+def _corrupt_store_error(path: Path, error: Exception) -> ConfigError:
+    return ConfigError(
+        f"Store file {path} is corrupt: {error}. "
+        "Move the file aside (or delete it) and retry."
+    )
 
 
 class PlanStore:
@@ -57,7 +67,10 @@ class PlanStore:
 
     def load(self, plan_id_or_path: str) -> PlaylistPlan:
         path = self.find(plan_id_or_path)
-        return PlaylistPlan.model_validate_json(path.read_text(encoding="utf-8"))
+        try:
+            return PlaylistPlan.model_validate_json(path.read_text(encoding="utf-8"))
+        except ValidationError as exc:
+            raise _corrupt_store_error(path, exc) from exc
 
     def list(self) -> list[Path]:
         self.ensure()
@@ -113,14 +126,25 @@ class TrackMetadataStore:
     def _read_all(self) -> dict[str, TrackMetadata]:
         if not self.path.exists():
             return {}
-        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise _corrupt_store_error(self.path, exc) from exc
         if not isinstance(payload, dict):
-            return {}
-        return {
-            str(video_id): TrackMetadata.model_validate({"video_id": video_id, **data})
-            for video_id, data in payload.items()
-            if isinstance(data, dict)
-        }
+            raise _corrupt_store_error(
+                self.path, ValueError("expected a JSON object mapping video ids to metadata")
+            )
+        items: dict[str, TrackMetadata] = {}
+        for video_id, data in payload.items():
+            if not isinstance(data, dict):
+                raise _corrupt_store_error(
+                    self.path, ValueError(f"entry {video_id!r} is not a JSON object")
+                )
+            try:
+                items[str(video_id)] = TrackMetadata.model_validate({"video_id": video_id, **data})
+            except ValidationError as exc:
+                raise _corrupt_store_error(self.path, exc) from exc
+        return items
 
     def _write_all(self, items: dict[str, TrackMetadata]) -> None:
         write_private_json(
@@ -189,7 +213,10 @@ class LocalPlaylistStore:
                 f"No local playlist named {playlist_id!r}; in the Ctrl+P list only "
                 "LOCAL PLAYLIST entries are local, the rest live on YouTube"
             ) from None
-        return LocalPlaylist.model_validate_json(text)
+        try:
+            return LocalPlaylist.model_validate_json(text)
+        except ValidationError as exc:
+            raise _corrupt_store_error(path, exc) from exc
 
     def delete(self, playlist_id: str) -> LocalPlaylist:
         """Delete a local playlist file; returns the playlist so callers can report its name."""
@@ -209,8 +236,8 @@ class LocalPlaylistStore:
         for path in sorted(self.playlists_dir.glob("*.json")):
             try:
                 playlists.append(LocalPlaylist.model_validate_json(path.read_text(encoding="utf-8")))
-            except Exception:
-                continue
+            except ValidationError as exc:
+                logger.warning("%s", _corrupt_store_error(path, exc))
         return playlists
 
     def search_items(self) -> builtins.list[SearchItem]:

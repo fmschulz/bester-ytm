@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from .deck import Deck, DeckState, spawn_prebuffer_deck
+from .deck import Deck, DeckReaper, DeckState, spawn_prebuffer_deck
 from .fader import Fader
 from .mpv_ipc import MpvIpcClient, MpvIpcError
 from .transition_settings import (  # noqa: F401  (re-exported for import sites)
@@ -58,6 +58,7 @@ class TransitionEngine:
         self.idle_deck: Deck | None = None
         self.draining_deck: Deck | None = None
         self.fader: Fader | None = None
+        self.reaper = DeckReaper()
         self._last_spawn_video_id: str | None = None
         self._last_spawn_at: float = 0.0
 
@@ -80,6 +81,7 @@ class TransitionEngine:
         return idle is not None and idle.state is DeckState.READY and idle.video_id == video_id
 
     def tick(self) -> None:
+        self.reaper.reap()
         if self.fader is not None:
             if not self.fader.is_active:
                 self._finalize_fade()
@@ -121,7 +123,7 @@ class TransitionEngine:
     def discard_idle_deck(self) -> None:
         idle, self.idle_deck = self.idle_deck, None
         if idle is not None:
-            idle.stop()
+            self.reaper.retire(idle)
 
     def mirror_mute_to_draining(self, muted: bool) -> None:
         draining = self.draining_deck
@@ -136,6 +138,7 @@ class TransitionEngine:
     def shutdown(self) -> None:
         self.snap()
         self.discard_idle_deck()
+        self.reaper.flush()
 
     def _maintain_idle_deck(self, remaining: float, effective_fade: float) -> None:
         idle = self.idle_deck
@@ -248,7 +251,7 @@ class TransitionEngine:
         if fader is None:
             return
         if self.draining_deck is not None:
-            self.draining_deck.stop()
+            self.reaper.retire(self.draining_deck)
         self.draining_deck = None
         self.fader = None
         if fader.failure_reason is not None:

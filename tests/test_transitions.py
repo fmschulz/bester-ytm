@@ -1,10 +1,17 @@
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
 import bester_ytm.transitions as transitions
-from bester_ytm.deck import Deck, DeckState, spawn_prebuffer_deck
+from bester_ytm.deck import (
+    KILL_ESCALATION_SECONDS,
+    Deck,
+    DeckReaper,
+    DeckState,
+    spawn_prebuffer_deck,
+)
 from bester_ytm.mpv_ipc import MpvIpcError
 from bester_ytm.playback import PlaybackError
 from bester_ytm.transitions import (
@@ -33,6 +40,39 @@ class FakeProcess:
         return self.exit_code if self.exit_code is not None else 0
 
 
+class StubbornProcess(FakeProcess):
+    """Stays alive through terminate/kill; blocking wait() is forbidden."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.kill_calls = 0
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def kill(self) -> None:
+        self.kill_calls += 1
+
+    def wait(self, timeout: float | None = None) -> int:
+        raise AssertionError("the tick path must never wait on a dying deck")
+
+
+class SlowExitProcess(FakeProcess):
+    """Ignores terminate; exits only when a blocking wait() reaps it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.wait_calls = 0
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        self.wait_calls += 1
+        self.exit_code = 0
+        return 0
+
+
 class FakeDeck:
     def __init__(self, name: str, video_id: str, ready: bool = False) -> None:
         self.name = name
@@ -42,7 +82,6 @@ class FakeDeck:
         self.ipc_socket = Path(f"/tmp/fake-deck-{name.lower()}.sock")
         self.calls: list[tuple[str, object]] = []
         self.readiness_results: list[bool] = []
-        self.stopped = False
         self.fail_on: str | None = None
 
     def is_process_running(self) -> bool:
@@ -62,10 +101,6 @@ class FakeDeck:
 
     def set_muted(self, muted: bool, deadline_seconds: float = 2.0) -> None:
         self._record("set_muted", muted)
-
-    def stop(self) -> None:
-        self.stopped = True
-        self.state = DeckState.STOPPED
 
     def _record(self, operation: str, value: object) -> None:
         if self.fail_on == operation:
@@ -238,7 +273,8 @@ def test_tick_discards_idle_deck_after_queue_reassignment(monkeypatch) -> None:
 
     harness.engine.tick()
 
-    assert stale_deck.stopped
+    assert stale_deck.state is DeckState.STOPPED
+    assert stale_deck.process.terminated
     assert harness.spawned == [("B", "z1", "/usr/bin/mpv")]
 
 
@@ -251,7 +287,7 @@ def test_tick_discards_idle_deck_whose_process_died(monkeypatch) -> None:
 
     harness.engine.tick()
 
-    assert dead_deck.stopped
+    assert dead_deck.state is DeckState.STOPPED
     assert harness.engine.idle_deck is not dead_deck
 
 
@@ -277,7 +313,7 @@ def test_tick_discards_loading_deck_when_track_nearly_over(monkeypatch) -> None:
 
     harness.engine.tick()
 
-    assert loading_deck.stopped
+    assert loading_deck.state is DeckState.STOPPED
     assert harness.engine.fader is None
 
 
@@ -368,7 +404,7 @@ def test_tick_does_not_trigger_while_paused(monkeypatch) -> None:
     harness.engine.tick()
 
     assert harness.engine.fader is None
-    assert not incoming.stopped
+    assert incoming.state is DeckState.READY
     assert harness.host.queue == ["v2", "v3"]
 
 
@@ -410,7 +446,7 @@ def test_tick_discards_idle_deck_when_queue_empty(monkeypatch) -> None:
 
     harness.engine.tick()
 
-    assert idle.stopped
+    assert idle.state is DeckState.STOPPED
     assert harness.engine.idle_deck is None
 
 
@@ -422,7 +458,7 @@ def test_tick_discards_idle_deck_when_style_is_cut(monkeypatch) -> None:
 
     harness.engine.tick()
 
-    assert idle.stopped
+    assert idle.state is DeckState.STOPPED
     assert harness.engine.idle_deck is None
 
 
@@ -448,7 +484,8 @@ def test_tick_finalizes_completed_fade(monkeypatch) -> None:
 
     harness.engine.tick()
 
-    assert draining.stopped
+    assert draining.state is DeckState.STOPPED
+    assert draining.process.terminated
     assert harness.engine.fader is None
     assert harness.engine.draining_deck is None
     assert harness.restored_volumes == [100.0]
@@ -498,7 +535,7 @@ def test_begin_crossfade_aborts_on_queue_mismatch(monkeypatch) -> None:
     harness.engine.idle_deck = stale
 
     assert harness.engine.begin_crossfade(4.0) is False
-    assert stale.stopped
+    assert stale.state is DeckState.STOPPED
     assert harness.engine.idle_deck is None
     assert harness.host.queue == ["v2", "v3"]
     assert harness.host.current_video_id == "v1"
@@ -518,7 +555,7 @@ def test_begin_crossfade_aborts_without_host_mutation_when_unpause_fails(
     assert harness.host.current_video_id == "v1"
     assert harness.host.process is not incoming.process
     assert harness.host.last_transition_error is not None
-    assert incoming.stopped
+    assert incoming.state is DeckState.STOPPED
     assert harness.engine.fader is None
 
 
@@ -533,7 +570,7 @@ def test_snap_cancels_fader_and_finalizes(monkeypatch) -> None:
 
     assert fader.cancelled
     assert harness.engine.fader is None
-    assert draining.stopped
+    assert draining.state is DeckState.STOPPED
     assert harness.restored_volumes == [100.0]
 
 
@@ -618,8 +655,9 @@ def test_shutdown_snaps_and_discards_idle_deck(monkeypatch) -> None:
 
     assert fader.cancelled
     assert harness.engine.fader is None
-    assert idle.stopped
+    assert idle.state is DeckState.STOPPED
     assert harness.engine.idle_deck is None
+    assert harness.engine.reaper.dying == []
 
 
 def test_spawn_prebuffer_deck_command_and_socket(monkeypatch) -> None:
@@ -713,3 +751,120 @@ def test_deck_stop_tolerates_dead_process(tmp_path) -> None:
 
     assert not process.terminated
     assert deck.state is DeckState.STOPPED
+
+
+def make_stubborn_deck(tmp_path: Path, name: str = "A") -> Deck:
+    socket_path = tmp_path / f"deck-{name.lower()}.sock"
+    socket_path.touch()
+    return Deck(
+        name=name, video_id="v", process=StubbornProcess(), ipc_socket=socket_path
+    )
+
+
+def test_reaper_retire_never_waits_and_frees_socket_immediately(tmp_path) -> None:
+    deck = make_stubborn_deck(tmp_path)
+    reaper = DeckReaper(clock=lambda: 0.0)
+
+    reaper.retire(deck)
+
+    assert deck.process.terminated
+    assert deck.state is DeckState.STOPPED
+    assert not deck.ipc_socket.exists()
+    assert len(reaper.dying) == 1
+
+
+def test_reaper_retire_skips_already_dead_process(tmp_path) -> None:
+    process = FakeProcess(exit_code=0)
+    deck = Deck(name="A", video_id="v", process=process, ipc_socket=tmp_path / "s.sock")
+    reaper = DeckReaper(clock=lambda: 0.0)
+
+    reaper.retire(deck)
+
+    assert not process.terminated
+    assert deck.state is DeckState.STOPPED
+    assert reaper.dying == []
+
+
+def test_reaper_reap_drops_deck_once_process_exits(tmp_path) -> None:
+    deck = make_stubborn_deck(tmp_path)
+    reaper = DeckReaper(clock=lambda: 0.0)
+    reaper.retire(deck)
+
+    reaper.reap()
+    assert len(reaper.dying) == 1
+
+    deck.process.exit_code = 0
+    reaper.reap()
+    assert reaper.dying == []
+    assert deck.process.kill_calls == 0
+
+
+def test_reaper_escalates_to_kill_once_after_grace_period(tmp_path) -> None:
+    deck = make_stubborn_deck(tmp_path)
+    now = {"value": 100.0}
+    reaper = DeckReaper(clock=lambda: now["value"])
+    reaper.retire(deck)
+
+    now["value"] += KILL_ESCALATION_SECONDS - 0.1
+    reaper.reap()
+    assert deck.process.kill_calls == 0
+
+    now["value"] += 0.2
+    reaper.reap()
+    reaper.reap()
+    assert deck.process.kill_calls == 1
+    assert len(reaper.dying) == 1
+
+    deck.process.exit_code = -9
+    reaper.reap()
+    assert reaper.dying == []
+
+
+def test_tick_returns_quickly_while_draining_deck_is_still_dying(monkeypatch) -> None:
+    harness = EngineHarness(monkeypatch)
+    fader = FakeFader(4.0, lambda outgoing, incoming: None, lambda: 100.0)
+    fader._active = False
+    harness.engine.fader = fader
+    draining = FakeDeck("A", "v1")
+    draining.process = StubbornProcess()
+    harness.engine.draining_deck = draining
+
+    started = time.perf_counter()
+    harness.engine.tick()  # finalizes the fade; StubbornProcess.wait would raise
+    harness.engine.tick()  # keeps ticking while the deck is still dying
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 0.5
+    assert draining.state is DeckState.STOPPED
+    assert draining.process.terminated
+    assert len(harness.engine.reaper.dying) == 1
+    assert harness.engine.fader is None
+    assert harness.engine.draining_deck is None
+
+
+def test_snap_retires_draining_deck_without_waiting(monkeypatch) -> None:
+    harness = EngineHarness(monkeypatch)
+    fader = FakeFader(4.0, lambda outgoing, incoming: None, lambda: 100.0)
+    harness.engine.fader = fader
+    draining = FakeDeck("A", "v1")
+    draining.process = StubbornProcess()
+    harness.engine.draining_deck = draining
+
+    harness.engine.snap()
+
+    assert draining.state is DeckState.STOPPED
+    assert draining.process.terminated
+    assert len(harness.engine.reaper.dying) == 1
+
+
+def test_shutdown_flushes_dying_decks_with_blocking_reap(monkeypatch) -> None:
+    harness = EngineHarness(monkeypatch)
+    lingering = FakeDeck("A", "v1")
+    lingering.process = SlowExitProcess()
+    harness.engine.reaper.retire(lingering)
+
+    harness.engine.shutdown()
+
+    assert lingering.process.wait_calls == 1
+    assert lingering.process.poll() is not None
+    assert harness.engine.reaper.dying == []

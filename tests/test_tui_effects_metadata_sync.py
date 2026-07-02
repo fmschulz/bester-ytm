@@ -124,6 +124,23 @@ def test_track_change_keeps_details_on_highlighted_row(monkeypatch, tmp_path) ->
     assert "Tags doom" in widgets["#track-metadata"].value  # details stay on v3
 
 
+def test_corrupt_metadata_store_degrades_to_status_message(monkeypatch, tmp_path) -> None:
+    """A corrupt metadata.json surfaces its actionable error instead of crashing the tick."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    store = TrackMetadataStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text('{"v1": 3}', encoding="utf-8")  # entry is not an object
+    app, widgets = _make_app(monkeypatch, FakePlayback("v1"))
+    statuses: list[str] = []
+    monkeypatch.setattr(app, "_set_status", statuses.append)
+
+    app._refresh_playback()  # syncs the playing track and reads its metadata
+
+    assert widgets["#track-metadata"].value == "Rating --  Tags --"
+    assert "corrupt" in statuses[-1]
+    assert "Move the file aside" in statuses[-1]
+
+
 def test_track_change_does_not_clobber_focused_tags_input(monkeypatch, tmp_path) -> None:
     """A resync while the user is typing must leave #tags-input alone."""
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))

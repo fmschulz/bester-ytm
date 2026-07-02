@@ -157,6 +157,115 @@ def test_pause_resume_falls_back_to_process_signals(
 
     assert process.signals == [signal.SIGSTOP, signal.SIGCONT]
     assert controller.paused is False
+    assert controller._paused_via_signal is False
+
+
+def _signal_paused_controller(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> tuple[PlaybackController, RunningProcess]:
+    process = RunningProcess()
+    controller = PlaybackController(
+        process=process,  # type: ignore[arg-type]
+        current_video_id="v1",
+        ipc_socket=tmp_path / "mpv.sock",
+    )
+
+    def fail_ipc(payload: dict[str, object]) -> None:
+        raise PlaybackError("no socket")
+
+    monkeypatch.setattr(controller, "_send_ipc", fail_ipc)
+    controller.pause_resume()
+    assert process.signals == [signal.SIGSTOP]
+    return controller, process
+
+
+def test_status_skips_ipc_while_signal_paused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    controller, _ = _signal_paused_controller(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        controller,
+        "_live_client",
+        lambda: pytest.fail("status must not poll IPC while mpv is SIGSTOP-paused"),
+    )
+
+    status = controller.status()
+
+    assert status.running is True
+    assert status.paused is True
+    assert status.current_video_id == "v1"
+    assert status.position_seconds is None
+
+
+def test_audio_level_skips_ipc_while_signal_paused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    controller, _ = _signal_paused_controller(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        controller,
+        "_live_client",
+        lambda: pytest.fail("audio poll must not hit IPC while mpv is SIGSTOP-paused"),
+    )
+
+    assert controller.read_audio_level_db() is None
+
+
+def test_resume_after_signal_pause_skips_ipc_and_sends_sigcont(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class UnreachableClient:
+        def get_float(self, name: str, deadline_seconds: float = 2.0) -> float:
+            raise MpvIpcError("socket still down")
+
+        def get_property(self, name: str, deadline_seconds: float = 2.0) -> bool:
+            raise MpvIpcError("socket still down")
+
+    controller, process = _signal_paused_controller(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        controller,
+        "_send_ipc",
+        lambda payload: pytest.fail("resume must not attempt IPC against stopped mpv"),
+    )
+    monkeypatch.setattr(controller, "_live_client", UnreachableClient)
+
+    status = controller.pause_resume()
+
+    assert process.signals == [signal.SIGSTOP, signal.SIGCONT]
+    assert controller.paused is False
+    assert controller._paused_via_signal is False
+    assert status.paused is False
+
+
+def test_transport_controls_skip_ipc_while_signal_paused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    controller, _ = _signal_paused_controller(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        controller,
+        "_send_ipc",
+        lambda payload: pytest.fail("transport must not hit IPC while mpv is SIGSTOP-paused"),
+    )
+    monkeypatch.setattr(
+        controller,
+        "_live_client",
+        lambda: pytest.fail("transport must not poll IPC while mpv is SIGSTOP-paused"),
+    )
+
+    assert controller.seek_relative(10).paused is True
+    assert controller.seek_absolute(5).paused is True
+    assert controller.toggle_mute().paused is True
+    assert controller.set_volume(40).paused is True
+    assert controller.master_volume == 40.0
+
+
+def test_stop_clears_signal_pause_flag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    controller, _ = _signal_paused_controller(monkeypatch, tmp_path)
+
+    controller.stop()
+
+    assert controller._paused_via_signal is False
 
 
 def test_transport_controls_noop_without_process(monkeypatch: pytest.MonkeyPatch) -> None:
