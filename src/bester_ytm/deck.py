@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .local_files import is_local_video_id, local_path
 from .mpv_ipc import MpvIpcClient, MpvIpcError
+from .radio import is_radio_video_id, stream_url_for
 
 PROBE_DEADLINE_SECONDS = 0.15
 KILL_ESCALATION_SECONDS = 5.0
@@ -29,6 +30,8 @@ class DeckState(StrEnum):
 def video_url(video_id: str) -> str:
     if is_local_video_id(video_id):
         return local_path(video_id)
+    if is_radio_video_id(video_id):
+        return stream_url_for(video_id)
     return f"https://music.youtube.com/watch?v={video_id}"
 
 

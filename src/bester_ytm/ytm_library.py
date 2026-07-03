@@ -219,6 +219,13 @@ class YTMLibraryMixin(YTMSessionBase):
             ) from exc
         return len(targets)
 
+    def rate_song(self, video_id: str, rating: str = "LIKE") -> None:
+        """Rate a song on the user's account: LIKE, DISLIKE, or INDIFFERENT (removes)."""
+        try:
+            self.ytmusic.rate_song(video_id, rating)
+        except Exception as exc:
+            raise YTMClientError(f"Could not rate song on YouTube Music: {exc}") from exc
+
     def add_playlist_items(self, playlist_id: str, video_ids: list[str]) -> AddResult:
         if not video_ids:
             return AddResult(playlist_id=playlist_id, requested=0, added=0)

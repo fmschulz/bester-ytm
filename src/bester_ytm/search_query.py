@@ -6,7 +6,9 @@ from pydantic import BaseModel
 
 from .playlist_plan import SongCandidate
 
-SearchKind = Literal["free", "song", "artist", "album", "playlist", "favorites", "local"]
+SearchKind = Literal[
+    "free", "song", "artist", "album", "playlist", "favorites", "local", "radio"
+]
 SearchView = Literal["songs", "albums", "playlists"]
 SearchItemType = Literal["song", "album", "playlist", "local_playlist"]
 
@@ -29,6 +31,10 @@ class ParsedSearch(BaseModel):
     @property
     def lists_local_files(self) -> bool:
         return self.kind == "local"
+
+    @property
+    def lists_radio_stations(self) -> bool:
+        return self.kind == "radio"
 
 
 class SearchItem(BaseModel):
@@ -82,6 +88,8 @@ def parse_search_query(value: str) -> ParsedSearch:
         ("playlist:", "playlist"),
         ("favorites:", "favorites"),
         ("favs:", "favorites"),
+        ("liked:", "favorites"),
+        ("radio:", "radio"),
     ):
         if head.casefold().startswith(prefix):
             kind = parsed_kind  # type: ignore[assignment]
@@ -107,7 +115,7 @@ def parse_search_query(value: str) -> ParsedSearch:
         view = "albums"
     elif kind == "artist" and view not in {"songs", "albums"}:
         view = "songs"
-    elif kind in {"song", "favorites"}:
+    elif kind in {"song", "favorites", "radio"}:
         view = "songs"
 
     return ParsedSearch(raw=value, kind=kind, text=text, view=view, year=year)

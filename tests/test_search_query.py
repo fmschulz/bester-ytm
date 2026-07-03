@@ -116,3 +116,19 @@ def test_parse_pasted_paths_are_local() -> None:
 
 def test_free_query_is_not_local() -> None:
     assert parse_search_query("localize this song").lists_local_files is False
+
+
+def test_parse_radio_query_lists_stations() -> None:
+    parsed = parse_search_query("radio:")
+
+    assert parsed.kind == "radio"
+    assert parsed.view == "songs"
+    assert parsed.lists_radio_stations is True
+
+
+def test_parse_liked_aliases_favorites() -> None:
+    parsed = parse_search_query("liked:")
+
+    assert parsed.kind == "favorites"
+    assert parsed.lists_favorites is True
+    assert parse_search_query("liked:beach").text == "beach"

@@ -13,6 +13,7 @@ from .deck import remove_socket_file, spawn_mpv, terminate_process
 from .local_files import is_local_video_id
 from .mpv_ipc import MpvIpcClient, MpvIpcError, rms_db_from_astats
 from .playback_status import PlaybackStatus  # noqa: F401  (re-exported)
+from .radio import RadioError, is_radio_video_id
 from .transitions import (
     MANUAL_MIX_MAX_SECONDS,
     TransitionEngine,
@@ -55,18 +56,22 @@ class PlaybackController:
 
     def play_video(self, video_id: str, seconds: int | None = None) -> PlaybackStatus:
         self.stop()
-        if not is_local_video_id(video_id):
+        if not is_local_video_id(video_id) and not is_radio_video_id(video_id):
             self._require_stream_resolver()
         self.current_video_id = None
         ipc_socket = Path(tempfile.gettempdir()) / f"bester-ytm-mpv-{os.getpid()}.sock"
         remove_socket_file(ipc_socket)
-        process = spawn_mpv(
-            self._mpv_path(),
-            video_id,
-            ipc_socket,
-            paused=False,
-            volume=self.master_volume,
-        )
+        try:
+            process = spawn_mpv(
+                self._mpv_path(),
+                video_id,
+                ipc_socket,
+                paused=False,
+                volume=self.master_volume,
+            )
+        except RadioError as exc:
+            # A saved queue may name a config station that was since removed.
+            raise PlaybackError(str(exc)) from exc
         time.sleep(0.25)
         if process.poll() is not None:
             exit_code = process.returncode

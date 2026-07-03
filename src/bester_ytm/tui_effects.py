@@ -82,6 +82,7 @@ class PlaybackRenderer:
         # redraw the Now Playing label and queue for no reason.
         if status.current_video_id and status.current_video_id != self._synced_current_video_id:
             self._sync_current_track(status.current_video_id)
+        self._maybe_poll_radio(status)
         self._refresh_now_playing_marker(status.current_video_id)
         self._update_transport_widgets(status)
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual.widgets import Input, ListView
 
 from .config import ConfigError
+from .radio import is_radio_video_id
 from .stores import FavoritesStore, LocalPlaylistStore
 from .ytm_client import PlaylistSnapshot, YTMClient, YTMClientError
 
@@ -24,12 +25,17 @@ class TrackMetadataActions:
         if candidate is None:
             self._set_status("No track to favorite.")
             return
+        if is_radio_video_id(candidate.video_id):
+            # A radio station is not a song; fav the track it is playing.
+            self._favorite_radio_song()
+            return
         try:
             faved = FavoritesStore().toggle(candidate)
         except ConfigError as exc:
             self._set_status(str(exc))
             return
         self._refresh_favorite_markers(candidate.video_id, faved)
+        self._sync_ytm_like(candidate.video_id, faved)
         if faved:
             self._set_status(f"Favorited {candidate.display_name}.")
         else:

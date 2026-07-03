@@ -31,6 +31,7 @@ from .tui_options import UiOptionsActions
 from .tui_playback import PlaybackActions
 from .tui_playlists import PlaylistLoadActions
 from .tui_queue import QueueEditActions
+from .tui_radio import RadioActions
 from .tui_selection import SelectionActions
 from .tui_similar import SimilarActions
 from .tui_styles import APP_CSS
@@ -44,6 +45,7 @@ class BesterYTMApp(
     UiOptionsActions,
     SimilarActions,
     SelectionActions,
+    RadioActions,
     QueueEditActions,
     BuilderActions,
     AlbumQueueActions,

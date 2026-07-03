@@ -11,6 +11,7 @@ from .config import ConfigError
 from .local_files import local_search_items
 from .playback import PlaybackError
 from .playlist_plan import SongCandidate
+from .radio import station_search_items
 from .search_query import ParsedSearch, SearchItem, parse_search_query
 from .stores import FAVORITE_SUFFIX, FavoritesStore, LocalPlaylistStore
 from .ytm_client import PlaylistSnapshot, YTMClientError
@@ -64,6 +65,11 @@ class LibraryActions:
                 self._set_status(str(exc))
                 return
             await self._show_search_results(parsed, items, self._results_load_id)
+            return
+        if parsed.lists_radio_stations:
+            await self._show_search_results(
+                parsed, station_search_items(), self._results_load_id
+            )
             return
         worker = (
             self._local_search_worker if parsed.lists_local_files else self._search_worker

@@ -178,7 +178,8 @@ def save_transition_settings(settings: TransitionSettings, path: Path | None = N
 
 
 # Sections this app may rewrite; anything else in config.toml is the user's.
-_REWRITABLE_SECTIONS = ("playback", "intelligence", "ui", "builder")
+# "radio" is never written by the app but must survive settings rewrites.
+_REWRITABLE_SECTIONS = ("playback", "intelligence", "ui", "builder", "radio")
 
 
 def load_config_document(path: Path) -> dict[str, Any]:
@@ -198,15 +199,24 @@ def rewrite_config_sections(
     for section, values in updates.items():
         document.setdefault(section, {}).update(values)
     lines: list[str] = []
+
+    def emit_table(header: str, entries: dict[str, Any]) -> None:
+        if lines:
+            lines.append("")
+        lines.append(f"[{header}]")
+        for key, value in entries.items():
+            lines.append(f"{key} = {_toml_scalar(config_path, f'{header}.{key}', value)}")
+
     for section in _REWRITABLE_SECTIONS:
         entries = document.get(section)
         if not entries:
             continue
-        if lines:
-            lines.append("")
-        lines.append(f"[{section}]")
-        for key, value in entries.items():
-            lines.append(f"{key} = {_toml_scalar(config_path, f'{section}.{key}', value)}")
+        scalars = {k: v for k, v in entries.items() if not isinstance(v, dict)}
+        subtables = {k: v for k, v in entries.items() if isinstance(v, dict)}
+        if scalars:
+            emit_table(section, scalars)
+        for name, table in subtables.items():
+            emit_table(f"{section}.{name}", table)
     try:
         write_private_text(config_path, "\n".join(lines) + "\n")
     except OSError as exc:
