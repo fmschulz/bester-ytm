@@ -8,6 +8,7 @@ from textual import events
 from textual.timer import Timer
 
 from .intelligence.llm import IntelligenceError, IntelligenceSettings, resolve_provider
+from .playlist_builder import count_from_brief
 from .playlist_plan import SongCandidate
 from .radio import is_radio_video_id
 from .similar import SIMILAR_COUNT, find_similar_candidates
@@ -93,9 +94,14 @@ class SimilarActions:
         self._cancel_similar_count()
         self._launch_similar(count)
 
-    def _launch_similar(self, count: int) -> None:
+    def _start_add_tracks_brief(self, brief: str) -> None:
+        """Builder briefs like 'add 5 songs similar to Four Tet' append to the
+        queue instead of building a new playlist."""
+        self._launch_similar(count_from_brief(brief, default=SIMILAR_COUNT), brief)
+
+    def _launch_similar(self, count: int, brief: str = "") -> None:
         seeds = self._similar_seeds()
-        if not seeds:
+        if not seeds and not brief:
             self._set_status(self._no_seeds_message())
             return
         try:
@@ -105,7 +111,7 @@ class SimilarActions:
             return
         self._set_status(f"Finding {count} similar songs via {provider}...")
         self.run_worker(
-            partial(self._add_similar_worker, count),
+            partial(self._add_similar_worker, count, brief),
             name="similar",
             group="similar",
             thread=True,
@@ -134,7 +140,7 @@ class SimilarActions:
             return NO_TRACK_INFO_MESSAGE
         return NEED_SEEDS_MESSAGE
 
-    def _add_similar_worker(self, count: int) -> None:
+    def _add_similar_worker(self, count: int, brief: str = "") -> None:
         """Runs on a worker thread; all UI updates go through call_from_thread."""
         try:
             candidates, provider = find_similar_candidates(
@@ -142,6 +148,7 @@ class SimilarActions:
                 self._similar_seeds(),
                 count,
                 self.intelligence_settings,
+                brief=brief,
             )
         except (IntelligenceError, YTMClientError) as exc:
             self.call_from_thread(self._set_status, str(exc))

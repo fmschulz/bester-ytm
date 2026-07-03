@@ -35,6 +35,12 @@ create a playlist with 15 songs in style similar to blind guardian
 and include at least 3 blind guardian songs, save it as powermetal-15
 ```
 
+Briefs that start with `add`, `queue`, or `append` grow the current queue
+instead of building a new playlist: `Add 5 songs similar to Four Tet`
+appends five matching tracks after what is already queued, exactly like the
+`g` key (an explicit count is honored; the default is 5). The queue's mood
+is passed along as context, so "add 5 more like this" also works.
+
 The builder box understands one non-playlist request too: `add radio
 station <name>` asks the AI provider for the station's direct stream URL,
 verifies it plays, and saves it to `[radio.stations]` in `config.toml`

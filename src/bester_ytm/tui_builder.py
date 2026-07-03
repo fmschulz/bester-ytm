@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from functools import partial
 from pathlib import Path
 
@@ -21,6 +22,9 @@ from .stores import FavoritesStore, PlanStore
 from .tui_radio import parse_add_station_request
 
 FALLBACK_FAVORITES = Path("../tuiradio/favs.md")
+
+# "Add 5 songs similar to Four Tet" grows the queue; it is not a new playlist.
+ADD_TRACKS_PATTERN = re.compile(r"^\s*(?:please\s+)?(?:add|queue|append)\b", re.IGNORECASE)
 
 
 def _normalize_build_inputs(builder_text: str, brief: str) -> tuple[str, str]:
@@ -47,6 +51,9 @@ class BuilderActions:
         station_request = parse_add_station_request(builder_text)
         if station_request:
             self._start_add_radio_station(station_request)
+            return
+        if ADD_TRACKS_PATTERN.match(builder_text):
+            self._start_add_tracks_brief(builder_text)
             return
         builder_text, brief = _normalize_build_inputs(builder_text, "")
         if not builder_text and not brief and not self._has_default_favorites():

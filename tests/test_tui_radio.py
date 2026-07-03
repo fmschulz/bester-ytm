@@ -378,3 +378,42 @@ def test_similar_seeds_use_live_radio_track_not_station(monkeypatch, tmp_path) -
     app.radio_now_playing = None
     assert app._similar_seeds() == []
     assert app._no_seeds_message() == tui_radio.NO_TRACK_INFO_MESSAGE
+
+
+def test_add_songs_brief_appends_to_queue_instead_of_building(
+    monkeypatch, tmp_path
+) -> None:
+    from bester_ytm import tui_similar
+
+    app, widgets, statuses, _, workers = _make_app(monkeypatch, tmp_path)
+    app.build_in_progress = False
+    app.playback.current_video_id = "v0"
+    app.playlist_video_ids = ["v0"]
+
+    class FakeBuilderArea:
+        text = "Add 5 songs similar to Four Tet"
+
+    widgets["#builder"] = FakeBuilderArea()
+    calls: dict = {}
+
+    def fake_find(client, seeds, count, settings, brief=""):
+        calls["count"] = count
+        calls["brief"] = brief
+        track = SongCandidate(video_id="ft1", title="Parallel Jalebi", artists=["Four Tet"])
+        return [track], "codex"
+
+    async def no_render() -> None:
+        pass
+
+    monkeypatch.setattr(tui_similar, "find_similar_candidates", fake_find)
+    monkeypatch.setattr(tui_similar, "resolve_provider", lambda settings: "codex")
+    monkeypatch.setattr(app, "_render_queue", no_render)
+
+    asyncio.run(app.action_build_playlist())
+    _drain(workers)
+
+    assert calls == {"count": 5, "brief": "Add 5 songs similar to Four Tet"}
+    assert app.playback.queue == ["ft1"]
+    assert app.playlist_video_ids == ["v0", "ft1"]  # appended, not replaced
+    assert app.build_in_progress is False
+    assert "Added 1 similar track(s)" in statuses[-1]

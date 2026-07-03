@@ -83,3 +83,49 @@ def test_heuristic_path_uses_related_tracks() -> None:
 def test_empty_seeds_are_rejected() -> None:
     with pytest.raises(IntelligenceError, match="nothing is playing or queued"):
         find_similar_candidates(FakeClient(), [], 5, SETTINGS)
+
+
+def test_brief_reaches_the_ai_and_stands_alone_without_seeds(monkeypatch) -> None:
+    from bester_ytm import similar as similar_module
+    from bester_ytm.intelligence.llm import IntelligenceSettings, SuggestedTrack
+
+    captured: dict = {}
+
+    def fake_suggest(settings, context, count, brief=""):
+        captured["brief"] = brief
+        captured["context"] = context
+        return [SuggestedTrack(artist="Four Tet", title="Two Thousand and Seventeen")]
+
+    class FakeClient:
+        def search_songs(self, query, limit=4):
+            return [
+                SongCandidate(
+                    video_id="ft1",
+                    title="Two Thousand and Seventeen",
+                    artists=["Four Tet"],
+                )
+            ]
+
+    monkeypatch.setattr(similar_module, "resolve_provider", lambda settings: "codex")
+    monkeypatch.setattr(similar_module, "suggest_tracks", fake_suggest)
+
+    found, provider = similar_module.find_similar_candidates(
+        FakeClient(), [], 5, IntelligenceSettings(), brief="add 5 songs similar to Four Tet"
+    )
+
+    assert captured["brief"] == "add 5 songs similar to Four Tet"
+    assert captured["context"] == []
+    assert [c.video_id for c in found] == ["ft1"]
+    assert provider == "codex"
+
+
+def test_heuristic_without_seeds_rejects_briefs(monkeypatch) -> None:
+    from bester_ytm import similar as similar_module
+    from bester_ytm.intelligence.llm import IntelligenceError, IntelligenceSettings
+
+    monkeypatch.setattr(similar_module, "resolve_provider", lambda settings: "heuristic")
+
+    with pytest.raises(IntelligenceError, match="play or queue something first"):
+        similar_module.find_similar_candidates(
+            object(), [], 5, IntelligenceSettings(), brief="add 5 songs like Four Tet"
+        )

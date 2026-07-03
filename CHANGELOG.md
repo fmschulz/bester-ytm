@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Builder briefs that start with `add`, `queue`, or `append` (e.g.
+  "Add 5 songs similar to Four Tet") append the requested tracks to the
+  current queue instead of replacing it with a new playlist; the count is
+  honored and defaults to 5.
 - Radio stations are labelled `RADIO` (not `SONG`) in search results.
 - Enter on a radio station tunes to it: the current track or station stops
   with a hard cut (no crossfade) and the station becomes the queue's only

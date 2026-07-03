@@ -23,16 +23,26 @@ def find_similar_candidates(
     seeds: list[SongCandidate],
     count: int,
     settings: IntelligenceSettings,
+    brief: str = "",
 ) -> tuple[list[SongCandidate], str]:
-    """Return up to count playable candidates similar to seeds plus the provider used."""
-    if not seeds:
+    """Return up to count playable candidates similar to seeds plus the provider used.
+
+    A brief (e.g. "add 5 songs similar to Four Tet") steers the AI providers
+    and can stand alone without seeds; the heuristic provider needs seeds.
+    """
+    if not seeds and not brief:
         raise IntelligenceError("nothing is playing or queued; queue tracks first")
     provider = resolve_provider(settings)
     exclude_ids = {seed.video_id for seed in seeds}
     if provider == "heuristic":
+        if not seeds:
+            raise IntelligenceError(
+                "the heuristic provider only finds tracks related to the queue; "
+                "play or queue something first, or configure [intelligence]"
+            )
         return _related_via_ytm(client, seeds, count, exclude_ids), provider
     context = [seed.display_name for seed in seeds[:CONTEXT_LIMIT]]
-    suggestions = suggest_tracks(settings, context, count)
+    suggestions = suggest_tracks(settings, context, count, brief)
     exclude_names = {seed.display_name.casefold() for seed in seeds}
     found = _resolve_suggestions(client, suggestions, count, exclude_ids, exclude_names)
     return found, provider

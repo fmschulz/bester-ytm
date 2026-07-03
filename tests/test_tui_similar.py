@@ -107,7 +107,7 @@ def test_g_waits_for_digits_then_adds_default_count(monkeypatch) -> None:
     monkeypatch.setattr(
         tui_similar,
         "find_similar_candidates",
-        lambda client, seeds, count, settings: (suggested, "codex"),
+        lambda client, seeds, count, settings, brief="": (suggested, "codex"),
     )
     timers = _arm_count_window(monkeypatch, app)
 
@@ -132,7 +132,7 @@ def test_g_with_digits_requests_that_many_tracks(monkeypatch) -> None:
     app.candidates_by_video_id = {"v1": _candidate("v1")}
     counts: list[int] = []
 
-    def fake_find(client, seeds, count, settings):
+    def fake_find(client, seeds, count, settings, brief=""):
         counts.append(count)
         return [_candidate("n1")], "codex"
 
@@ -181,7 +181,7 @@ def test_add_similar_reports_provider_errors(monkeypatch) -> None:
     app, widgets, workers = _make_app(monkeypatch, playback)
     app.candidates_by_video_id = {"v1": _candidate("v1")}
 
-    def failing(client, seeds, count, settings):
+    def failing(client, seeds, count, settings, brief=""):
         raise IntelligenceError("codex CLI is not installed or not on PATH")
 
     monkeypatch.setattr(tui_similar, "find_similar_candidates", failing)
