@@ -7,7 +7,8 @@ module each.
 ```text
 CLI (cli.py, cli_play.py, cli_config.py)      TUI (tui.py + tui_* mixins)
         \                                        /
-   services: playlist_builder, playlist_create, resolver, similar, stores
+   services: playlist_builder, playlist_create, resolver, similar, stores,
+             local_files
                   |                          |
           ytm_client.py                 playback.py
    (YouTube Music access: a facade    (only mpv process control)

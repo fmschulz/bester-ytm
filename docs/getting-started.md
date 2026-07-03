@@ -41,6 +41,12 @@ bester-ytm search "Beach House Myth"
 bester-ytm play search "Beach House Myth" --seconds 20
 ```
 
+Local audio files play without any account too: in the TUI, type a path
+(e.g. `~/Music` or `local:~/Music`) into the search box and the files appear
+as results. `./scripts/download-example-songs.sh` fetches three
+public-domain example songs into `examples/music/` to try it; see
+[Usage → Local files](usage.md#local-files).
+
 ## Logging in
 
 Logging in unlocks account features: your library playlists, playlist
@@ -59,11 +65,12 @@ The command walks you through it:
 
 1. Open <https://music.youtube.com> and make sure you are logged in.
 2. Open developer tools (`F12`) → `Network` tab and filter for `/browse`.
-3. Click around the page until a `browse` request appears, then select it.
+3. Click a song so a `browse` request appears (the request only shows up
+   after you interact with the page), then select it.
 4. Copy its request headers (Firefox: right-click → `Copy` →
    `Copy Request Headers`; Chrome: select and copy the whole
    `Request Headers` block).
-5. Paste into the terminal and press `Ctrl-D`.
+5. Paste into the terminal, then press `Enter` and `Ctrl-D`.
 
 Verify with:
 

@@ -41,7 +41,7 @@ src/bester_ytm/
 ├── ytm_session.py, ytm_search.py, ytm_library.py, ytm_models.py
 ├── auth.py, config.py, config_options.py  # OAuth flow, paths, config.toml
 ├── playlist_plan.py, playlist_builder.py, playlist_create.py, resolver.py
-├── stores.py, search_query.py, similar.py
+├── stores.py, search_query.py, similar.py, local_files.py
 └── intelligence/                        # playlist plan providers (heuristic, codex)
 ```
 

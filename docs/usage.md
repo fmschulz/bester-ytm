@@ -70,6 +70,8 @@ playlist:                           your local playlists (playlists: also works)
 playlist:indie                      community playlists on YouTube Music
 favs:                               your faved songs (favorites: also works)
 favs:sepultura                      faved songs matching the text
+local:~/Music                       audio files under a local folder
+/home/you/Music/song.mp3            a pasted path also works (/, ~, or ./)
 ```
 
 `song:` lists individual tracks; `album:` shows a tree of album names in the
@@ -136,6 +138,27 @@ search box to list your favorites (add text, e.g. `favs:sepultura`, to
 filter); the rows behave like any song result, so `Enter`, `a`, and `f` all
 work there. Favorites live in `favorites.json` under the app's data
 directory.
+
+### Local files
+
+Type `local:` followed by a path — or just paste a path starting with `/`,
+`~`, or `./` — into the search box to list local audio files in the left
+pane. A folder is scanned recursively (`.mp3`, `.flac`, `.ogg`, `.opus`,
+`.m4a`, `.wav`, `.aac`, `.aiff`, `.wma`); a single file lists just that
+file. The rows behave like any song result: `Enter` plays, `a` queues, `f`
+favs, and crossfade transitions work between local and YouTube tracks alike.
+Local tracks can be saved into local playlists, but they cannot be added to
+YouTube playlists.
+
+To try it without pointing at your own library, download three
+public-domain example songs (Musopen recordings) and list them:
+
+```bash
+./scripts/download-example-songs.sh
+```
+
+Then search `local:examples/music` from the repo directory (or paste the
+absolute path).
 
 ### Local playlists
 
