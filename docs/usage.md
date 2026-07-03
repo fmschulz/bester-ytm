@@ -47,7 +47,9 @@ Left/Right seek -10s/+10s
 - / = / +  volume down / up (both = and + raise it)
 m          mute/unmute
 f          fav/unfav the highlighted song (or the playing track); faved
-           songs show a trailing * and pressing f again removes them
+           songs show a trailing * and pressing f again removes them;
+           logged in, favs also like the song on YouTube Music, and on
+           radio f favs the song the station is playing
 Ctrl+P     show playlists (local first, then your YouTube library)
 Ctrl+A     show auth status
 Tab / Shift+Tab  cycle panes forwards / backwards
@@ -68,8 +70,9 @@ artist:sepultura,albums             the artist's albums
 artist:sepultura,year:1998,songs    tracks from the artist's 1998 releases
 playlist:                           your local playlists (playlists: also works)
 playlist:indie                      community playlists on YouTube Music
-favs:                               your faved songs (favorites: also works)
+favs:                               your faved songs (favorites: and liked: too)
 favs:sepultura                      faved songs matching the text
+radio:                              web radio stations (ByteFM, KALX, your own)
 local:~/Music                       audio files under a local folder
 /home/you/Music/song.mp3            a pasted path also works (/, ~, or ./)
 ```
@@ -134,10 +137,28 @@ the config (or set it to `0`) to ease the rendering load.
 the playing track otherwise. Faved songs
 show a trailing `*` in the queue, in search results, and on the Now Playing
 label; pressing `f` on a faved song removes it again. Type `favs:` in the
-search box to list your favorites (add text, e.g. `favs:sepultura`, to
-filter); the rows behave like any song result, so `Enter`, `a`, and `f` all
-work there. Favorites live in `favorites.json` under the app's data
-directory.
+search box to list your favorites — `liked:` and `favorites:` do the same
+(add text, e.g. `favs:sepultura`, to filter); the rows behave like any song
+result, so `Enter`, `a`, and `f` all work there. Favorites live in
+`favorites.json` under the app's data directory.
+
+When you are logged in, faving also likes the song on YouTube Music (and
+unfaving removes the like), so your local favorites and your YTM liked songs
+stay in step.
+
+### Web radio
+
+Type `radio:` in the search box to list the web radio stations: ByteFM and
+KALX ship built in, and you can add your own in the config (see
+[Configuration](configuration.md)). Stations behave like songs: `Enter`
+plays one, `a` adds it to the queue. While a station plays, the Now Playing
+label shows the live track (`ByteFM · Artist - Song`), refreshed every ~20
+seconds from the station's metadata.
+
+Pressing `f` while radio plays favs the song the station is playing, not the
+station: the track is looked up on YouTube Music, liked there, and saved to
+your local favorites. The status line names the match so a wrong hit is easy
+to spot. This needs a login; radio playback itself does not.
 
 ### Local files
 

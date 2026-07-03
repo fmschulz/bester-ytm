@@ -14,8 +14,8 @@ YouTube Music account.
 ![bester-ytm TUI demo](docs/assets/demo.gif)
 
 - **Terminal player** — a Textual TUI with search, album browsing, an
-  editable queue, local playlists, favorites, local audio files, and
-  audio-reactive visuals.
+  editable queue, local playlists, favorites, local audio files, web
+  radio with live song names, and audio-reactive visuals.
 - **DJ transitions** — the next track is prebuffered on a second silent
   `mpv` deck and blended in with an equal-power crossfade.
 - **Playlist builder** — turn seed songs or a prose brief ("15 songs in the
@@ -55,9 +55,15 @@ bester-ytm search "Beach House Myth"
 bester-ytm play search "Beach House Myth" --seconds 20
 ```
 
+In the TUI, `radio:` in the search box lists web radio stations (ByteFM and
+KALX built in, more via config) and shows the live song name while one
+plays; pasting a path like `~/Music` lists and plays your local audio files.
+
 ## Logging in (for account features)
 
-Library playlists and playlist create/edit/delete need a login. The default
+Library playlists, playlist create/edit/delete, and liking songs on YouTube
+Music (`f` mirrors your local favorites as YTM likes, including the song a
+radio station is playing) need a login. The default
 takes about a minute and **no Google Cloud setup**: run
 `bester-ytm auth login` and paste request headers copied from a logged-in
 [music.youtube.com](https://music.youtube.com) tab — the command walks you

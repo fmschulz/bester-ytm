@@ -29,6 +29,10 @@ tests intentionally do not perform.
       `local:examples/music` lists the three example songs, `Enter` plays one
       audibly, and crossfade transitions work between local and YouTube
       tracks.
+- [ ] Searching `radio:` lists ByteFM and KALX; `Enter` plays the station
+      audibly, the Now Playing label shows the live track within ~20 seconds,
+      and `f` while it plays reports a YouTube Music match and likes it (with
+      a login configured).
 
 ## DJ transitions
 

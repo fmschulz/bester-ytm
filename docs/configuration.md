@@ -25,6 +25,9 @@ favorites_file = "~/music/favs.md"   # example; unset by default
 
 [intelligence]
 provider = "auto"          # auto | heuristic | codex | openai | anthropic
+
+[radio.stations]
+fip = "https://icecast.radiofrance.fr/fip-midfi.mp3"   # example; unset by default
 ```
 
 - `transition = "crossfade"` (default): the next queued track is prebuffered
@@ -47,6 +50,9 @@ provider = "auto"          # auto | heuristic | codex | openai | anthropic
   favorites-based playlist builds (the value above is an example; unset by
   default).
 - `[intelligence]`: see [Playlist Builder & AI](builder.md#ai-providers).
+- `[radio.stations]`: extra web radio stations for the `radio:` search, one
+  `name = "stream url"` per line (ByteFM and KALX are built in). Song names
+  for added stations come from the stream's ICY metadata when present.
 
 Inspect the effective transition settings (`[playback]` `transition` and
 `fade_seconds`) with:

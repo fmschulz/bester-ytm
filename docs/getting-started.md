@@ -47,10 +47,15 @@ as results. `./scripts/download-example-songs.sh` fetches three
 public-domain example songs into `examples/music/` to try it; see
 [Usage → Local files](usage.md#local-files).
 
+Web radio also needs no account: type `radio:` in the search box to list the
+stations (ByteFM and KALX built in) and press Enter to tune in — the Now
+Playing label shows the live song; see [Usage → Web radio](usage.md#web-radio).
+
 ## Logging in
 
 Logging in unlocks account features: your library playlists, playlist
-create/update/delete, and removing tracks. There are two ways.
+create/update/delete, removing tracks, and liking songs on YouTube Music
+with `f` — including the song a radio station is playing. There are two ways.
 
 ### Option 1 (recommended): browser login
 
