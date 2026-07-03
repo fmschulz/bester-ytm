@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-03
+
+### Added
+
+- AI-assisted radio station adding: type `add radio station <name>` into the
+  playlist builder and the configured AI provider looks up the station's
+  direct stream URL; bester-ytm verifies the URL serves audio and writes it
+  to `[radio.stations]` in config.toml, so the station appears under
+  `radio:`. The heuristic provider explains how to add a station manually
+  instead.
+
+### Fixed
+
+- Config rewrites quote TOML keys that need it, so stations named with
+  spaces ("Groove Salad") no longer corrupt config.toml.
+
 ## [1.2.0] - 2026-07-03
 
 ### Added

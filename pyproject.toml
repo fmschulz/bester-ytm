@@ -1,6 +1,6 @@
 [project]
 name = "bester-ytm"
-version = "1.2.0"
+version = "1.3.0"
 description = "Local terminal/TUI YouTube Music companion with playlist planning and mpv playback."
 readme = "README.md"
 license = { text = "MIT" }
