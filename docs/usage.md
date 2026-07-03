@@ -36,7 +36,8 @@ d          remove the highlighted queue track (the playing row is kept;
            playlist (local or YouTube) after a confirming second press
 j / k      move the highlighted queue track down / up
 w          save the queue as a local playlist (also the Save button)
-g          add AI-suggested similar tracks to the queue
+g          add 5 AI-suggested similar tracks to the queue; type digits
+           right after g to change the count (g11 adds 11), Esc cancels
 i          build a playlist from the builder prompt (right pane)
 t          toggle transition style (cut / crossfade)
 [ / ]      shorten / lengthen the crossfade (1-15s)

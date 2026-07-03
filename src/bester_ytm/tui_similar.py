@@ -2,30 +2,112 @@
 
 from __future__ import annotations
 
+from functools import partial
+
+from textual import events
+from textual.timer import Timer
+
 from .intelligence.llm import IntelligenceError, IntelligenceSettings, resolve_provider
 from .playlist_plan import SongCandidate
 from .similar import SIMILAR_COUNT, find_similar_candidates
 from .ytm_client import YTMClientError
 
+COUNT_WINDOW_SECONDS = 1.0
+SIMILAR_MAX = 30
+NEED_SEEDS_MESSAGE = "Play or queue something first; g then adds similar tracks."
+
 
 class SimilarActions:
-    """Mixin for BesterYTMApp: g asks the configured AI for tracks that fit the queue."""
+    """Mixin for BesterYTMApp: g asks the configured AI for tracks that fit the queue.
+
+    g arms a short digit window: g alone queues SIMILAR_COUNT similar songs,
+    g11 queues eleven, escape cancels.
+    """
 
     intelligence_settings: IntelligenceSettings
     playlist_video_ids: list[str]
+    _similar_digits: str | None = None
+    _similar_timer: Timer | None = None
 
     def action_add_similar(self) -> None:
+        if self._similar_digits is not None:
+            self._flush_similar_count()
+            return
+        self._begin_similar_count()
+
+    def _begin_similar_count(self) -> None:
+        if not self._similar_seeds():
+            self._set_status(NEED_SEEDS_MESSAGE)
+            return
+        self._similar_digits = ""
+        self._set_status(
+            f"Adding {SIMILAR_COUNT} similar songs; type a number to change (g11 adds 11)."
+        )
+        self._restart_similar_timer()
+
+    def on_key(self, event: events.Key) -> None:
+        """Digits typed right after g set how many similar tracks to fetch."""
+        if self._similar_digits is None:
+            return
+        if event.key == "escape":
+            event.stop()
+            event.prevent_default()
+            self._cancel_similar_count()
+            self._set_status("Add similar cancelled.")
+            return
+        if event.character is not None and event.character.isdigit():
+            event.stop()
+            event.prevent_default()
+            self._similar_digits += event.character
+            self._set_status(f"Adding {self._pending_similar_count()} similar songs...")
+            self._restart_similar_timer()
+            return
+        if event.key == "g":
+            # Consume the key: on_key runs before binding dispatch, so the g
+            # binding would otherwise fire too and arm a second window.
+            event.stop()
+            event.prevent_default()
+        self._flush_similar_count()
+
+    def _pending_similar_count(self) -> int:
+        count = int(self._similar_digits) if self._similar_digits else SIMILAR_COUNT
+        return max(1, min(SIMILAR_MAX, count))
+
+    def _restart_similar_timer(self) -> None:
+        if self._similar_timer is not None:
+            self._similar_timer.stop()
+        self._similar_timer = self.set_timer(COUNT_WINDOW_SECONDS, self._flush_similar_count)
+
+    def _cancel_similar_count(self) -> None:
+        self._similar_digits = None
+        if self._similar_timer is not None:
+            self._similar_timer.stop()
+            self._similar_timer = None
+
+    def _flush_similar_count(self) -> None:
+        if self._similar_digits is None:
+            return
+        count = self._pending_similar_count()
+        self._cancel_similar_count()
+        self._launch_similar(count)
+
+    def _launch_similar(self, count: int) -> None:
         seeds = self._similar_seeds()
         if not seeds:
-            self._set_status("Play or queue something first; g then adds similar tracks.")
+            self._set_status(NEED_SEEDS_MESSAGE)
             return
         try:
             provider = resolve_provider(self.intelligence_settings)
         except IntelligenceError as exc:
             self._set_status(str(exc))
             return
-        self._set_status(f"Asking {provider} for {SIMILAR_COUNT} similar tracks...")
-        self.run_worker(self._add_similar_worker, name="similar", group="similar", thread=True)
+        self._set_status(f"Finding {count} similar songs via {provider}...")
+        self.run_worker(
+            partial(self._add_similar_worker, count),
+            name="similar",
+            group="similar",
+            thread=True,
+        )
 
     def _similar_seeds(self) -> list[SongCandidate]:
         video_ids: list[str] = []
@@ -38,13 +120,13 @@ class SimilarActions:
             if video_id in self.candidates_by_video_id
         ]
 
-    def _add_similar_worker(self) -> None:
+    def _add_similar_worker(self, count: int) -> None:
         """Runs on a worker thread; all UI updates go through call_from_thread."""
         try:
             candidates, provider = find_similar_candidates(
                 self.client,
                 self._similar_seeds(),
-                SIMILAR_COUNT,
+                count,
                 self.intelligence_settings,
             )
         except (IntelligenceError, YTMClientError) as exc:
