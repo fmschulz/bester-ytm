@@ -10,7 +10,7 @@ SearchKind = Literal[
     "free", "song", "artist", "album", "playlist", "favorites", "local", "radio"
 ]
 SearchView = Literal["songs", "albums", "playlists"]
-SearchItemType = Literal["song", "album", "playlist", "local_playlist"]
+SearchItemType = Literal["song", "album", "playlist", "local_playlist", "radio"]
 
 
 class ParsedSearch(BaseModel):

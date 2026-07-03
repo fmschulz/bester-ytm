@@ -9,7 +9,9 @@ from textual.timer import Timer
 
 from .intelligence.llm import IntelligenceError, IntelligenceSettings, resolve_provider
 from .playlist_plan import SongCandidate
+from .radio import is_radio_video_id
 from .similar import SIMILAR_COUNT, find_similar_candidates
+from .tui_radio import NO_TRACK_INFO_MESSAGE
 from .ytm_client import YTMClientError
 
 COUNT_WINDOW_SECONDS = 1.0
@@ -37,7 +39,7 @@ class SimilarActions:
 
     def _begin_similar_count(self) -> None:
         if not self._similar_seeds():
-            self._set_status(NEED_SEEDS_MESSAGE)
+            self._set_status(self._no_seeds_message())
             return
         self._similar_digits = ""
         self._set_status(
@@ -94,7 +96,7 @@ class SimilarActions:
     def _launch_similar(self, count: int) -> None:
         seeds = self._similar_seeds()
         if not seeds:
-            self._set_status(NEED_SEEDS_MESSAGE)
+            self._set_status(self._no_seeds_message())
             return
         try:
             provider = resolve_provider(self.intelligence_settings)
@@ -114,11 +116,23 @@ class SimilarActions:
         if self.playback.current_video_id:
             video_ids.append(self.playback.current_video_id)
         video_ids.extend(self.playback.queue)
-        return [
-            self.candidates_by_video_id[video_id]
-            for video_id in video_ids
-            if video_id in self.candidates_by_video_id
-        ]
+        seeds: list[SongCandidate] = []
+        for video_id in video_ids:
+            if is_radio_video_id(video_id):
+                # Seed from the station's live track; the station is not a song.
+                seed = self._radio_track_seed(video_id)
+                if seed is not None:
+                    seeds.append(seed)
+                continue
+            if video_id in self.candidates_by_video_id:
+                seeds.append(self.candidates_by_video_id[video_id])
+        return seeds
+
+    def _no_seeds_message(self) -> str:
+        current = self.playback.current_video_id
+        if current and is_radio_video_id(current):
+            return NO_TRACK_INFO_MESSAGE
+        return NEED_SEEDS_MESSAGE
 
     def _add_similar_worker(self, count: int) -> None:
         """Runs on a worker thread; all UI updates go through call_from_thread."""

@@ -20,7 +20,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from .playlist_plan import SongCandidate
-from .search_query import SearchItem, search_item_from_song
+from .search_query import SearchItem
 
 RADIO_VIDEO_ID_PREFIX = "radio:"
 USER_AGENT = "bester-ytm-radio/1.0"
@@ -114,7 +114,13 @@ def station_candidate(station: RadioStation) -> SongCandidate:
 
 def station_search_items() -> list[SearchItem]:
     return [
-        search_item_from_song(station_candidate(station), source="radio")
+        SearchItem(
+            item_type="radio",
+            title=station.name,
+            source="radio",
+            video_id=station.video_id,
+            candidate=station_candidate(station),
+        )
         for station in stations()
     ]
 

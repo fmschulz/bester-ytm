@@ -143,6 +143,34 @@ class RadioActions:
         self._refresh_favorite_markers(candidate.video_id, True)
         self._set_status(f"Liked on YouTube Music: {candidate.display_name}.{note}")
 
+    def _drop_queued_radio(self, video_ids: list[str]) -> list[str]:
+        """A radio station may appear once in the queue: drop ids that are
+        already playing, already queued, or repeated within this batch."""
+        present = {self.playback.current_video_id, *self.playback.queue}
+        kept: list[str] = []
+        for video_id in video_ids:
+            if is_radio_video_id(video_id):
+                if video_id in present:
+                    continue
+                present.add(video_id)
+            kept.append(video_id)
+        return kept
+
+    def _radio_track_seed(self, video_id: str) -> SongCandidate | None:
+        """The playing station's live track as a similar-songs seed; a station
+        name itself is not a musical seed."""
+        info = self.radio_now_playing
+        if video_id != self.playback.current_video_id or info is None:
+            return None
+        if not (info.artist or info.song):
+            return None
+        return SongCandidate(
+            video_id=video_id,
+            title=info.song or info.display,
+            artists=[info.artist] if info.artist else [],
+            source="radio",
+        )
+
     def _start_add_radio_station(self, request: str) -> None:
         """Builder briefs like 'add radio station WFMU': the AI finds the stream
         URL, the app verifies it plays, and config.toml gets the station."""

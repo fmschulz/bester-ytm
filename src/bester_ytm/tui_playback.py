@@ -50,6 +50,9 @@ class PlaybackActions:
 
     async def _queue_or_play_candidate(self, candidate: SongCandidate) -> None:
         """Queue one song when something is playing, otherwise start it immediately."""
+        if not self._drop_queued_radio([candidate.video_id]):
+            self._set_status(f"{candidate.title} is already playing or queued.")
+            return
         self._supersede_queue_load()
         self.candidates_by_video_id[candidate.video_id] = candidate
         try:

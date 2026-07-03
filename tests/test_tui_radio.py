@@ -27,6 +27,9 @@ class FakePlayback:
         self.queue: list[str] = []
         self.current_video_id: str | None = None
 
+    def enqueue(self, video_ids: list[str]) -> None:
+        self.queue.extend(video_ids)
+
     def status(self) -> PlaybackStatus:
         return PlaybackStatus(
             running=bool(self.current_video_id),
@@ -312,3 +315,55 @@ def test_add_station_brief_reports_bad_stream(monkeypatch, tmp_path) -> None:
     assert [s.key for s in stations()] == ["bytefm", "kalx"]
     assert "Could not add 'Nowhere FM'" in statuses[-1]
     assert "[radio.stations]" in statuses[-1]
+
+
+def test_radio_station_queues_only_once(monkeypatch, tmp_path) -> None:
+    app, widgets, statuses, _, workers = _make_app(monkeypatch, tmp_path)
+    app.playback.current_video_id = "radio:bytefm"
+    kalx = station_candidate(stations()[1])
+
+    async def no_render() -> None:
+        pass
+
+    monkeypatch.setattr(app, "_render_queue", no_render)
+
+    asyncio.run(app._queue_or_play_candidate(kalx))
+    asyncio.run(app._queue_or_play_candidate(kalx))
+    asyncio.run(app._queue_or_play_candidate(kalx))
+
+    assert app.playback.queue == ["radio:kalx"]
+    assert statuses[-1] == "KALX 90.7FM is already playing or queued."
+
+
+def test_drop_queued_radio_keeps_songs_and_dedupes_stations(
+    monkeypatch, tmp_path
+) -> None:
+    app, _, _, _, _ = _make_app(monkeypatch, tmp_path)
+    app.playback.current_video_id = "radio:bytefm"
+    app.playback.queue = ["v1"]
+
+    kept = app._drop_queued_radio(
+        ["radio:bytefm", "radio:kalx", "v2", "radio:kalx", "v2"]
+    )
+
+    assert kept == ["radio:kalx", "v2", "v2"]  # songs may repeat; stations may not
+
+
+def test_similar_seeds_use_live_radio_track_not_station(monkeypatch, tmp_path) -> None:
+    app, _, _, _, _ = _make_app(monkeypatch, tmp_path)
+    station = station_candidate(stations()[1])
+    app.candidates_by_video_id[station.video_id] = station
+    app.playback.current_video_id = station.video_id
+    app.radio_now_playing = RadioNowPlaying(
+        station="KALX 90.7FM", artist="Stereolab", song="French Disko"
+    )
+
+    seeds = app._similar_seeds()
+
+    assert [seed.title for seed in seeds] == ["French Disko"]
+    assert seeds[0].artists == ["Stereolab"]
+
+    # Without track info a station contributes no seed, and g explains why.
+    app.radio_now_playing = None
+    assert app._similar_seeds() == []
+    assert app._no_seeds_message() == tui_radio.NO_TRACK_INFO_MESSAGE

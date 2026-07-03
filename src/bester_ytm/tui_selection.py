@@ -210,6 +210,9 @@ class SelectionActions:
         return True
 
     def _start_or_extend_queue(self, video_ids: list[str]) -> str:
+        video_ids = self._drop_queued_radio(video_ids)
+        if not video_ids:
+            return "Radio stations are already playing or queued."
         self._supersede_queue_load()
         if self.playback.status().running:
             self.playback.enqueue(video_ids)

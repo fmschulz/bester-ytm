@@ -74,7 +74,7 @@ def test_unknown_station_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         station_for("radio:nope")
 
 
-def test_station_search_items_are_song_rows(
+def test_station_search_items_are_radio_rows(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
@@ -82,6 +82,8 @@ def test_station_search_items_are_song_rows(
     items = station_search_items()
 
     assert [item.title for item in items] == ["ByteFM", "KALX 90.7FM"]
+    assert all(item.item_type == "radio" for item in items)
+    assert items[0].display_name.startswith("RADIO  ByteFM")
     assert all(item.candidate is not None for item in items)
     assert items[0].candidate.video_id == "radio:bytefm"
 
