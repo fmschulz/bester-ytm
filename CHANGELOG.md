@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-07-03
+
+### Added
+
+- Web radio in the TUI: `radio:` in the search box lists stations — ByteFM
+  and KALX built in, more via `[radio.stations]` in config.toml — and they
+  play like songs, in the queue. While a station plays, the Now Playing
+  label shows the live track from the station's metadata, refreshed every
+  ~20 seconds.
+- `f` during radio favs the song the station is playing: the track is
+  resolved on YouTube Music, liked there, and saved to local favorites; the
+  status line names the match.
+- Faving any song now also likes it on YouTube Music when logged in (and
+  unfaving removes the like); `liked:` joins `favs:`/`favorites:` as a
+  search prefix for the favorites list.
+
 ## [1.1.0] - 2026-07-03
 
 ### Added

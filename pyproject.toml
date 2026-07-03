@@ -1,6 +1,6 @@
 [project]
 name = "bester-ytm"
-version = "1.1.0"
+version = "1.2.0"
 description = "Local terminal/TUI YouTube Music companion with playlist planning and mpv playback."
 readme = "README.md"
 license = { text = "MIT" }
@@ -62,6 +62,7 @@ module = [
     "bester_ytm.tui_selection",
     "bester_ytm.tui_similar",
     "bester_ytm.tui_queue",
+    "bester_ytm.tui_radio",
     "bester_ytm.tui_builder",
     "bester_ytm.tui_album",
     "bester_ytm.tui_album_actions",
