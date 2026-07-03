@@ -96,3 +96,23 @@ def test_parse_favs_text_query_filters_favorites() -> None:
 
 def test_free_query_does_not_list_favorites() -> None:
     assert parse_search_query("favourite tunes").lists_favorites is False
+
+
+def test_parse_local_prefix_keeps_raw_path() -> None:
+    parsed = parse_search_query("local:~/Music/mixes, best of")
+
+    assert parsed.kind == "local"
+    assert parsed.text == "~/Music/mixes, best of"
+    assert parsed.view == "songs"
+    assert parsed.lists_local_files is True
+
+
+def test_parse_pasted_paths_are_local() -> None:
+    for query in ("/home/me/Music", "~/Music", "./examples/music"):
+        parsed = parse_search_query(query)
+        assert parsed.kind == "local"
+        assert parsed.text == query
+
+
+def test_free_query_is_not_local() -> None:
+    assert parse_search_query("localize this song").lists_local_files is False

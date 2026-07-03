@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .deck import remove_socket_file, spawn_mpv, terminate_process
+from .local_files import is_local_video_id
 from .mpv_ipc import MpvIpcClient, MpvIpcError, rms_db_from_astats
 from .playback_status import PlaybackStatus  # noqa: F401  (re-exported)
 from .transitions import (
@@ -54,7 +55,8 @@ class PlaybackController:
 
     def play_video(self, video_id: str, seconds: int | None = None) -> PlaybackStatus:
         self.stop()
-        self._require_stream_resolver()
+        if not is_local_video_id(video_id):
+            self._require_stream_resolver()
         self.current_video_id = None
         ipc_socket = Path(tempfile.gettempdir()) / f"bester-ytm-mpv-{os.getpid()}.sock"
         remove_socket_file(ipc_socket)

@@ -8,6 +8,7 @@ from textual import events
 from textual.widgets import Input, Label, ListItem, ListView, TextArea
 
 from .config import ConfigError
+from .local_files import local_search_items
 from .playback import PlaybackError
 from .playlist_plan import SongCandidate
 from .search_query import ParsedSearch, SearchItem, parse_search_query
@@ -64,8 +65,11 @@ class LibraryActions:
                 return
             await self._show_search_results(parsed, items, self._results_load_id)
             return
+        worker = (
+            self._local_search_worker if parsed.lists_local_files else self._search_worker
+        )
         self.run_worker(
-            partial(self._search_worker, parsed, self._results_load_id),
+            partial(worker, parsed, self._results_load_id),
             name="search",
             group="search",
             thread=True,
@@ -76,6 +80,15 @@ class LibraryActions:
         try:
             items = self.client.structured_search(parsed, limit=25)
         except YTMClientError as exc:
+            self.call_from_thread(self._finish_search_error, str(exc), load_id)
+            return
+        self.call_from_thread(self._finish_search, parsed, items, load_id)
+
+    def _local_search_worker(self, parsed: ParsedSearch, load_id: int) -> None:
+        """Scans directories on a worker thread; large trees must not freeze the UI."""
+        try:
+            items = local_search_items(parsed.text)
+        except ConfigError as exc:
             self.call_from_thread(self._finish_search_error, str(exc), load_id)
             return
         self.call_from_thread(self._finish_search, parsed, items, load_id)

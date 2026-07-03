@@ -753,3 +753,32 @@ def test_current_candidate_falls_back_to_highlighted_result(
     fallback = SongCandidate(video_id="v8", title="Eight")
     app.current_candidate = fallback
     assert app._current_candidate() is fallback
+
+
+def test_pasted_path_lists_local_files(monkeypatch, tmp_path) -> None:
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path)
+    workers = _capture_workers(app, monkeypatch)
+    music = tmp_path / "music"
+    music.mkdir()
+    (music / "one.mp3").write_bytes(b"x")
+    (music / "two.ogg").write_bytes(b"x")
+    (music / "readme.txt").write_text("skip", encoding="utf-8")
+
+    asyncio.run(app._search(str(music)))
+    _drain_workers(workers)
+
+    items = widgets["#results"].items
+    assert [item.candidate.title for item in items] == ["one", "two"]
+    assert all(item.candidate.video_id.startswith("local:") for item in items)
+    assert statuses[-1] == "2 songs result(s)."
+
+
+def test_local_search_with_bad_path_reports_error(monkeypatch, tmp_path) -> None:
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path)
+    workers = _capture_workers(app, monkeypatch)
+
+    asyncio.run(app._search(f"local:{tmp_path / 'missing'}"))
+    _drain_workers(workers)
+
+    assert widgets["#results"].items == []
+    assert statuses[-1].startswith("Path not found")

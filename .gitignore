@@ -24,6 +24,9 @@ config.toml
 *.secret
 *.token
 
+# Downloaded example songs (scripts/download-example-songs.sh) stay local.
+examples/music/
+
 # Session handoffs, plans, AI reasoning, and personal playlists stay local.
 # examples/seeds.txt is the one committed example.
 docs/handoffs/

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
+from .local_files import is_local_video_id, local_path
 from .mpv_ipc import MpvIpcClient, MpvIpcError
 
 PROBE_DEADLINE_SECONDS = 0.15
@@ -26,6 +27,8 @@ class DeckState(StrEnum):
 
 
 def video_url(video_id: str) -> str:
+    if is_local_video_id(video_id):
+        return local_path(video_id)
     return f"https://music.youtube.com/watch?v={video_id}"
 
 
