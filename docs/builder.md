@@ -35,6 +35,11 @@ create a playlist with 15 songs in style similar to blind guardian
 and include at least 3 blind guardian songs, save it as powermetal-15
 ```
 
+The builder box understands one non-playlist request too: `add radio
+station <name>` asks the AI provider for the station's direct stream URL,
+verifies it plays, and saves it to `[radio.stations]` in `config.toml`
+(see [Usage → Web radio](usage.md#web-radio)).
+
 Builds run in the background while music keeps playing. When the build
 finishes, it becomes a new named local playlist and loads into the queue
 (after the current song, if one is playing). An explicit count in the brief

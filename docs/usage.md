@@ -160,6 +160,15 @@ station: the track is looked up on YouTube Music, liked there, and saved to
 your local favorites. The status line names the match so a wrong hit is easy
 to spot. This needs a login; radio playback itself does not.
 
+To add a station without hunting for its stream URL yourself, type
+`add radio station <name>` (e.g. `add radio station WFMU`) into the playlist
+builder box and press Build: the configured AI provider looks up the
+station's direct stream URL, bester-ytm verifies the URL actually serves
+audio, and the station is written to `[radio.stations]` in `config.toml` —
+it then shows up under `radio:`. If the AI cannot find a working stream, the
+status line says so and nothing is written; you can always add a station
+manually in the config (see [Configuration](configuration.md)).
+
 ### Local files
 
 Type `local:` followed by a path — or just paste a path starting with `/`,

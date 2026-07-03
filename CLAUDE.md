@@ -42,7 +42,7 @@ src/bester_ytm/
 ├── auth.py, config.py, config_options.py  # OAuth flow, paths, config.toml
 ├── playlist_plan.py, playlist_builder.py, playlist_create.py, resolver.py
 ├── stores.py, search_query.py, similar.py, local_files.py, radio.py
-└── intelligence/                        # playlist plan providers (heuristic, codex)
+└── intelligence/                        # AI providers: playlist plans, station finder
 ```
 
 See `docs/architecture.md` for the dual-deck engine design and invariants.

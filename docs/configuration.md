@@ -53,6 +53,9 @@ fip = "https://icecast.radiofrance.fr/fip-midfi.mp3"   # example; unset by defau
 - `[radio.stations]`: extra web radio stations for the `radio:` search, one
   `name = "stream url"` per line (ByteFM and KALX are built in). Song names
   for added stations come from the stream's ICY metadata when present.
+  Typing `add radio station <name>` into the playlist builder writes this
+  section for you: the AI provider finds the stream URL and bester-ytm
+  verifies it plays before saving.
 
 Inspect the effective transition settings (`[playback]` `transition` and
 `fade_seconds`) with:
