@@ -205,7 +205,8 @@ def rewrite_config_sections(
             lines.append("")
         lines.append(f"[{header}]")
         for key, value in entries.items():
-            lines.append(f"{key} = {_toml_scalar(config_path, f'{header}.{key}', value)}")
+            scalar = _toml_scalar(config_path, f"{header}.{key}", value)
+            lines.append(f"{_toml_key(key)} = {scalar}")
 
     for section in _REWRITABLE_SECTIONS:
         entries = document.get(section)
@@ -270,6 +271,13 @@ def _parse_setting_string(path: Path, section: dict[str, Any], key: str, default
     if not isinstance(value, str):
         raise ConfigError(f"{path}: intelligence.{key} must be a string (got {value!r})")
     return value
+
+
+def _toml_key(key: str) -> str:
+    """A bare key when TOML allows it, else a quoted key ("Groove Salad")."""
+    if key and key.isascii() and all(ch.isalnum() or ch in "-_" for ch in key):
+        return key
+    return json.dumps(key)
 
 
 def _toml_scalar(path: Path, dotted_key: str, value: Any) -> str:

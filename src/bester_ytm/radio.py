@@ -84,7 +84,7 @@ def stations() -> list[RadioStation]:
     section = load_config_document(get_paths().config_file).get("radio", {})
     extras = section.get("stations", {}) if isinstance(section, dict) else {}
     if isinstance(extras, dict):
-        for key, url in sorted(extras.items()):
+        for key, url in sorted(extras.items(), key=lambda item: str(item[0]).casefold()):
             slug = str(key).strip().casefold()
             if slug and slug not in known and isinstance(url, str) and url.strip():
                 result.append(RadioStation(key=slug, name=str(key), stream_url=url.strip()))
@@ -117,6 +117,66 @@ def station_search_items() -> list[SearchItem]:
         search_item_from_song(station_candidate(station), source="radio")
         for station in stations()
     ]
+
+
+def add_station(name: str, stream_url: str, key: str = "") -> RadioStation:
+    """Persist a station under [radio.stations] in config.toml; returns it.
+
+    Rejects stations whose name or slug (key) matches an existing one, so an
+    AI suggestion like key="kalx", name="KALX 90.7FM" cannot duplicate a
+    built-in under a different display name.
+    """
+    # Imported here: config -> transitions -> deck -> radio at module load.
+    from .config import get_paths, load_config_document, rewrite_config_sections
+
+    display = name.strip()
+    url = stream_url.strip()
+    if not display or not url:
+        raise RadioError("A station needs a name and a stream URL.")
+    existing = stations()
+    known = {station.key for station in existing}
+    known |= {station.name.casefold() for station in existing}
+    if {display.casefold(), key.strip().casefold()} & known:
+        raise RadioError(f"{display!r} matches an existing station.")
+    config_file = get_paths().config_file
+    section = load_config_document(config_file).get("radio", {})
+    extras = dict(section.get("stations", {})) if isinstance(section, dict) else {}
+    extras[display] = url
+    rewrite_config_sections({"radio": {"stations": extras}}, config_file)
+    return RadioStation(key=display.casefold(), name=display, stream_url=url)
+
+
+def probe_stream(stream_url: str) -> None:
+    """Confirm the URL serves a DIRECT audio stream; raises RadioError otherwise."""
+    path = stream_url.split("?", 1)[0].casefold()
+    if path.endswith((".m3u", ".m3u8", ".pls", ".asx", ".xspf")):
+        raise RadioError(f"{stream_url} is a playlist file, not a direct audio stream")
+    try:
+        with _open_url(stream_url, {"Icy-MetaData": "1"}) as response:
+            content_type = str(response.headers.get("content-type") or "").casefold()
+            # Playlist MIME types would pass the audio/ check but break playback
+            # metadata; they signal the AI returned an indirection, not a stream.
+            if "mpegurl" in content_type or "scpls" in content_type:
+                raise RadioError(
+                    f"{stream_url} serves a playlist ({content_type}), "
+                    "not a direct audio stream"
+                )
+            is_audio = (
+                content_type.startswith("audio/")
+                or content_type.startswith("application/ogg")
+                or "mpeg" in content_type
+                or response.headers.get("icy-metaint") is not None
+                or response.headers.get("icy-name") is not None
+            )
+            if not is_audio:
+                raise RadioError(
+                    f"{stream_url} answered with {content_type or 'no content type'}, "
+                    "not an audio stream"
+                )
+            if not response.read(1024):
+                raise RadioError(f"{stream_url} sent no audio data")
+    except OSError as exc:
+        raise RadioError(f"could not reach {stream_url}: {exc}") from exc
 
 
 def _open_url(url: str, headers: dict[str, str] | None = None) -> Any:

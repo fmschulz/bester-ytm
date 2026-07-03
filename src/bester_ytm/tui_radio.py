@@ -1,14 +1,26 @@
-"""Radio now-playing polling and radio-song favoriting for the TUI."""
+"""Radio now-playing polling, radio-song favoriting, and AI station adding."""
 
 from __future__ import annotations
 
+import re
 import time
 from functools import partial
 
 from .config import ConfigError, get_paths
+from .intelligence.llm import IntelligenceError, resolve_provider
+from .intelligence.station_finder import find_station
 from .local_files import is_local_video_id
 from .playlist_plan import PlannedTrack, SongCandidate
-from .radio import RadioError, RadioNowPlaying, is_radio_video_id, now_playing, station_for
+from .radio import (
+    RadioError,
+    RadioNowPlaying,
+    RadioStation,
+    add_station,
+    is_radio_video_id,
+    now_playing,
+    probe_stream,
+    station_for,
+)
 from .resolver import Resolver
 from .stores import FavoritesStore
 from .ytm_client import YTMClient, YTMClientError
@@ -16,6 +28,18 @@ from .ytm_client import YTMClient, YTMClientError
 RADIO_POLL_SECONDS = 20.0
 NO_TRACK_INFO_MESSAGE = "No radio track info yet; try again in a moment."
 LOGIN_FIRST_MESSAGE = "Log in first: radio favorites are liked on YouTube Music."
+
+# "add radio station WFMU", "add radiostation kexp", "add web radio FIP", ...
+ADD_STATION_PATTERN = re.compile(
+    r"^\s*(?:please\s+)?add\s+(?:the\s+)?(?:web\s+)?radio(?:\s*stations?)?\s+(.+?)\s*[.!]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def parse_add_station_request(text: str) -> str | None:
+    """The station named in an 'add radio station ...' request, else None."""
+    match = ADD_STATION_PATTERN.match(text or "")
+    return match.group(1).strip() if match else None
 
 
 def _has_login() -> bool:
@@ -118,6 +142,44 @@ class RadioActions:
         self.candidates_by_video_id[candidate.video_id] = candidate
         self._refresh_favorite_markers(candidate.video_id, True)
         self._set_status(f"Liked on YouTube Music: {candidate.display_name}.{note}")
+
+    def _start_add_radio_station(self, request: str) -> None:
+        """Builder briefs like 'add radio station WFMU': the AI finds the stream
+        URL, the app verifies it plays, and config.toml gets the station."""
+        try:
+            provider = resolve_provider(self.intelligence_settings)
+        except IntelligenceError as exc:
+            self._set_status(str(exc))
+            return
+        self._set_status(f"Finding a stream for {request!r} via {provider}...")
+        self.run_worker(
+            partial(self._add_station_worker, request),
+            name="radio-add",
+            group="radio-add",
+            thread=True,
+        )
+
+    def _add_station_worker(self, request: str) -> None:
+        try:
+            suggestion = find_station(self.intelligence_settings, request)
+            probe_stream(suggestion.stream_url)
+            station = add_station(
+                suggestion.name, suggestion.stream_url, key=suggestion.key
+            )
+        except (IntelligenceError, RadioError, ConfigError) as exc:
+            self.call_from_thread(
+                self._set_status,
+                f"Could not add {request!r}: {exc} "
+                "(you can add it manually under [radio.stations] in config.toml)",
+            )
+            return
+        self.call_from_thread(self._finish_add_station, station)
+
+    def _finish_add_station(self, station: RadioStation) -> None:
+        self._set_status(
+            f"Added radio station {station.name} ({station.stream_url}); "
+            "type radio: to play it."
+        )
 
     def _sync_ytm_like(self, video_id: str, faved: bool) -> None:
         """Mirror a local fav/unfav to a YTM like, best-effort, when logged in."""

@@ -247,3 +247,68 @@ def test_stale_poll_result_does_not_delay_next_station(monkeypatch, tmp_path) ->
 
     assert app.radio_now_playing == infos["radio:kalx"]
     assert labels[-1] == "KALX 90.7FM · B - Two"
+
+
+def test_add_station_brief_finds_probes_and_saves(monkeypatch, tmp_path) -> None:
+    from bester_ytm import tui_builder
+    from bester_ytm.intelligence.station_finder import SuggestedStation
+    from bester_ytm.radio import stations
+
+    app, widgets, statuses, _, workers = _make_app(monkeypatch, tmp_path)
+    app.build_in_progress = False
+
+    class FakeBuilderArea:
+        text = "add radio station WFMU"
+
+    widgets["#builder"] = FakeBuilderArea()
+    probed: list[str] = []
+    monkeypatch.setattr(tui_radio, "resolve_provider", lambda settings: "codex")
+    monkeypatch.setattr(
+        tui_radio,
+        "find_station",
+        lambda settings, request: SuggestedStation(
+            key="wfmu", name="WFMU", stream_url="https://stream.wfmu.org/freeform-128k"
+        ),
+    )
+    monkeypatch.setattr(tui_radio, "probe_stream", probed.append)
+
+    asyncio.run(app.action_build_playlist())
+    _drain(workers)
+
+    assert probed == ["https://stream.wfmu.org/freeform-128k"]
+    assert [s.key for s in stations()] == ["bytefm", "kalx", "wfmu"]
+    assert statuses[-1].startswith("Added radio station WFMU")
+    assert tui_builder is not None  # imported for the builder action
+
+
+def test_add_station_brief_reports_bad_stream(monkeypatch, tmp_path) -> None:
+    from bester_ytm.intelligence.station_finder import SuggestedStation
+    from bester_ytm.radio import RadioError, stations
+
+    app, widgets, statuses, _, workers = _make_app(monkeypatch, tmp_path)
+    app.build_in_progress = False
+
+    class FakeBuilderArea:
+        text = "add radio station Nowhere FM"
+
+    widgets["#builder"] = FakeBuilderArea()
+
+    def bad_probe(url: str) -> None:
+        raise RadioError(f"{url} answered with text/html, not an audio stream")
+
+    monkeypatch.setattr(tui_radio, "resolve_provider", lambda settings: "codex")
+    monkeypatch.setattr(
+        tui_radio,
+        "find_station",
+        lambda settings, request: SuggestedStation(
+            key="nowhere", name="Nowhere FM", stream_url="https://nowhere.example/page"
+        ),
+    )
+    monkeypatch.setattr(tui_radio, "probe_stream", bad_probe)
+
+    asyncio.run(app.action_build_playlist())
+    _drain(workers)
+
+    assert [s.key for s in stations()] == ["bytefm", "kalx"]
+    assert "Could not add 'Nowhere FM'" in statuses[-1]
+    assert "[radio.stations]" in statuses[-1]

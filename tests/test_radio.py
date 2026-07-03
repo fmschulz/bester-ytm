@@ -219,3 +219,92 @@ def test_play_video_unknown_station_raises_playback_error(
 
     with pytest.raises(PlaybackError, match="Unknown radio station"):
         controller.play_video("radio:gone")
+
+
+def test_add_station_writes_config_and_keeps_existing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from bester_ytm.radio import add_station
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    config = tmp_path / "config" / "bester-ytm" / "config.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        '[radio.stations]\nfip = "https://icecast.example/fip.mp3"\n', encoding="utf-8"
+    )
+
+    station = add_station("WFMU", "https://stream.wfmu.org/freeform-128k")
+
+    assert station.key == "wfmu"
+    keys = [s.key for s in stations()]
+    assert keys == ["bytefm", "kalx", "fip", "wfmu"]
+    assert stream_url_for("radio:wfmu") == "https://stream.wfmu.org/freeform-128k"
+
+
+def test_add_station_rejects_builtin_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from bester_ytm.radio import add_station
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+    with pytest.raises(RadioError, match="matches an existing station"):
+        add_station("ByteFM", "https://example.com/stream")
+    # An AI suggestion may carry the built-in slug under a longer display name.
+    with pytest.raises(RadioError, match="matches an existing station"):
+        add_station("KALX 90.7FM", "https://example.com/stream", key="kalx")
+
+
+def test_probe_stream_accepts_audio_and_rejects_html(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from bester_ytm.radio import probe_stream
+
+    monkeypatch.setattr(
+        radio,
+        "_open_url",
+        lambda url, headers=None: FakeResponse(b"data", {"content-type": "audio/mpeg"}),
+    )
+    probe_stream("https://ok.example/stream")
+
+    monkeypatch.setattr(
+        radio,
+        "_open_url",
+        lambda url, headers=None: FakeResponse(b"<html>", {"content-type": "text/html"}),
+    )
+    with pytest.raises(RadioError, match="not an audio stream"):
+        probe_stream("https://bad.example/page")
+
+
+def test_add_station_with_spaces_in_name_round_trips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from bester_ytm.radio import add_station
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+    add_station("Groove Salad", "https://ice5.somafm.com/groovesalad-256-mp3")
+
+    result = {s.key: s.stream_url for s in stations()}
+    assert result["groove salad"] == "https://ice5.somafm.com/groovesalad-256-mp3"
+
+
+def test_probe_stream_rejects_playlist_urls_and_mime_types(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from bester_ytm.radio import probe_stream
+
+    with pytest.raises(RadioError, match="playlist file"):
+        probe_stream("https://example.com/listen.m3u")
+    with pytest.raises(RadioError, match="playlist file"):
+        probe_stream("https://example.com/listen.pls?arg=1")
+
+    monkeypatch.setattr(
+        radio,
+        "_open_url",
+        lambda url, headers=None: FakeResponse(
+            b"#EXTM3U", {"content-type": "audio/x-mpegurl"}
+        ),
+    )
+    with pytest.raises(RadioError, match="serves a playlist"):
+        probe_stream("https://example.com/stream")

@@ -18,6 +18,7 @@ from .playlist_builder import (
 )
 from .playlist_plan import PlaylistPlan, parse_seed_text
 from .stores import FavoritesStore, PlanStore
+from .tui_radio import parse_add_station_request
 
 FALLBACK_FAVORITES = Path("../tuiradio/favs.md")
 
@@ -43,6 +44,10 @@ class BuilderActions:
             self._set_status("A playlist build is already running; wait for it to finish.")
             return
         builder_text = self.query_one("#builder", TextArea).text.strip()
+        station_request = parse_add_station_request(builder_text)
+        if station_request:
+            self._start_add_radio_station(station_request)
+            return
         builder_text, brief = _normalize_build_inputs(builder_text, "")
         if not builder_text and not brief and not self._has_default_favorites():
             self._set_status(

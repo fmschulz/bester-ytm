@@ -110,6 +110,11 @@ def build_prompt(context_lines: list[str], count: int, brief: str) -> str:
 
 
 def _suggest_via_codex(settings: IntelligenceSettings, prompt: str) -> SuggestedTracks:
+    return _parse_playlist(_codex_text(settings, prompt), source="codex")
+
+
+def _codex_text(settings: IntelligenceSettings, prompt: str) -> str:
+    """Raw codex exec output for a prompt; raises IntelligenceError."""
     codex = shutil.which("codex")
     if not codex:
         raise IntelligenceError("codex CLI is not installed or not on PATH")
@@ -133,7 +138,7 @@ def _suggest_via_codex(settings: IntelligenceSettings, prompt: str) -> Suggested
         raise IntelligenceError(
             f"codex exec failed (exit {result.returncode}): {_stderr_summary(result.stderr)}"
         )
-    return _parse_playlist(result.stdout, source="codex")
+    return result.stdout
 
 
 def _stderr_summary(stderr: str) -> str:
@@ -146,6 +151,11 @@ def _stderr_summary(stderr: str) -> str:
 
 
 def _suggest_via_openai(settings: IntelligenceSettings, prompt: str) -> SuggestedTracks:
+    return _parse_playlist(_openai_text(settings, prompt), source=settings.model)
+
+
+def _openai_text(settings: IntelligenceSettings, prompt: str) -> str:
+    """Raw chat-completion text for a prompt; raises IntelligenceError."""
     api_key = os.environ.get(settings.api_key_env, "")
     if not api_key:
         raise IntelligenceError(
@@ -170,12 +180,11 @@ def _suggest_via_openai(settings: IntelligenceSettings, prompt: str) -> Suggeste
             timeout=HTTP_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
+        return str(response.json()["choices"][0]["message"]["content"])
     except requests.RequestException as exc:
         raise IntelligenceError(f"request to {url} failed: {exc}") from exc
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise IntelligenceError(f"unexpected response shape from {url}: {exc}") from exc
-    return _parse_playlist(content, source=settings.model)
 
 
 def _suggest_via_anthropic(settings: IntelligenceSettings, prompt: str) -> SuggestedTracks:
