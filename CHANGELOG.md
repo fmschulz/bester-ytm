@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A `claude` AI provider for people without codex: playlist briefs, similar
+  tracks, and radio station lookups can shell out to the Claude Code CLI
+  (`claude -p`), riding your existing claude login with no API key. The
+  `auto` provider now falls back codex → claude → heuristic.
 - AI-assisted radio station adding: type `add radio station <name>` into the
   playlist builder and the configured AI provider looks up the station's
   direct stream URL; bester-ytm verifies the URL serves audio and writes it

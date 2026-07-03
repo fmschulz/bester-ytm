@@ -65,3 +65,18 @@ def test_parse_add_station_request_variants() -> None:
     assert parse_add_station_request("add radio Radio Paradise") == "Radio Paradise"
     assert parse_add_station_request("10 songs like beach house") is None
     assert parse_add_station_request("add these songs to a playlist") is None
+
+
+def test_find_station_via_claude_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        llm.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args, 0, stdout=STATION_JSON, stderr=""
+        ),
+    )
+
+    station = find_station(IntelligenceSettings(provider="claude"), "WFMU")
+
+    assert station.key == "wfmu"

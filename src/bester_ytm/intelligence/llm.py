@@ -13,9 +13,10 @@ import requests
 from pydantic import BaseModel, ValidationError
 
 CODEX_TIMEOUT_SECONDS = 180.0
+CLAUDE_TIMEOUT_SECONDS = 180.0
 HTTP_TIMEOUT_SECONDS = 90.0
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
-KNOWN_PROVIDERS = ("auto", "heuristic", "codex", "openai", "anthropic")
+KNOWN_PROVIDERS = ("auto", "heuristic", "codex", "claude", "openai", "anthropic")
 
 
 class IntelligenceError(RuntimeError):
@@ -50,7 +51,11 @@ def resolve_provider(settings: IntelligenceSettings) -> str:
         )
     if provider != "auto":
         return provider
-    return "codex" if shutil.which("codex") else "heuristic"
+    if shutil.which("codex"):
+        return "codex"
+    if shutil.which("claude"):
+        return "claude"
+    return "heuristic"
 
 
 def suggest_tracks(
@@ -74,6 +79,8 @@ def suggest_playlist(
     prompt = build_prompt(context_lines, count, brief)
     if provider == "codex":
         return _suggest_via_codex(settings, prompt)
+    if provider == "claude":
+        return _parse_playlist(_claude_text(settings, prompt), source="claude")
     if provider == "openai":
         return _suggest_via_openai(settings, prompt)
     if provider == "anthropic":
@@ -137,6 +144,38 @@ def _codex_text(settings: IntelligenceSettings, prompt: str) -> str:
     if result.returncode != 0:
         raise IntelligenceError(
             f"codex exec failed (exit {result.returncode}): {_stderr_summary(result.stderr)}"
+        )
+    return result.stdout
+
+
+def _claude_text(settings: IntelligenceSettings, prompt: str) -> str:
+    """Raw claude -p output for a prompt; raises IntelligenceError.
+
+    Uses the Claude Code CLI print mode, riding the user's existing claude
+    login (no API key) — the alternative to codex for suggestion prompts.
+    """
+    claude = shutil.which("claude")
+    if not claude:
+        raise IntelligenceError("claude CLI is not installed or not on PATH")
+    cmd = [claude, "-p", "--output-format", "text"]
+    if settings.model:
+        cmd += ["--model", settings.model]
+    cmd.append(prompt)
+    try:
+        result = subprocess.run(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=CLAUDE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise IntelligenceError(
+            f"claude did not answer within {int(CLAUDE_TIMEOUT_SECONDS)}s"
+        ) from exc
+    if result.returncode != 0:
+        raise IntelligenceError(
+            f"claude -p failed (exit {result.returncode}): {_stderr_summary(result.stderr)}"
         )
     return result.stdout
 

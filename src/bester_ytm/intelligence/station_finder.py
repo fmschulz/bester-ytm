@@ -11,6 +11,7 @@ from .llm import (
     DEFAULT_ANTHROPIC_MODEL,
     IntelligenceError,
     IntelligenceSettings,
+    _claude_text,
     _codex_text,
     _openai_text,
     resolve_provider,
@@ -50,6 +51,8 @@ def find_station(settings: IntelligenceSettings, request: str) -> SuggestedStati
     prompt = station_prompt(request)
     if provider == "codex":
         return _parse_station(_codex_text(settings, prompt), source="codex")
+    if provider == "claude":
+        return _parse_station(_claude_text(settings, prompt), source="claude")
     if provider == "openai":
         return _parse_station(_openai_text(settings, prompt), source=settings.model)
     if provider == "anthropic":

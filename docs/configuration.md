@@ -24,7 +24,7 @@ right_width = 44           # example; unset by default
 favorites_file = "~/music/favs.md"   # example; unset by default
 
 [intelligence]
-provider = "auto"          # auto | heuristic | codex | openai | anthropic
+provider = "auto"          # auto | heuristic | codex | claude | openai | anthropic
 
 [radio.stations]
 fip = "https://icecast.radiofrance.fr/fip-midfi.mp3"   # example; unset by default

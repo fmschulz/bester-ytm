@@ -69,11 +69,14 @@ playing) and brief-only playlist building. Configure it in
 provider = "auto"   # auto | heuristic | codex | openai | anthropic
 ```
 
-- `auto` (default): uses the `codex` CLI when installed, otherwise the
-  offline heuristic (YouTube Music related tracks).
+- `auto` (default): uses the `codex` CLI when installed, then the `claude`
+  CLI, otherwise the offline heuristic (YouTube Music related tracks).
 - `codex`: shells out to [Codex CLI](https://developers.openai.com/codex)
   (`codex exec`, read-only sandbox). Uses your existing codex login; set
   `model = "..."` to override the model.
+- `claude`: shells out to [Claude Code](https://claude.com/claude-code)
+  (`claude -p`). Uses your existing claude login — no API key; set
+  `model = "..."` (e.g. `sonnet`) to override the model.
 - `openai`: any OpenAI-compatible chat-completions endpoint — OpenRouter,
   self-hosted vLLM, Ollama, llama.cpp, or OpenAI itself:
 

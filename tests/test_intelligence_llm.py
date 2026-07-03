@@ -211,3 +211,46 @@ def test_parse_rejects_output_without_json(monkeypatch) -> None:
     )
     with pytest.raises(IntelligenceError, match="returned no JSON track list"):
         suggest_tracks(IntelligenceSettings(provider="codex"), [], 2)
+
+
+def test_resolve_provider_auto_falls_back_to_claude(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm.shutil, "which", lambda name: "/usr/bin/claude" if name == "claude" else None
+    )
+    assert llm.resolve_provider(llm.IntelligenceSettings()) == "claude"
+
+
+def test_claude_provider_parses_final_json_line(monkeypatch) -> None:
+    payload = (
+        '{"name": "Dub Classics", '
+        '"tracks": [{"artist": "King Tubby", "title": "Dub Fi Gwan"}]}'
+    )
+    monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        llm.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args, 0, stdout=f"Here you go:\n{payload}\n", stderr=""
+        ),
+    )
+
+    result = llm.suggest_playlist(
+        llm.IntelligenceSettings(provider="claude"), [], 1, "dub"
+    )
+
+    assert result.name == "Dub Classics"
+    assert result.tracks[0].artist == "King Tubby"
+
+
+def test_claude_provider_reports_failure(monkeypatch) -> None:
+    monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
+    monkeypatch.setattr(
+        llm.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args, 1, stdout="", stderr="Not logged in"
+        ),
+    )
+
+    with pytest.raises(llm.IntelligenceError, match="claude -p failed"):
+        llm.suggest_playlist(llm.IntelligenceSettings(provider="claude"), [], 1, "dub")

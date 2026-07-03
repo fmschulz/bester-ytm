@@ -22,8 +22,8 @@ YouTube Music account.
   style of Blind Guardian, save as powermetal-15") into a reviewed plan,
   then create the real playlist in your account.
 - **AI, your way** — briefs and similar-track suggestions run through the
-  Codex CLI, any OpenAI-compatible endpoint (OpenRouter, Ollama, vLLM), the
-  Anthropic API, or a fully offline heuristic.
+  Codex CLI, the Claude Code CLI, any OpenAI-compatible endpoint (OpenRouter,
+  Ollama, vLLM), the Anthropic API, or a fully offline heuristic.
 - **Local-first** — credentials, plans, playlists, and settings live under
   your home directory; nothing leaves your machine except requests to
   YouTube Music and the AI provider you configure.
