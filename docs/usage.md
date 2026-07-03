@@ -150,13 +150,14 @@ stay in step.
 
 Type `radio:` in the search box to list the web radio stations (rows are
 labelled `RADIO`): ByteFM and KALX ship built in, and you can add your own
-in the config (see [Configuration](configuration.md)). Stations behave like
-songs — `Enter` plays one, `a` adds it to the queue — but each station
-appears at most once in the queue; selecting it again just tells you it is
-already there. While a station plays, the Now Playing label shows the live
+in the config (see [Configuration](configuration.md)). `Enter` on a station
+tunes to it: whatever is playing stops with a hard cut (no crossfade), the
+station starts, and it becomes the queue's only row — selecting another
+station switches the same way, so there is never more than one station in
+the queue. While a station plays, the Now Playing label shows the live
 track (`ByteFM · Artist - Song`), refreshed every ~20 seconds from the
 station's metadata, and `g` finds songs similar to that live track (not to
-the station).
+the station) and queues them after it.
 
 Pressing `f` while radio plays favs the song the station is playing, not the
 station: the track is looked up on YouTube Music, liked there, and saved to

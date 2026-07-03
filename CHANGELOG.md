@@ -10,8 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Radio stations are labelled `RADIO` (not `SONG`) in search results.
-- A radio station can only be queued once: selecting it again while it is
-  playing or queued reports that instead of adding duplicates.
+- Enter on a radio station tunes to it: the current track or station stops
+  with a hard cut (no crossfade) and the station becomes the queue's only
+  row — stations no longer pile up in the queue as duplicates.
 - `g` (similar tracks) during radio seeds from the station's live track
   instead of the station name, and explains when track info has not been
   fetched yet.

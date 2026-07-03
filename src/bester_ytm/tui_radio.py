@@ -10,6 +10,7 @@ from .config import ConfigError, get_paths
 from .intelligence.llm import IntelligenceError, resolve_provider
 from .intelligence.station_finder import find_station
 from .local_files import is_local_video_id
+from .playback import PlaybackError
 from .playlist_plan import PlannedTrack, SongCandidate
 from .radio import (
     RadioError,
@@ -50,6 +51,11 @@ def _has_login() -> bool:
 class RadioActions:
     """Mixin for BesterYTMApp: live station track polling and f-on-radio likes."""
 
+    current_candidate: SongCandidate | None
+    playlist_video_ids: list[str]
+    playlist_title: str
+    active_local_playlist_id: str | None
+    active_youtube_playlist_id: str | None
     radio_now_playing: RadioNowPlaying | None = None
     _radio_poll_video_id: str | None = None
     _radio_poll_due: float = 0.0
@@ -145,8 +151,12 @@ class RadioActions:
 
     def _drop_queued_radio(self, video_ids: list[str]) -> list[str]:
         """A radio station may appear once in the queue: drop ids that are
-        already playing, already queued, or repeated within this batch."""
-        present = {self.playback.current_video_id, *self.playback.queue}
+        already playing, already queued or listed, or repeated in this batch."""
+        present = {
+            self.playback.current_video_id,
+            *self.playback.queue,
+            *(self.playlist_video_ids or []),
+        }
         kept: list[str] = []
         for video_id in video_ids:
             if is_radio_video_id(video_id):
@@ -155,6 +165,32 @@ class RadioActions:
                 present.add(video_id)
             kept.append(video_id)
         return kept
+
+    async def _tune_radio(self, candidate: SongCandidate) -> None:
+        """Enter on a station tunes to it: the current track or station stops
+        with a hard cut and the station becomes the queue's only entry."""
+        self.candidates_by_video_id[candidate.video_id] = candidate
+        status = self.playback.status()
+        if status.running and status.current_video_id == candidate.video_id:
+            self._set_status(f"{candidate.title} is already playing.")
+            return
+        self._supersede_queue_load()
+        try:
+            self.playback.replace_queue([candidate.video_id])
+            status = self.playback.play_queue()
+            self.playback_was_active = True
+        except PlaybackError as exc:
+            await self._report_playback_error(exc)
+            return
+        self.playlist_video_ids = [candidate.video_id]
+        self.playlist_title = candidate.title
+        self.active_local_playlist_id = None
+        self.active_youtube_playlist_id = None
+        self.current_candidate = candidate
+        self._update_track_label(candidate.title)
+        await self._render_queue()
+        self._refresh_playback(status)
+        self._set_status(f"Tuned to {candidate.title}.")
 
     def _radio_track_seed(self, video_id: str) -> SongCandidate | None:
         """The playing station's live track as a similar-songs seed; a station

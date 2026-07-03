@@ -7,6 +7,7 @@ from textual.widgets import ListView
 from .config import ConfigError, save_transition_settings
 from .playback import PlaybackError, PlaybackStatus
 from .playlist_plan import SongCandidate
+from .radio import is_radio_video_id
 from .transitions import TransitionSettings, TransitionStyle
 from .tui_effects import format_time
 
@@ -49,9 +50,10 @@ class PlaybackActions:
         await self._queue_or_play_candidate(candidate)
 
     async def _queue_or_play_candidate(self, candidate: SongCandidate) -> None:
-        """Queue one song when something is playing, otherwise start it immediately."""
-        if not self._drop_queued_radio([candidate.video_id]):
-            self._set_status(f"{candidate.title} is already playing or queued.")
+        """Queue one song when something is playing, otherwise start it immediately.
+        Radio stations tune instead: hard cut to the station, single queue row."""
+        if is_radio_video_id(candidate.video_id):
+            await self._tune_radio(candidate)
             return
         self._supersede_queue_load()
         self.candidates_by_video_id[candidate.video_id] = candidate

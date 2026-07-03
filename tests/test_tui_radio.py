@@ -30,6 +30,14 @@ class FakePlayback:
     def enqueue(self, video_ids: list[str]) -> None:
         self.queue.extend(video_ids)
 
+    def replace_queue(self, video_ids: list[str]) -> None:
+        self.queue = list(video_ids)
+        self.current_video_id = None
+
+    def play_queue(self) -> PlaybackStatus:
+        self.current_video_id = self.queue.pop(0)
+        return self.status()
+
     def status(self) -> PlaybackStatus:
         return PlaybackStatus(
             running=bool(self.current_video_id),
@@ -317,30 +325,33 @@ def test_add_station_brief_reports_bad_stream(monkeypatch, tmp_path) -> None:
     assert "[radio.stations]" in statuses[-1]
 
 
-def test_radio_station_queues_only_once(monkeypatch, tmp_path) -> None:
+def test_selecting_station_tunes_and_replaces_queue(monkeypatch, tmp_path) -> None:
     app, widgets, statuses, _, workers = _make_app(monkeypatch, tmp_path)
-    app.playback.current_video_id = "radio:bytefm"
-    kalx = station_candidate(stations()[1])
+    bytefm, kalx = (station_candidate(s) for s in stations())
 
     async def no_render() -> None:
         pass
 
     monkeypatch.setattr(app, "_render_queue", no_render)
+    monkeypatch.setattr(app, "_refresh_playback", lambda status=None: None)
 
+    asyncio.run(app._queue_or_play_candidate(bytefm))
     asyncio.run(app._queue_or_play_candidate(kalx))
     asyncio.run(app._queue_or_play_candidate(kalx))
-    asyncio.run(app._queue_or_play_candidate(kalx))
 
-    assert app.playback.queue == ["radio:kalx"]
-    assert statuses[-1] == "KALX 90.7FM is already playing or queued."
+    # KALX plays now; it is the queue pane's only row, never a duplicate.
+    assert app.playback.current_video_id == "radio:kalx"
+    assert app.playback.queue == []
+    assert app.playlist_video_ids == ["radio:kalx"]
+    assert statuses[-2] == "Tuned to KALX 90.7FM."
+    assert statuses[-1] == "KALX 90.7FM is already playing."
 
 
-def test_drop_queued_radio_keeps_songs_and_dedupes_stations(
-    monkeypatch, tmp_path
-) -> None:
+def test_drop_queued_radio_checks_queue_pane_rows_too(monkeypatch, tmp_path) -> None:
     app, _, _, _, _ = _make_app(monkeypatch, tmp_path)
-    app.playback.current_video_id = "radio:bytefm"
+    app.playback.current_video_id = "v0"
     app.playback.queue = ["v1"]
+    app.playlist_video_ids = ["v0", "v1", "radio:bytefm"]  # station shown in the pane
 
     kept = app._drop_queued_radio(
         ["radio:bytefm", "radio:kalx", "v2", "radio:kalx", "v2"]
