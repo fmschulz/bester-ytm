@@ -5,10 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-07-03
 
 ### Added
 
+- Local audio file playback: type `local:` plus a path — or simply paste a
+  path starting with `/`, `~`, or `./` — into the search box and the audio
+  files there (folders are scanned recursively) appear in the left pane as
+  regular song rows. `Enter` plays, `a` queues, `f` favs, local playlists
+  can hold them, and DJ crossfades blend local and YouTube tracks
+  interchangeably. `./scripts/download-example-songs.sh` fetches three
+  public-domain example songs into `examples/music/` to try it out.
+- `g` takes a digit count for similar tracks: `g` alone queues the default
+  number of AI-suggested similar songs, `g11` queues eleven (up to 30), and
+  Escape cancels the pending count.
 - Favorites as a first-class feature: `f` favs or unfavs the highlighted
   song (falling back to the playing track), faved songs show a trailing `*`
   in the queue, search results, and the Now Playing label, and a `favs:`
@@ -61,6 +71,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Browser login accepts headers pasted from Firefox, whose "Copy Request
+  Headers" separates lines with NEL characters that broke the old
+  line-by-line reader (and left Ctrl-D doing nothing). Input is now read to
+  EOF and normalized, and the guide says to click a song so a `browse`
+  request appears, then press Enter and Ctrl-D after pasting.
 - `f` favs the highlighted search result while the results pane has focus
   even when a playlist is loaded; the queue's remembered selection no longer
   hijacks the toggle.
