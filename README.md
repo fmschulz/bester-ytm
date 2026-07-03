@@ -11,7 +11,7 @@ through `mpv` with DJ-style dual-deck crossfades, build playlists from plain
 English briefs with the AI provider of your choice, and publish them to your
 YouTube Music account.
 
-![bester-ytm TUI](docs/assets/screenshot.png)
+![bester-ytm TUI demo](docs/assets/demo.gif)
 
 - **Terminal player** — a Textual TUI with search, album browsing, an
   editable queue, local playlists, favorites, and audio-reactive visuals.
