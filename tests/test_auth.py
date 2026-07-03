@@ -1,3 +1,4 @@
+import io
 import json
 import stat
 import sys
@@ -13,6 +14,11 @@ authorization: SAPISIDHASH 123_abc
 cookie: VISITOR_INFO1_LIVE=x; SAPISID=y; __Secure-3PSID=z
 x-goog-authuser: 0
 user-agent: Mozilla/5.0"""
+
+
+class FakeTtyStdin(io.StringIO):
+    def isatty(self) -> bool:
+        return True
 
 
 def test_first_time_oauth_prompt_writes_private_client(
@@ -101,16 +107,7 @@ def test_browser_login_reads_pasted_headers_interactively(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    lines = iter(VALID_BROWSER_HEADERS.splitlines())
-
-    def fake_input(prompt: str = "") -> str:
-        try:
-            return next(lines)
-        except StopIteration:
-            raise EOFError from None
-
-    monkeypatch.setattr("builtins.input", fake_input)
+    monkeypatch.setattr(sys, "stdin", FakeTtyStdin(VALID_BROWSER_HEADERS))
     manager = AuthManager()
 
     path = manager.login_browser()
@@ -121,16 +118,25 @@ def test_browser_login_reads_pasted_headers_interactively(
     assert "Paste the headers" in output
 
 
+def test_browser_login_accepts_firefox_nel_separated_paste(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    pasted = "\x1b[200~" + VALID_BROWSER_HEADERS.replace("\n", "\u0085") + "\x1b[201~"
+    monkeypatch.setattr(sys, "stdin", FakeTtyStdin(pasted))
+    manager = AuthManager()
+
+    path = manager.login_browser()
+
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert "SAPISID=y" in saved["cookie"]
+
+
 def test_browser_login_without_headers_noninteractive_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
-
-    def no_input(prompt: str = "") -> str:
-        raise EOFError
-
-    monkeypatch.setattr("builtins.input", no_input)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
 
     with pytest.raises(ConfigError, match="YouTube Music login is not configured"):
         AuthManager().login_browser()

@@ -21,22 +21,31 @@ def _print_browser_login_guide() -> None:
     print("Browser login (no Google Cloud setup needed).")
     print("  1. Open https://music.youtube.com and make sure you are logged in.")
     print("  2. Open developer tools (F12) -> Network tab and filter for '/browse'.")
-    print("  3. Click around the page until a 'browse' request appears, then select it.")
+    print("  3. Click a song so a 'browse' request appears, then select it.")
     print("  4. Copy its request headers (Firefox: right-click -> Copy -> Copy Request")
     print("     Headers; Chrome: select and copy the whole Request Headers block).")
+
+
+# Line separators seen in pasted headers: CRLF/CR, NEL (U+0085, which
+# Firefox's "Copy Request Headers" uses, echoed by terminals as ESC E),
+# its 7-bit form ESC E, and U+2028; plus bracketed-paste markers.
+_PASTE_MARKERS = ("\x1b[200~", "\x1b[201~")
+_PASTE_LINE_BREAKS = ("\r\n", "\r", "\x1bE", "\u0085", "\u2028")
+
+
+def _normalize_pasted_headers(raw: str) -> str:
+    for marker in _PASTE_MARKERS:
+        raw = raw.replace(marker, "")
+    for separator in _PASTE_LINE_BREAKS:
+        raw = raw.replace(separator, "\n")
+    return raw.strip()
 
 
 def _read_headers_from_stdin() -> str:
     if sys.stdin.isatty():
         eof_hint = "Ctrl-D" if sys.platform != "win32" else "Ctrl-Z then Enter"
-        print(f"Paste the headers below, then press {eof_hint}:")
-    lines: list[str] = []
-    while True:
-        try:
-            lines.append(input())
-        except EOFError:
-            break
-    return "\n".join(lines).strip()
+        print(f"Paste the headers below, then press Enter and {eof_hint}:")
+    return sys.stdin.read()
 
 
 def _print_first_time_setup_guide(config_dir: Path) -> None:
@@ -91,7 +100,8 @@ class AuthManager:
             if sys.stdin.isatty():
                 _print_browser_login_guide()
             headers_raw = _read_headers_from_stdin()
-        if not headers_raw.strip():
+        headers_raw = _normalize_pasted_headers(headers_raw)
+        if not headers_raw:
             raise ConfigError(auth_setup_instructions())
 
         self.paths.config_dir.mkdir(parents=True, exist_ok=True)
