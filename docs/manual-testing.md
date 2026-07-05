@@ -5,9 +5,11 @@ tests intentionally do not perform.
 
 ## Auth
 
-- [ ] First run of `uv run bester-ytm auth login` prints the browser-header
-      guide, accepts pasted headers, and writes
+- [ ] `uv run bester-ytm auth login` detects an installed browser, reads the
+      login from it, prints `Login verified (...)`, and writes
       `~/.config/bester-ytm/browser.json` with mode `0600`.
+- [ ] `uv run bester-ytm auth login --paste` accepts a `Copy as cURL` request
+      terminated by a blank line (no `Ctrl-D`) and writes the same file.
 - [ ] `uv run bester-ytm auth login --oauth` prints the Google Cloud setup
       steps on first run, prompts for client ID/secret, and starts the
       device flow; `oauth-client.json` exists with mode `0600`.

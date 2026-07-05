@@ -63,12 +63,14 @@ plays; pasting a path like `~/Music` lists and plays your local audio files.
 
 Library playlists, playlist create/edit/delete, and liking songs on YouTube
 Music (`f` mirrors your local favorites as YTM likes, including the song a
-radio station is playing) need a login. The default
-takes about a minute and **no Google Cloud setup**: run
-`bester-ytm auth login` and paste request headers copied from a logged-in
-[music.youtube.com](https://music.youtube.com) tab — the command walks you
-through it. Prefer a self-refreshing token instead? Create free Google OAuth
-credentials once and use `bester-ytm auth login --oauth`.
+radio station is playing) need a login. The default takes seconds and **no
+Google Cloud setup**: sign in at
+[music.youtube.com](https://music.youtube.com) in any browser, then run
+`bester-ytm auth login` — it reads the login straight from your browser and
+verifies it. No browser access on this machine? `bester-ytm auth login --paste`
+takes a DevTools `Copy as cURL` request instead. Prefer a self-refreshing
+token? Create free Google OAuth credentials once and use
+`bester-ytm auth login --oauth`.
 
 Both flows, step by step:
 [Getting Started](https://fmschulz.github.io/bester-ytm/getting-started/).

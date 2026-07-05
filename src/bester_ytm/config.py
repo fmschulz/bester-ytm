@@ -334,9 +334,10 @@ def auth_setup_instructions() -> str:
     return (
         "YouTube Music login is not configured.\n\n"
         "Easiest (no Google Cloud setup): run `bester-ytm auth login` in an "
-        "interactive terminal and paste the request headers copied from a "
-        "logged-in https://music.youtube.com browser tab; they are stored at "
-        f"{paths.browser_auth}.\n\n"
+        "interactive terminal; it reads the login from a browser that is "
+        "signed in at https://music.youtube.com and stores it at "
+        f"{paths.browser_auth}. If that fails, `bester-ytm auth login --paste` "
+        "accepts a DevTools 'Copy as cURL' paste instead.\n\n"
         "Alternative with a self-refreshing token: create Google Cloud OAuth "
         "credentials (enable 'YouTube Data API v3', OAuth client ID of type "
         "'TVs and Limited Input devices'), store them at "

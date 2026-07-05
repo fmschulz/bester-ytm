@@ -68,12 +68,35 @@ def main(ctx: typer.Context) -> None:
 
 @auth_app.command("login")
 def auth_login(
+    browser: Annotated[
+        str | None,
+        typer.Option(
+            "--browser",
+            help="Read the login from this browser's cookies (e.g. firefox, "
+            "chrome, chromium, brave, edge, vivaldi, opera, safari).",
+        ),
+    ] = None,
+    paste: Annotated[
+        bool,
+        typer.Option(
+            "--paste",
+            help="Paste a DevTools 'Copy as cURL' command (or raw request "
+            "headers) instead of reading browser cookies.",
+        ),
+    ] = False,
+    cookies_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--cookies-file",
+            help="Read the login from a Netscape cookies.txt export.",
+        ),
+    ] = None,
     oauth: Annotated[
         bool,
         typer.Option(
             "--oauth",
             help="Use Google Cloud OAuth credentials (self-refreshing token) "
-            "instead of pasted browser headers.",
+            "instead of browser cookies.",
         ),
     ] = False,
     no_browser: Annotated[
@@ -84,13 +107,18 @@ def auth_login(
         ),
     ] = False,
 ) -> None:
+    sources = [flag for flag in (browser, paste or None, cookies_file, oauth or None) if flag]
+    if len(sources) > 1:
+        _exit_error("Use only one of --browser, --paste, --cookies-file, and --oauth.")
     manager = AuthManager()
     try:
         if oauth:
             token_path = manager.login(open_browser=not no_browser)
             console.print(f"[green]OAuth token saved:[/green] {token_path}")
         else:
-            auth_path = manager.login_browser()
+            auth_path = manager.login_browser(
+                browser=browser, cookies_file=cookies_file, paste=paste
+            )
             console.print(f"[green]Browser login saved:[/green] {auth_path}")
             if manager.paths.oauth_token.exists():
                 console.print(

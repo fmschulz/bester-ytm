@@ -60,22 +60,30 @@ with `f` — including the song a radio station is playing. There are two ways.
 ### Option 1 (recommended): browser login
 
 Use your existing YouTube Music account directly — no Google Cloud Console,
-about one minute:
+no copy-paste. Just make sure a browser on this machine is signed in at
+<https://music.youtube.com>, then run:
 
 ```bash
 bester-ytm auth login
 ```
 
-The command walks you through it:
+It finds the browsers you have installed, asks which one is logged in
+(press `Enter` for the first), reads the login from that browser, checks it
+against YouTube Music, and saves it. Target a specific browser directly with:
 
-1. Open <https://music.youtube.com> and make sure you are logged in.
-2. Open developer tools (`F12`) → `Network` tab and filter for `/browse`.
-3. Click a song so a `browse` request appears (the request only shows up
-   after you interact with the page), then select it.
-4. Copy its request headers (Firefox: right-click → `Copy` →
-   `Copy Request Headers`; Chrome: select and copy the whole
-   `Request Headers` block).
-5. Paste into the terminal, then press `Enter` and `Ctrl-D`.
+```bash
+bester-ytm auth login --browser firefox   # or chrome, chromium, brave, edge, ...
+```
+
+Firefox is the smoothest (no prompts). Per-browser notes:
+
+- **Chrome/Chromium/Brave/Edge on macOS**: a one-time "Chrome Safe Storage"
+  keychain dialog appears the first time — click `Always Allow`. Chrome does
+  not need to be closed.
+- **Any Chromium browser on Linux**: if your keyring asks for access, approve it.
+- **Safari**: give your terminal app Full Disk Access (System Settings →
+  Privacy & Security → Full Disk Access), or just use Firefox/Chrome instead.
+- **Windows**: Chrome cookies are locked by app-bound encryption; use Firefox.
 
 Verify with:
 
@@ -83,9 +91,39 @@ Verify with:
 bester-ytm auth status
 ```
 
-The copied session eventually expires (typically after weeks, or when you
-log out of YouTube in that browser). When account features stop working, run
-`bester-ytm auth login` again and paste fresh headers.
+The saved session eventually expires (typically after weeks, or when you log
+out of YouTube in that browser). When account features stop working, run
+`bester-ytm auth login` again.
+
+#### Fallback: paste a request (no browser access)
+
+If auto-detection cannot read your browser, paste one logged-in request instead
+— no `Ctrl-D`, a blank line finishes it:
+
+```bash
+bester-ytm auth login --paste
+```
+
+1. Open <https://music.youtube.com> and make sure you are logged in.
+2. Open developer tools (`F12`) → `Network` tab and filter for `/browse`.
+3. Click a song so a `browse` request appears, then right-click it →
+   `Copy` → `Copy as cURL` (not "Copy as fetch", which drops the cookie).
+4. Paste into the terminal and press `Enter` on an empty line.
+
+#### Headless machines: a cookies file
+
+On a server with no local browser, export cookies for `music.youtube.com` with
+the "Get cookies.txt LOCALLY" browser extension (pick the one whose name ends in
+`LOCALLY`), copy the file over, and point the login at it:
+
+```bash
+bester-ytm auth login --cookies-file cookies.txt
+```
+
+For the longest-lived session, export from a private/incognito window: log in
+there, visit `https://www.youtube.com/robots.txt`, export, then close the
+window — YouTube rotates cookies on open tabs, so an isolated session lasts
+longer.
 
 ### Option 2: Google OAuth (self-refreshing token)
 

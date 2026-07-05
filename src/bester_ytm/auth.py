@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import json
 import sys
 from getpass import getpass
 from pathlib import Path
 
+from .auth_capture import (
+    build_headers_raw,
+    cookie_header_from_netscape,
+    detect_browsers,
+    ensure_required_headers,
+    export_browser_cookie_header,
+    headers_from_paste,
+)
 from .config import (
     ConfigError,
     auth_setup_instructions,
@@ -17,35 +26,38 @@ GOOGLE_CREDENTIALS_URL = "https://console.cloud.google.com/apis/credentials"
 OAUTH_CLIENT_ID_SUFFIX = ".apps.googleusercontent.com"
 
 
-def _print_browser_login_guide() -> None:
-    print("Browser login (no Google Cloud setup needed).")
+def verify_browser_auth(headers_json: str) -> int:
+    """Check credentials against the live API; return visible playlist count."""
+    try:
+        from ytmusicapi import YTMusic
+    except ImportError as exc:  # pragma: no cover
+        raise ConfigError("ytmusicapi is not installed") from exc
+    return len(YTMusic(auth=headers_json).get_library_playlists(limit=1))
+
+
+def _print_paste_guide() -> None:
+    print("Manual browser login:")
     print("  1. Open https://music.youtube.com and make sure you are logged in.")
     print("  2. Open developer tools (F12) -> Network tab and filter for '/browse'.")
-    print("  3. Click a song so a 'browse' request appears, then select it.")
-    print("  4. Copy its request headers (Firefox: right-click -> Copy -> Copy Request")
-    print("     Headers; Chrome: select and copy the whole Request Headers block).")
+    print("  3. Click a song so a 'browse' request appears, then right-click it")
+    print("     -> Copy -> 'Copy as cURL'.")
+    print("  4. Paste below and press Enter twice.")
 
 
-# Line separators seen in pasted headers: CRLF/CR, NEL (U+0085, which
-# Firefox's "Copy Request Headers" uses, echoed by terminals as ESC E),
-# its 7-bit form ESC E, and U+2028; plus bracketed-paste markers.
-_PASTE_MARKERS = ("\x1b[200~", "\x1b[201~")
-_PASTE_LINE_BREAKS = ("\r\n", "\r", "\x1bE", "\u0085", "\u2028")
-
-
-def _normalize_pasted_headers(raw: str) -> str:
-    for marker in _PASTE_MARKERS:
-        raw = raw.replace(marker, "")
-    for separator in _PASTE_LINE_BREAKS:
-        raw = raw.replace(separator, "\n")
-    return raw.strip()
-
-
-def _read_headers_from_stdin() -> str:
-    if sys.stdin.isatty():
-        eof_hint = "Ctrl-D" if sys.platform != "win32" else "Ctrl-Z then Enter"
-        print(f"Paste the headers below, then press Enter and {eof_hint}:")
-    return sys.stdin.read()
+def _read_paste_interactive() -> str:
+    print("Paste here, then press Enter on an empty line to finish:")
+    lines: list[str] = []
+    while True:
+        try:
+            line = input()
+        except EOFError:
+            break
+        if not line.strip():
+            if lines:
+                break
+            continue
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def _print_first_time_setup_guide(config_dir: Path) -> None:
@@ -89,32 +101,100 @@ class AuthManager:
         )
         return set_private_file(self.paths.oauth_token)
 
-    def login_browser(self, headers_raw: str | None = None) -> Path:
-        """Store pasted music.youtube.com request headers as browser credentials."""
+    def login_browser(
+        self,
+        headers_raw: str | None = None,
+        *,
+        browser: str | None = None,
+        cookies_file: Path | None = None,
+        paste: bool = False,
+    ) -> Path:
+        """Capture, verify, and store browser credentials for YouTube Music."""
+        headers_raw = self._capture_headers(headers_raw, browser, cookies_file, paste)
+        if not headers_raw:
+            raise ConfigError(auth_setup_instructions())
+        headers_raw = ensure_required_headers(headers_raw)
+
         try:
             from ytmusicapi import setup as ytmusicapi_setup
         except ImportError as exc:
             raise ConfigError("ytmusicapi is not installed") from exc
-
-        if headers_raw is None:
-            if sys.stdin.isatty():
-                _print_browser_login_guide()
-            headers_raw = _read_headers_from_stdin()
-        headers_raw = _normalize_pasted_headers(headers_raw)
-        if not headers_raw:
-            raise ConfigError(auth_setup_instructions())
-
-        self.paths.config_dir.mkdir(parents=True, exist_ok=True)
-        self.paths.config_dir.chmod(0o700)
         try:
-            ytmusicapi_setup(filepath=str(self.paths.browser_auth), headers_raw=headers_raw)
+            headers_json = ytmusicapi_setup(headers_raw=headers_raw)
         except Exception as exc:
             raise ConfigError(
-                f"Could not use the pasted headers: {exc}\n"
-                "Copy the full request headers of a logged-in music.youtube.com "
-                "request; they must include the cookie and x-goog-authuser lines."
+                f"Could not use the captured login data: {exc}\n"
+                "Make sure the browser is logged in at https://music.youtube.com, "
+                "or retry with `bester-ytm auth login --paste`."
             ) from exc
+
+        try:
+            playlist_count = verify_browser_auth(headers_json)
+        except Exception as exc:
+            raise ConfigError(
+                f"The captured login did not work against YouTube Music: {exc}\n"
+                "Log in at https://music.youtube.com in that browser and retry, "
+                "or try another browser or `bester-ytm auth login --paste`."
+            ) from exc
+        print(f"Login verified ({playlist_count}+ library playlists visible).")
+
+        write_private_json(self.paths.browser_auth, json.loads(headers_json))
         return set_private_file(self.paths.browser_auth)
+
+    def _capture_headers(
+        self,
+        headers_raw: str | None,
+        browser: str | None,
+        cookies_file: Path | None,
+        paste: bool,
+    ) -> str:
+        if headers_raw is not None:
+            return headers_from_paste(headers_raw)
+        if browser:
+            return build_headers_raw(
+                export_browser_cookie_header(browser, self.paths.config_dir)
+            )
+        if cookies_file:
+            return build_headers_raw(cookie_header_from_netscape(cookies_file))
+        if paste and sys.stdin.isatty():
+            _print_paste_guide()
+            return headers_from_paste(_read_paste_interactive())
+        if not sys.stdin.isatty():
+            return headers_from_paste(sys.stdin.read())
+        picked = self._pick_browser()
+        if picked is None:
+            raise ConfigError(
+                "No browser profiles found. Use `bester-ytm auth login --paste` "
+                "or `--cookies-file` instead."
+            )
+        return build_headers_raw(
+            export_browser_cookie_header(picked, self.paths.config_dir)
+        )
+
+    def _pick_browser(self) -> str | None:
+        browsers = detect_browsers()
+        if not browsers:
+            return None
+        print("Reading your YouTube Music login from a browser you use.")
+        print("Found browser profiles:")
+        for index, name in enumerate(browsers, start=1):
+            print(f"  {index}. {name}")
+        while True:
+            choice = input(
+                f"Which browser is logged in? [1-{len(browsers)}, Enter = 1]: "
+            ).strip()
+            if not choice:
+                choice = "1"
+            if choice.isdigit() and 1 <= int(choice) <= len(browsers):
+                picked = browsers[int(choice) - 1]
+                break
+            if choice in browsers:
+                picked = choice
+                break
+            print("Please enter one of the listed numbers.")
+        if picked != "firefox":
+            print("If the OS asks for keychain or keyring access, allow it.")
+        return picked
 
     def _load_or_prompt_oauth_client(self) -> tuple[str, str]:
         if self.paths.oauth_client.exists():

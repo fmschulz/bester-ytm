@@ -16,7 +16,7 @@ def test_auth_login_defaults_to_browser_flow(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     saved = tmp_path / "config" / "bester-ytm" / "browser.json"
 
-    def fake_login_browser(self, headers_raw=None) -> Path:
+    def fake_login_browser(self, headers_raw=None, **kwargs) -> Path:
         return saved
 
     monkeypatch.setattr(AuthManager, "login_browser", fake_login_browser)
@@ -26,6 +26,39 @@ def test_auth_login_defaults_to_browser_flow(
     assert result.exit_code == 0
     assert "Browser login saved" in result.output
     assert "auth status" in result.output
+
+
+def test_auth_login_forwards_source_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    captured: dict[str, object] = {}
+
+    def fake_login_browser(self, headers_raw=None, **kwargs) -> Path:
+        captured.update(kwargs)
+        return tmp_path / "config" / "bester-ytm" / "browser.json"
+
+    monkeypatch.setattr(AuthManager, "login_browser", fake_login_browser)
+
+    result = CliRunner().invoke(app, ["auth", "login", "--browser", "firefox"])
+
+    assert result.exit_code == 0
+    assert captured["browser"] == "firefox"
+    assert captured["paste"] is False
+    assert captured["cookies_file"] is None
+
+
+def test_auth_login_rejects_conflicting_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+    result = CliRunner().invoke(
+        app, ["auth", "login", "--browser", "firefox", "--paste"]
+    )
+
+    assert result.exit_code == 1
+    assert "only one of" in result.output
 
 
 def test_auth_login_oauth_flag_uses_oauth_flow(
@@ -56,7 +89,9 @@ def test_auth_login_browser_warns_when_oauth_token_takes_precedence(
     (config_dir / "oauth.json").write_text("{}", encoding="utf-8")
 
     monkeypatch.setattr(
-        AuthManager, "login_browser", lambda self, headers_raw=None: config_dir / "browser.json"
+        AuthManager,
+        "login_browser",
+        lambda self, headers_raw=None, **kwargs: config_dir / "browser.json",
     )
 
     result = CliRunner().invoke(app, ["auth", "login"])
@@ -70,7 +105,7 @@ def test_auth_login_reports_config_errors(
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
 
-    def failing(self, headers_raw=None) -> Path:
+    def failing(self, headers_raw=None, **kwargs) -> Path:
         raise ConfigError("YouTube Music login is not configured.")
 
     monkeypatch.setattr(AuthManager, "login_browser", failing)
