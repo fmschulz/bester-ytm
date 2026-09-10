@@ -120,7 +120,7 @@ wheels = [
 
 [[package]]
 name = "bester-ytm"
-version = "1.3.0"
+version = "1.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
@@ -149,7 +149,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.8" },
     { name = "requests", specifier = ">=2.32" },
     { name = "rich", specifier = ">=13.7" },
-    { name = "textual", specifier = ">=0.86" },
+    { name = "textual", specifier = ">=8.2.7" },
     { name = "typer", specifier = ">=0.12" },
     { name = "ytmusicapi", specifier = ">=1.12,<2" },
 ]

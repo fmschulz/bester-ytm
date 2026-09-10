@@ -14,6 +14,7 @@ from textual.actions import ActionParseResult
 from textual.dom import DOMNode
 from textual.widgets import Button, Input, ListView
 
+from .tui_help import HelpScreen
 from .tui_layout import BuilderTextArea
 
 
@@ -25,7 +26,14 @@ class EventHandlers:
     BUTTON_ACTIONS = {
         "prev-button": "previous_track",
         "rewind-button": "seek_backward",
-        "play-button": "pause_resume",
+        "play-button": "toggle_playback",
+        "favorites-button": "show_favorites",
+        "favorite-playing-button": "toggle_playing_favorite",
+        "playlists-button": "show_playlists",
+        "radio-button": "show_radio",
+        "help-button": "help",
+        "tools-button": "toggle_tools",
+        "stage-button": "toggle_stage",
         "forward-button": "seek_forward",
         "next-button": "next_track",
         "shuffle-button": "shuffle_queue",
@@ -79,13 +87,21 @@ class EventHandlers:
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Hide queue/results-specific footer keys unless that pane is focused."""
+        # Keep navigation keys from changing library views behind the help modal.
+        if self.is_running and isinstance(self.screen, HelpScreen):
+            return action in {"help", "toggle_playback"}
+        if (action == "remove_from_queue" and self._focus_context() == "results"
+                and self._favorites_query is not None):
+            return False
         contexts = self.CONTEXT_ACTIONS.get(action)
         if contexts is None:
             return True
-        return True if self._focus_context() in contexts else None
+        return self._focus_context() in contexts
 
     def _focus_context(self) -> str:
         try:
+            if self.screen.has_class("immersive"):
+                return "other"
             node: DOMNode | None = self.focused
         except Exception:
             # No screen stack outside a running app; treat as no pane focus.

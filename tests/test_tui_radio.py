@@ -105,9 +105,7 @@ def test_radio_query_lists_stations(monkeypatch, tmp_path) -> None:
 
 def test_liked_query_aliases_favorites(monkeypatch, tmp_path) -> None:
     app, widgets, statuses, _, _ = _make_app(monkeypatch, tmp_path)
-    FavoritesStore().toggle(
-        SongCandidate(video_id="v1", title="Myth", artists=["Beach House"])
-    )
+    FavoritesStore().toggle(SongCandidate(video_id="v1", title="Myth", artists=["Beach House"]))
 
     asyncio.run(app._search("liked:"))
 
@@ -130,9 +128,7 @@ def test_radio_poll_updates_now_playing_label(monkeypatch, tmp_path) -> None:
     assert workers == []
 
 
-def test_radio_poll_failure_reports_once_and_clears_when_stopped(
-    monkeypatch, tmp_path
-) -> None:
+def test_radio_poll_failure_reports_once_and_clears_when_stopped(monkeypatch, tmp_path) -> None:
     app, _, statuses, _, workers = _make_app(monkeypatch, tmp_path)
 
     def boom(station):
@@ -149,9 +145,8 @@ def test_radio_poll_failure_reports_once_and_clears_when_stopped(
     assert app._radio_poll_video_id is None
 
 
-def test_favorite_during_radio_likes_resolved_song_on_ytm(monkeypatch, tmp_path) -> None:
+def test_favorite_during_radio_toggles_resolved_song_locally(monkeypatch, tmp_path) -> None:
     app, _, statuses, _, workers = _make_app(monkeypatch, tmp_path)
-    monkeypatch.setattr(tui_radio, "_has_login", lambda: True)
     station = station_candidate(stations()[1])
     app.candidates_by_video_id[station.video_id] = station
     app.current_candidate = station
@@ -172,14 +167,16 @@ def test_favorite_during_radio_likes_resolved_song_on_ytm(monkeypatch, tmp_path)
     app.action_toggle_favorite()
     _drain(workers)
 
-    assert FakeYTMClient.rated == [("ytm1", "LIKE")]
+    assert FakeYTMClient.rated == []
     assert FavoritesStore().ids() == {"ytm1"}
-    assert statuses[-1] == "Liked on YouTube Music: Stereolab - French Disko."
+    assert statuses[-1] == "Favorited Stereolab - French Disko."
+    app.action_toggle_favorite()
+    _drain(workers)
+    assert FavoritesStore().ids() == set()
+    assert statuses[-1] == "Removed Stereolab - French Disko from favorites."
 
 
-def test_favorite_during_radio_requires_login_and_track_info(
-    monkeypatch, tmp_path
-) -> None:
+def test_favorite_during_radio_requires_track_info_but_no_login(monkeypatch, tmp_path) -> None:
     app, _, statuses, _, workers = _make_app(monkeypatch, tmp_path)
     station = station_candidate(stations()[0])
     app.current_candidate = station
@@ -189,14 +186,15 @@ def test_favorite_during_radio_requires_login_and_track_info(
     assert statuses[-1] == tui_radio.NO_TRACK_INFO_MESSAGE
 
     app.radio_now_playing = RadioNowPlaying(station="ByteFM", artist="Sault", song="Wildfires")
+    FakeYTMClient.results = [SongCandidate(video_id="wild", title="Wildfires", artists=["Sault"])]
     app.action_toggle_favorite()
-    assert statuses[-1] == tui_radio.LOGIN_FIRST_MESSAGE
-    assert workers == []
+    _drain(workers)
+    assert FavoritesStore().ids() == {"wild"}
+    assert FakeYTMClient.rated == []
 
 
 def test_favorite_during_radio_reports_unresolvable_song(monkeypatch, tmp_path) -> None:
     app, _, statuses, _, workers = _make_app(monkeypatch, tmp_path)
-    monkeypatch.setattr(tui_radio, "_has_login", lambda: True)
     app.current_candidate = station_candidate(stations()[0])
     app.radio_now_playing = RadioNowPlaying(station="ByteFM", artist="Obscure", song="B-side")
     FakeYTMClient.results = []
@@ -209,9 +207,13 @@ def test_favorite_during_radio_reports_unresolvable_song(monkeypatch, tmp_path) 
     assert "No confident YouTube Music match" in statuses[-1]
 
 
-def test_local_fav_syncs_like_to_ytm(monkeypatch, tmp_path) -> None:
+def test_local_fav_never_submits_ytm_ratings(monkeypatch, tmp_path) -> None:
     app, _, _, _, workers = _make_app(monkeypatch, tmp_path)
-    monkeypatch.setattr(tui_radio, "_has_login", lambda: True)
+    from bester_ytm.config import get_paths
+
+    auth = get_paths().browser_auth
+    auth.parent.mkdir(parents=True, exist_ok=True)
+    auth.write_text("{}")
     song = SongCandidate(video_id="v1", title="Myth", artists=["Beach House"])
     app.current_candidate = song
     monkeypatch.setattr(app, "_focus_context", lambda: "other")
@@ -221,7 +223,7 @@ def test_local_fav_syncs_like_to_ytm(monkeypatch, tmp_path) -> None:
     app.action_toggle_favorite()  # unfav
     _drain(workers)
 
-    assert FakeYTMClient.rated == [("v1", "LIKE"), ("v1", "INDIFFERENT")]
+    assert FakeYTMClient.rated == []
 
 
 def test_local_fav_skips_ytm_sync_when_logged_out(monkeypatch, tmp_path) -> None:
@@ -242,9 +244,7 @@ def test_stale_poll_result_does_not_delay_next_station(monkeypatch, tmp_path) ->
         "radio:kalx": RadioNowPlaying(station="KALX 90.7FM", artist="B", song="Two"),
     }
     current = {"video_id": "radio:bytefm"}
-    monkeypatch.setattr(
-        tui_radio, "now_playing", lambda station: infos[f"radio:{station.key}"]
-    )
+    monkeypatch.setattr(tui_radio, "now_playing", lambda station: infos[f"radio:{station.key}"])
 
     app._maybe_poll_radio(_radio_status("radio:bytefm"))
     # The station changes while the bytefm fetch is still in flight.
@@ -353,9 +353,7 @@ def test_drop_queued_radio_checks_queue_pane_rows_too(monkeypatch, tmp_path) -> 
     app.playback.queue = ["v1"]
     app.playlist_video_ids = ["v0", "v1", "radio:bytefm"]  # station shown in the pane
 
-    kept = app._drop_queued_radio(
-        ["radio:bytefm", "radio:kalx", "v2", "radio:kalx", "v2"]
-    )
+    kept = app._drop_queued_radio(["radio:bytefm", "radio:kalx", "v2", "radio:kalx", "v2"])
 
     assert kept == ["radio:kalx", "v2", "v2"]  # songs may repeat; stations may not
 
@@ -380,9 +378,7 @@ def test_similar_seeds_use_live_radio_track_not_station(monkeypatch, tmp_path) -
     assert app._no_seeds_message() == tui_radio.NO_TRACK_INFO_MESSAGE
 
 
-def test_add_songs_brief_appends_to_queue_instead_of_building(
-    monkeypatch, tmp_path
-) -> None:
+def test_add_songs_brief_appends_to_queue_instead_of_building(monkeypatch, tmp_path) -> None:
     from bester_ytm import tui_similar
 
     app, widgets, statuses, _, workers = _make_app(monkeypatch, tmp_path)

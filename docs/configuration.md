@@ -14,9 +14,9 @@ fade_seconds = 6.0         # crossfade length, 1-15
 volume = 100               # startup volume, 0-100
 
 [ui]
-visualizer = "mythos"      # mythos | oracle | bars | wave | pulse | scope
-theme = "ember"            # ember (branded) or any built-in Textual theme
-visual_fps = 20            # animation rate, 0 (panels off) to 30
+visualizer = "astra"       # astra | mythos | oracle | bars | wave | pulse | scope
+theme = "astra"            # astra | ember | any built-in Textual theme
+visual_fps = 20            # animation rate, 0 (static frame) to 30
 left_width = 30            # example; unset by default (see below)
 right_width = 44           # example; unset by default
 
@@ -34,16 +34,16 @@ fip = "https://icecast.radiofrance.fr/fip-midfi.mp3"   # example; unset by defau
   on a second silent mpv deck and blended in with an equal-power fade;
   `"cut"` switches instantly.
 - `visualizer`, `theme`, `left_width`, `right_width`: written automatically
-  when you change the visual style, pick a theme from the command palette (the
-  circle in the header), or drag the pane splitters in the TUI (mouse support
+  when you change the effect, pick a theme from the command palette
+  (`Ctrl+Shift+P`), or drag the pane splitters in the TUI (mouse support
   required; inside tmux enable `set -g mouse on`).
 - `left_width` / `right_width`: pane widths in terminal cells, valid range
   10-400 (values outside it raise a `ConfigError` at startup; the values
-  above are examples). Unset by default — the panes then fall back to the
-  stylesheet's fractional widths.
-- `visual_fps`: how often the audio-reactive panels redraw and sample live
-  loudness. Lower it (or set `0` to freeze the panels) on slow or remote
-  terminals — beat tracking loosens below ~15 — it is read at startup only.
+  above are examples). When unset, the panes use the stylesheet's fractional widths.
+- `visual_fps`: how often the stage redraws and samples live
+  loudness. Lower it (or set `0` to freeze the stage) on slow or remote
+  terminals. Beat tracking becomes less accurate below about 15 frames per
+  second. This setting is read at startup.
   Capped at 30: values above 30 (or below 0) are rejected with a
   `ConfigError` at startup.
 - `favorites_file`: path to a favorites markdown file used by

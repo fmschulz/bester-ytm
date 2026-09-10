@@ -84,6 +84,10 @@ class PlaybackActions:
             self.action_toggle_select()
             return
 
+        await self.action_toggle_playback()
+
+    async def action_toggle_playback(self) -> None:
+        """Transport-only pause, also usable while typing or marking results."""
         status = self.playback.status()
         if not status.running:
             results = self.query_one("#results", ListView)

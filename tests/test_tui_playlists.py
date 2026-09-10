@@ -137,7 +137,11 @@ def test_tui_show_playlists_uses_authenticated_library(monkeypatch, tmp_path) ->
     statuses: list[str] = []
 
     monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
-    monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
+    monkeypatch.setattr(
+        app, "query_one",
+        lambda selector, widget_type=None: list_view
+        if selector in ("#results", "#search") else None,
+    )
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
 
@@ -176,7 +180,11 @@ def test_tui_show_playlists_includes_saved_local_playlists(monkeypatch, tmp_path
     list_view = FakeListView()
     statuses: list[str] = []
     monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
-    monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
+    monkeypatch.setattr(
+        app, "query_one",
+        lambda selector, widget_type=None: list_view
+        if selector in ("#results", "#search") else None,
+    )
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
 
@@ -219,7 +227,11 @@ def test_tui_show_playlists_shows_locals_when_youtube_unavailable(
     list_view = FakeListView()
     statuses: list[str] = []
     monkeypatch.setattr(tui_playlists, "YTMClient", FailingClient)
-    monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: list_view)
+    monkeypatch.setattr(
+        app, "query_one",
+        lambda selector, widget_type=None: list_view
+        if selector in ("#results", "#search") else None,
+    )
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
 
@@ -1175,7 +1187,7 @@ def test_tui_favorite_and_local_playlist_controls_target_highlighted_queue_song(
     # The queue re-render after the toggle marks the faved row.
     assert [_item_label(item) for item in queue.items] == [
         "01  Sepultura - Against",
-        "02  Sepultura - Choke *",
+        "02  Sepultura - Choke [fav]",
     ]
 
     asyncio.run(app.action_remove_from_playlist())

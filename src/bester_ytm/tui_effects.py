@@ -85,6 +85,8 @@ class PlaybackRenderer:
         self._maybe_poll_radio(status)
         self._refresh_now_playing_marker(status.current_video_id)
         self._update_transport_widgets(status)
+        if self.visual_fps == 0:
+            self._animate_visual_panel()
 
     def _refresh_now_playing_marker(self, current_video_id: str | None) -> None:
         """Re-render the queue only when the playing track changed (no per-tick flicker)."""
@@ -135,7 +137,9 @@ class PlaybackRenderer:
 
     def _update_transport_widgets(self, status) -> None:
         duration = status.duration_seconds or 1
-        position = min(status.position_seconds or 0, duration)
+        position = status.position_seconds or 0
+        if status.duration_seconds:
+            position = min(position, duration)
         progress = self._query_optional("#progress", ProgressBar)
         if progress:
             progress.update(total=duration, progress=position)
@@ -143,9 +147,10 @@ class PlaybackRenderer:
         progress_time = self._query_optional("#progress-time", Static)
         if progress_time:
             state = "paused" if status.paused else "playing" if status.running else "stopped"
-            progress_time.update(
-                f"{format_time(position)} / {format_time(status.duration_seconds)}  {state}"
+            end = format_time(status.duration_seconds) if status.duration_seconds else (
+                "LIVE" if status.running else "0:00"
             )
+            progress_time.update(f"{format_time(position)} / {end}  {state}")
 
         play_button = self._query_optional("#play-button", Button)
         if play_button:
@@ -172,38 +177,43 @@ class PlaybackRenderer:
         visualizer.update(render_deck_status(status))
 
     def _animate_visual_panel(self) -> None:
-        """Fast animation tick for the audio-reactive panels in every pane, fed by live loudness."""
+        """Render the stage from live loudness, freezing it while idle or paused."""
         status = getattr(self, "last_playback_status", None)
         running = bool(status and status.running)
         paused = bool(status and status.running and status.paused)
         # When idle or paused the frame is frozen; redraw it once on entry, then skip the
-        # per-tick re-render of every pane until playback actually moves again.
+        # per-tick re-render of the stage until playback actually moves again.
         static_state = None if (running and not paused) else ("idle" if not running else "paused")
+        if self.visual_fps == 0:
+            static_state = f"still:{running}:{paused}"
         if static_state is not None and static_state == self._last_visual_state:
             return
         self._last_visual_state = static_state
-        if running and not paused:
+        if running and not paused and self.visual_fps > 0:
             self._advance_audio_visual()
         effect = getattr(self, "visualizer_effect", "mythos")
-        for selector in ("#left-visual", "#big-visual", "#right-visual"):
-            widget = self._query_optional(selector, Static)
-            if widget is None:
-                continue
-            self._toggle_widget_class(widget, "idle-effect", not running)
-            self._toggle_widget_class(widget, "paused-effect", paused)
-            size = getattr(widget, "size", None)
-            if size is None or size.width <= 0 or size.height <= 0:
-                continue
-            widget.update(
-                render_visual_panel(
-                    effect,
-                    self.visual_phase,
-                    size.width,
-                    size.height,
-                    running=running,
-                    levels=self.audio_levels,
-                )
+        title = self._query_optional("#stage-title", Label)
+        if title is not None:
+            state = "PAUSED" if paused else "LIVE" if running else "READY"
+            title.update(f"{effect.upper()} / {state}")
+        widget = self._query_optional("#big-visual", Static)
+        if widget is None:
+            return
+        self._toggle_widget_class(widget, "idle-effect", not running)
+        self._toggle_widget_class(widget, "paused-effect", paused)
+        size = getattr(widget, "content_size", getattr(widget, "size", None))
+        if size is None or size.width <= 0 or size.height <= 0:
+            return
+        widget.update(
+            render_visual_panel(
+                effect,
+                self.visual_phase,
+                size.width,
+                size.height,
+                running=running,
+                levels=self.audio_levels,
             )
+        )
 
     def _advance_audio_visual(self) -> None:
         """Sample live loudness, push it onto the history, and advance the audio-driven phase."""
@@ -252,6 +262,9 @@ class PlaybackRenderer:
         track = self._query_optional("#track", Static)
         if track:
             track.update(label)
+        stage_track = self._query_optional("#stage-track", Static)
+        if stage_track:
+            stage_track.update(label)
 
     def _update_queue_title(self, count: int) -> None:
         title = self._query_optional("#queue-title", Label)
@@ -291,7 +304,7 @@ class PlaybackRenderer:
             if video_id in favorite_ids:
                 label += FAVORITE_SUFFIX
             prefix = "NOW" if video_id == current else f"{index:02d}"
-            item = ListItem(Label(f"{prefix}  {label}"))
+            item = ListItem(Label(f"{prefix}  {label}", markup=False))
             if video_id == current:
                 item.add_class("playing")
             item.video_id = video_id  # type: ignore[attr-defined]

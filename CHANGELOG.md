@@ -7,19 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-09
+
+### Added
+
+- Astra visualizer and theme with an audio-reactive accretion disk, aurora,
+  and star field. Press `V` for an immersive view across the terminal.
+- Searchable keyboard help with `F1` or `?`, direct Favorites navigation
+  with `Ctrl+F`, and global playback control with `Ctrl+Space`.
+
 ### Changed
 
+- Separate discovery, queue, and tools around a full-width
+  visualizer. Compact terminals can open tools with `F2`.
+- Favorites show `[fav]` markers and update immediately. Press `f` to toggle
+  the focused song or use Favorite playing to save the current song.
+- Favorites are stored locally and no longer change YouTube Music likes.
+  Saving a song from radio does not require a YouTube Music login.
+- New configurations use Astra; saved theme and effect choices remain available.
+- Textual 8.2.7 or later is required.
 - Builder briefs that start with `add`, `queue`, or `append` (e.g.
   "Add 5 songs similar to Four Tet") append the requested tracks to the
   current queue instead of replacing it with a new playlist; the count is
   honored and defaults to 5.
 - Radio stations are labelled `RADIO` (not `SONG`) in search results.
-- Enter on a radio station tunes to it: the current track or station stops
-  with a hard cut (no crossfade) and the station becomes the queue's only
-  row — stations no longer pile up in the queue as duplicates.
+- Enter on a radio station stops playback without a crossfade and tunes to
+  that station as the queue's only row.
 - `g` (similar tracks) during radio seeds from the station's live track
   instead of the station name, and explains when track info has not been
   fetched yet.
+
+### Fixed
+
+- Fade visual energy during silence and redraw frozen scenes after a resize.
+- Restore compact layouts after closing help and keep navigation visible when
+  leaving the immersive view.
+- Display song and playlist names containing markup characters as literal text.
+- Keep radio elapsed time advancing when the stream has no duration.
 
 ## [1.3.0] - 2026-07-03
 

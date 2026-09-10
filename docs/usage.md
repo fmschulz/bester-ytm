@@ -2,10 +2,15 @@
 
 ## The TUI
 
-Launch with `bester-ytm`. The layout has three panes: search results on the
-left, the playlist/queue in the center, and playback, playlist controls, and
-the playlist builder on the right. The footer shows the shortcuts for the
-focused pane; `?` opens an overlay with every binding.
+Launch with `bester-ytm`. Search and browse on the left, arrange the queue
+in the center, and use the workspace on the right for playlists, the builder,
+and DJ controls. The playback bar sits below the full-width visual stage.
+On narrow terminals, `F2` or **Tools** switches between the queue and workspace.
+The top bar opens Favorites, Playlists, Radio, and Help.
+
+Press `F1` from any input, or `?` outside an input, to open the keyboard guide.
+Filter it by key or action, such as `favorite` or `volume`. `Esc` or `F1` closes
+it and returns to the previous view.
 
 ### Keys
 
@@ -25,6 +30,7 @@ a          add the highlighted song or album to the queue, or every row
 A          play now, replacing the queue: the highlighted or marked songs
            in song results, or the album/highlighted song in album
            searches (shift+a)
+Ctrl+Space pause/resume from any pane, including while typing
 Space      play/pause; in the results pane it marks the highlighted
            song instead (same as x)
 n          next track
@@ -41,19 +47,20 @@ g          add 5 AI-suggested similar tracks to the queue; type digits
 i          build a playlist from the builder prompt (right pane)
 t          toggle transition style (cut / crossfade)
 [ / ]      shorten / lengthen the crossfade (1-15s)
-v          cycle the visualizer (Mythos, Oracle, Bars, Wave, Pulse, Scope)
+v          cycle the visualizer (Astra, Mythos, Oracle, Bars, Wave, Pulse, Scope)
+V          expand/restore the visual stage (Shift+v); Esc returns
+F2         open the workspace tools on a narrow terminal
 Left/Right seek -10s/+10s
 ,/.        seek -30s/+30s
 - / = / +  volume down / up (both = and + raise it)
 m          mute/unmute
-f          fav/unfav the highlighted song (or the playing track); faved
-           songs show a trailing * and pressing f again removes them;
-           logged in, favs also like the song on YouTube Music, and on
-           radio f favs the song the station is playing
+f          toggle the focused song's local favorite; otherwise the playing song
+           [fav] marks saved songs; radio favorites resolve the live song
+Ctrl+F     browse favorites (also the Favorites button)
 Ctrl+P     show playlists (local first, then your YouTube library)
 Ctrl+A     show auth status
 Tab / Shift+Tab  cycle panes forwards / backwards
-?          show all key bindings in an overlay (Escape, q, or ? closes it)
+F1 / ?     open the searchable keyboard guide (Esc or F1 closes it)
 q          quit
 ```
 
@@ -123,28 +130,32 @@ The current track is marked `NOW`. When a track nears its end and the
 transition style is crossfade (the default, 6 seconds), the next queued
 track is prebuffered on a second silent mpv deck and blended in DJ-style
 with an equal-power fade; set the transition to cut for instant switches.
-The `DECK` line in the right pane shows the active deck and becomes a `MIX`
-meter while two tracks blend. While audio plays, glowing audio-reactive
-panels run in the bottom of every pane; pick a style with the `Visuals`
-dropdown or cycle with `v`, and choose a theme from the command palette (the
-circle in the header). Clicking anywhere on the progress bar seeks to that
-position. On slow or remote terminals, lower `ui.visual_fps` in
-the config (or set it to `0`) to ease the rendering load.
+The `DECK` line beside the transport shows the active deck and becomes a
+`MIX` meter while two tracks blend. The stage displays an audio-reactive
+scene. Astra draws an accretion disk, photon ring, aurora, and starfield in
+cyan, violet, and gold. It responds to loudness from mpv, not frequency bands.
+During silence, the visual energy fades. Pausing freezes the scene.
+
+Choose an effect from the stage dropdown or press `v`. Press `V` (Shift+v)
+for the immersive stage and `Esc` to return. Playback controls remain visible.
+Open the command palette with `Ctrl+Shift+P` to choose a theme. Clicking the progress bar seeks to that position.
+On slow or remote terminals, lower `ui.visual_fps` or set it to `0` for
+static frames.
 
 ### Favorites
 
-`f` favs the highlighted song when the queue or results pane has focus, and
-the playing track otherwise. Faved songs
-show a trailing `*` in the queue, in search results, and on the Now Playing
-label; pressing `f` on a faved song removes it again. Type `favs:` in the
-search box to list your favorites — `liked:` and `favorites:` do the same
-(add text, e.g. `favs:sepultura`, to filter); the rows behave like any song
-result, so `Enter`, `a`, and `f` all work there. Favorites live in
-`favorites.json` under the app's data directory.
+Press `f` to toggle the highlighted song in results, an expanded album, or
+the queue. Outside those lists, it acts on the playing track. The
+**Favorite playing** button always acts on the current track.
 
-When you are logged in, faving also likes the song on YouTube Music (and
-unfaving removes the like), so your local favorites and your YTM liked songs
-stay in step.
+Saved tracks show `[fav]` in results, the queue, and Now Playing. Open
+**Favorites** or press `Ctrl+F` to browse them. `Enter` plays or queues a
+song; `a` queues it; `f` removes it. Removal keeps the cursor on a remaining
+row. Edit the search to `favs:sepultura` to filter by text. `favorites:` and
+`liked:` are aliases for this local list.
+
+Favorites are stored in `favorites.json` under the app's data directory.
+They work without a login and do not change YouTube Music likes.
 
 ### Web radio
 
@@ -160,9 +171,9 @@ station's metadata, and `g` finds songs similar to that live track (not to
 the station) and queues them after it.
 
 Pressing `f` while radio plays favs the song the station is playing, not the
-station: the track is looked up on YouTube Music, liked there, and saved to
-your local favorites. The status line names the match so a wrong hit is easy
-to spot. This needs a login; radio playback itself does not.
+station: the track is looked up on YouTube Music and saved to local favorites.
+The status line names the match. Radio playback and local favorites work
+without a login.
 
 To add a station without hunting for its stream URL yourself, type
 `add radio station <name>` (e.g. `add radio station WFMU`) into the playlist
@@ -202,7 +213,7 @@ tracks before creating a real YouTube playlist.
 The right-pane `Playlist / Queue` section manages the queue as a named
 playlist. It holds the playlist name field, the New / Save / Add / Remove
 buttons, and the Shuffle / Clear controls (the Mix and Fade- / Fade+
-transition controls sit under Now Playing, next to the volume row):
+transition controls are inside the DJ / Crossfade section):
 
 - `New` starts a fresh playlist: the queue is cleared (a playing track keeps
   playing and stays as the first row), the loaded playlist is detached, and

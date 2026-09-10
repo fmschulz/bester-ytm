@@ -15,7 +15,7 @@ def test_help_binding_is_visible_in_footer() -> None:
     binding = next(
         _as_binding(binding)
         for binding in BesterYTMApp.BINDINGS
-        if _as_binding(binding).action == "help"
+        if _as_binding(binding).key == "question_mark"
     )
     assert binding.key == "question_mark"
     assert binding.key_display == "?"
@@ -25,9 +25,7 @@ def test_help_binding_is_visible_in_footer() -> None:
 def test_every_binding_appears_in_help_sections() -> None:
     """Drift guard: each app binding (visible and hidden) gets a help row."""
     keys_shown = {
-        key
-        for _section, rows in help_sections(BesterYTMApp.BINDINGS)
-        for key, _description in rows
+        key for _section, rows in help_sections(BesterYTMApp.BINDINGS) for key, _description in rows
     }
     for entry in BesterYTMApp.BINDINGS:
         binding = _as_binding(entry)
@@ -94,3 +92,88 @@ def test_overlay_renders_every_help_row(monkeypatch) -> None:
                     assert description in content
 
     asyncio.run(run_flow())
+
+
+def test_filter_matches_actions_keys_and_groups(monkeypatch) -> None:
+    from textual.widgets import Input
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/nonexistent-bytm-config")
+
+    async def run_flow() -> None:
+        app = BesterYTMApp()
+        async with app.run_test(size=(100, 40)) as pilot:
+            app.action_help()
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, HelpScreen)
+            await pilot.press("/")
+            assert screen.query_one("#help-filter", Input).has_focus
+            for query, expected in (
+                ("favorite", "favorite"),
+                ("ctrl", "ctrl"),
+                ("transport", "pause"),
+            ):
+                screen.query_one("#help-filter", Input).value = query
+                await pilot.pause()
+                visible = [row for row in screen.query(".help-row") if row.display]
+                assert visible
+                content = " ".join(
+                    str(label.content) for row in visible for label in row.query(Static)
+                ).casefold()
+                assert expected in content
+            screen.query_one("#help-filter", Input).value = "zzzz-no-match"
+            await pilot.pause()
+            assert screen.query_one("#help-empty").display
+            assert not any(row.display for row in screen.query(".help-row"))
+            screen.query_one("#help-filter", Input).value = ""
+            await pilot.pause()
+            assert all(row.display for row in screen.query(".help-row"))
+            assert not screen.query_one("#help-empty").display
+            await pilot.press("escape")
+            assert not isinstance(app.screen, HelpScreen)
+
+    asyncio.run(run_flow())
+
+
+def test_close_button_dismisses_help(monkeypatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/nonexistent-bytm-config")
+
+    async def run_flow() -> None:
+        app = BesterYTMApp()
+        async with app.run_test(size=(100, 40)) as pilot:
+            app.action_help()
+            await pilot.pause()
+            await pilot.click("#help-close")
+            assert not isinstance(app.screen, HelpScreen)
+
+    asyncio.run(run_flow())
+
+
+def test_f1_works_while_typing_and_closes_help(monkeypatch) -> None:
+    from textual.widgets import Input
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/nonexistent-bytm-config")
+
+    async def run_flow() -> None:
+        app = BesterYTMApp()
+        async with app.run_test() as pilot:
+            app.query_one("#search", Input).focus()
+            await pilot.press("f1")
+            await pilot.pause()
+            assert isinstance(app.screen, HelpScreen)
+            app.screen.query_one("#help-filter", Input).focus()
+            await pilot.press("f1")
+            await pilot.pause()
+            assert not isinstance(app.screen, HelpScreen)
+
+    asyncio.run(run_flow())
+
+
+def test_short_terminal_has_room_for_shortcuts():
+    async def run():
+        app = BesterYTMApp()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.press("f1")
+            await pilot.pause()
+            assert app.screen.query_one("#help-shortcuts").size.height >= 10
+    asyncio.run(run())

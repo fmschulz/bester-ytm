@@ -61,5 +61,5 @@ def test_cycle_visualizer_action_advances_and_syncs_dropdown(monkeypatch, tmp_pa
 
     asyncio.run(run_flow())
 
-    assert effects[: len(EFFECT_ORDER)] == ["oracle", "bars", "wave", "pulse", "scope", "mythos"]
-    assert effects[-1] == "oracle"
+    assert effects[: len(EFFECT_ORDER)] == list(EFFECT_ORDER[1:]) + [EFFECT_ORDER[0]]
+    assert effects[-1] == EFFECT_ORDER[1]

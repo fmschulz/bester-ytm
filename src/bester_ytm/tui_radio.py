@@ -6,10 +6,9 @@ import re
 import time
 from functools import partial
 
-from .config import ConfigError, get_paths
+from .config import ConfigError
 from .intelligence.llm import IntelligenceError, resolve_provider
 from .intelligence.station_finder import find_station
-from .local_files import is_local_video_id
 from .playback import PlaybackError
 from .playlist_plan import PlannedTrack, SongCandidate
 from .radio import (
@@ -28,7 +27,6 @@ from .ytm_client import YTMClient, YTMClientError
 
 RADIO_POLL_SECONDS = 20.0
 NO_TRACK_INFO_MESSAGE = "No radio track info yet; try again in a moment."
-LOGIN_FIRST_MESSAGE = "Log in first: radio favorites are liked on YouTube Music."
 
 # "add radio station WFMU", "add radiostation kexp", "add web radio FIP", ...
 ADD_STATION_PATTERN = re.compile(
@@ -43,13 +41,8 @@ def parse_add_station_request(text: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
-def _has_login() -> bool:
-    paths = get_paths()
-    return paths.oauth_token.exists() or paths.browser_auth.exists()
-
-
 class RadioActions:
-    """Mixin for BesterYTMApp: live station track polling and f-on-radio likes."""
+    """Mixin for BesterYTMApp: live station track polling and local radio-song favorites."""
 
     current_candidate: SongCandidate | None
     playlist_video_ids: list[str]
@@ -111,13 +104,10 @@ class RadioActions:
             self._update_track_label(f"{info.station} · {info.display}")
 
     def _favorite_radio_song(self) -> None:
-        """f while radio plays: like the current song on YTM and fav it locally."""
+        """Resolve the current radio song and save it to local favorites."""
         info = self.radio_now_playing
         if info is None or not (info.song or info.artist):
             self._set_status(NO_TRACK_INFO_MESSAGE)
-            return
-        if not _has_login():
-            self._set_status(LOGIN_FIRST_MESSAGE)
             return
         query = " ".join(part for part in (info.artist, info.song) if part)
         self._set_status(f"Looking up {query!r} on YouTube Music...")
@@ -131,23 +121,25 @@ class RadioActions:
     def _radio_favorite_worker(self, info: RadioNowPlaying) -> None:
         try:
             candidate = _resolve_radio_song(info)
-            YTMClient(authenticated=True).rate_song(candidate.video_id, "LIKE")
         except (YTMClientError, RadioError, ConfigError) as exc:
             self.call_from_thread(self._set_status, str(exc))
             return
         self.call_from_thread(self._finish_radio_favorite, candidate)
 
     def _finish_radio_favorite(self, candidate: SongCandidate) -> None:
-        note = ""
         try:
             store = FavoritesStore()
-            if candidate.video_id not in store.ids():
-                store.toggle(candidate)
+            faved = store.toggle(candidate)
         except ConfigError as exc:
-            note = f" (local favorite not saved: {exc})"
+            self._set_status(str(exc))
+            return
         self.candidates_by_video_id[candidate.video_id] = candidate
-        self._refresh_favorite_markers(candidate.video_id, True)
-        self._set_status(f"Liked on YouTube Music: {candidate.display_name}.{note}")
+        self._refresh_favorite_markers(candidate.video_id, faved)
+        self._set_status(
+            f"Favorited {candidate.display_name}."
+            if faved
+            else f"Removed {candidate.display_name} from favorites."
+        )
 
     def _drop_queued_radio(self, video_ids: list[str]) -> list[str]:
         """A radio station may appear once in the queue: drop ids that are
@@ -245,24 +237,6 @@ class RadioActions:
             "type radio: to play it."
         )
 
-    def _sync_ytm_like(self, video_id: str, faved: bool) -> None:
-        """Mirror a local fav/unfav to a YTM like, best-effort, when logged in."""
-        if is_radio_video_id(video_id) or is_local_video_id(video_id):
-            return
-        if not _has_login():
-            return
-        self.run_worker(
-            partial(self._ytm_like_worker, video_id, "LIKE" if faved else "INDIFFERENT"),
-            name="ytm-like",
-            group="ytm-like",
-            thread=True,
-        )
-
-    def _ytm_like_worker(self, video_id: str, rating: str) -> None:
-        try:
-            YTMClient(authenticated=True).rate_song(video_id, rating)
-        except YTMClientError as exc:
-            self.call_from_thread(self._set_status, f"YTM like not synced: {exc}")
 
 
 def _resolve_radio_song(info: RadioNowPlaying) -> SongCandidate:

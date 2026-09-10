@@ -26,15 +26,24 @@ tests intentionally do not perform.
 ## Playback
 
 - [ ] `uv run bester-ytm play search "Beach House Myth" --seconds 20` starts `mpv`, plays audio, and exits cleanly.
-- [ ] `uv run bester-ytm` opens the player TUI; search, queue, play/pause, skip, favorite toggle (f, trailing * marker, favs: listing), auth status, and playlist builder views respond to the documented keys.
+- [ ] `uv run bester-ytm` opens the player TUI; search, queue, play/pause, skip, favorite toggle (f, [fav] marker, Ctrl+F listing), auth status, and playlist builder views respond to the documented keys.
 - [ ] After `./scripts/download-example-songs.sh`, searching
       `local:examples/music` lists the three example songs, `Enter` plays one
       audibly, and crossfade transitions work between local and YouTube
       tracks.
 - [ ] Searching `radio:` lists ByteFM and KALX; `Enter` plays the station
       audibly, the Now Playing label shows the live track within ~20 seconds,
-      and `f` while it plays reports a YouTube Music match and likes it (with
-      a login configured).
+      and `f` while it plays reports a YouTube Music match and saves it locally
+      without requiring a login.
+
+- [ ] `F1` opens help while typing; filtering by `favorite` finds favorite keys;
+      `F1` closes help and restores input focus.
+- [ ] `V` expands Astra while music plays; `Ctrl+Space` pauses it;
+      resizing preserves the scene; `Esc` restores the workspace.
+- [ ] At 80x24, `F2` switches to tools; transport and help remain reachable.
+- [ ] Remove a row in Favorites with `f`; the row disappears and the cursor
+      stays in the list. Click Favorite playing and check that it saves the
+      playing song, even when a different row is highlighted.
 
 ## DJ transitions
 

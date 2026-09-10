@@ -1,12 +1,13 @@
-"""Large audio-reactive visual panels rendered in the bottom of each pane.
+"""Audio-reactive visuals for the stage and fullscreen view.
 
-Each effect is a pure painter of a brightness *field* (``grid[y][x]`` in 0..1);
+The classic effects paint a brightness *field* (``grid[y][x]`` in 0..1);
 a single shared renderer turns that field into glyphs with a per-cell ember glow
 and an optional bloom pass, so every effect lights up the same way. The app feeds
 in a sliding history of live RMS loudness (newest last) plus a motion ``phase`` it
 accumulates in proportion to loudness, so the visuals lock to the music: ``bars``
 and ``wave`` plot the loudness history directly, while ``mythos``/``oracle``/
-``pulse``/``scope`` move at a speed and brightness set by the audio.
+``pulse``/``scope`` move at a speed and brightness set by the audio. Astra uses
+its own multicolor renderer with the same audio history and dimensions.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ from __future__ import annotations
 import math
 import re
 from collections import deque
+
+from .tui_astra import render_astra
 
 FULL = "█"
 # Glyph ramp from faint to incandescent; index = round(brightness * (len - 1)).
@@ -31,8 +34,9 @@ DEFAULT_LEVEL = 0.6
 # Readings are held back this long so the visuals move with what is heard.
 MPV_AUDIO_LEAD_SECONDS = 0.25
 
-EFFECT_ORDER = ("mythos", "oracle", "bars", "wave", "pulse", "scope")
+EFFECT_ORDER = ("astra", "mythos", "oracle", "bars", "wave", "pulse", "scope")
 EFFECT_LABELS = {
+    "astra": "Astra",
     "mythos": "Mythos",
     "oracle": "Oracle",
     "bars": "Bars",
@@ -68,7 +72,7 @@ class AudioLevelMeter:
         self._delay_samples = round(MPV_AUDIO_LEAD_SECONDS / self.sample_interval)
 
     def update(self, rms_db: float | None) -> float:
-        if rms_db is None or rms_db < -90.0:
+        if rms_db is None:
             return self.level
         self._pending.append(rms_db)
         if len(self._pending) <= self._delay_samples:
@@ -76,6 +80,11 @@ class AudioLevelMeter:
         return self._absorb(self._pending.popleft())
 
     def _absorb(self, rms_db: float) -> float:
+        # astats reports -inf for digital silence. Release after the audio delay,
+        # without pulling the adaptive range down to an unusable noise floor.
+        if rms_db < -90.0:
+            self.level *= 0.004 ** self.sample_interval
+            return self.level
         # Relax the floor/ceiling toward the current reading (~1s window), so the
         # meter follows the melody and beat instead of locking onto the song's
         # lifetime min/max and going flat on loudness-normalized tracks.
@@ -107,6 +116,8 @@ def render_visual_panel(
         return _render_idle(width, height)
     history = levels or []
     level = min(1.0, max(0.0, history[-1] if history else DEFAULT_LEVEL))
+    if effect == "astra":
+        return render_astra(phase, width, height, level, history)
     field = _RENDERERS.get(effect, _mythos_field)(phase, width, height, level, history)
     bloom = _BLOOM.get(effect)
     if bloom:

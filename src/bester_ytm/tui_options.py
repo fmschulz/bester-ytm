@@ -11,7 +11,7 @@ from textual.widgets import Select
 from .config import ConfigError
 from .config_options import save_ui_options
 from .tui_splitter import PaneSplitter
-from .tui_theme import EMBER_THEME
+from .tui_theme import ASTRA_THEME, EMBER_THEME
 from .tui_visuals import EFFECT_ORDER
 
 
@@ -19,6 +19,7 @@ class UiOptionsActions:
     """Mixin for BesterYTMApp: persisted visualizer, theme, and pane options."""
 
     visualizer_effect: str
+    _last_visual_state: str | None
 
     def action_cycle_visualizer(self) -> None:
         names = list(EFFECT_ORDER)
@@ -30,6 +31,8 @@ class UiOptionsActions:
 
     def _apply_visualizer_effect(self, effect: str) -> None:
         self.visualizer_effect = effect
+        self._last_visual_state = "effect-change"
+        self._animate_visual_panel()
         self._refresh_playback()
         self._save_ui_options()
         self._set_status(f"Visualizer: {effect}.")
@@ -65,8 +68,9 @@ class UiOptionsActions:
                 self.query_one(selector).styles.width = width
 
     def _apply_branded_theme(self) -> None:
-        """Register the ember theme, restore the saved choice, then persist future changes."""
+        """Register the bundled themes, restore the saved choice, and persist changes."""
         self.register_theme(EMBER_THEME)
+        self.register_theme(ASTRA_THEME)
         if self.app_options.theme in self.available_themes:
             self.theme = self.app_options.theme
         self.theme_changed_signal.subscribe(self, self._on_theme_changed)

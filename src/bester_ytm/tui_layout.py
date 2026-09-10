@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
+from textual.screen import Screen
 from textual.widgets import (
     Button,
+    Collapsible,
     Input,
     Label,
     ListView,
@@ -21,6 +25,9 @@ from .playlist_plan import parse_seed_text
 from .tui_album import AlbumTree
 from .tui_splitter import PaneSplitter
 from .tui_visuals import EFFECT_OPTIONS
+
+if TYPE_CHECKING:
+    from .tui import BesterYTMApp
 
 
 class BuilderTextArea(TextArea):
@@ -42,59 +49,104 @@ class BuilderTextArea(TextArea):
         return bool(text) and not parse_seed_text(text, "builder")
 
 
-def build_layout(visualizer_text: str, effect: str = "mythos") -> ComposeResult:
+class WorkspaceScreen(Screen):
+    """Restore responsive classes after resizing with a modal on top."""
+
+    def on_screen_resume(self) -> None:
+        self.set_class(self.app.size.width < 110, "compact")
+        self.set_class(self.app.size.height < 35, "short")
+        app = cast("BesterYTMApp", self.app)
+        app._last_visual_state = "resume"
+        self.call_after_refresh(app._animate_visual_panel)
+
+
+class VisualStage(Static):
+    """Redraw frozen scenes when a terminal or workspace resize changes the canvas."""
+
+    def on_resize(self, event: events.Resize) -> None:
+        app = cast("BesterYTMApp", self.app)
+        app._last_visual_state = "resize"
+        self.call_after_refresh(app._animate_visual_panel)
+
+
+def build_layout(visualizer_text: str, effect: str = "astra") -> ComposeResult:
+    with Horizontal(id="navigation"):
+        yield Label("B / Y  •  MUSIC TERMINAL", id="brand")
+        yield Button("Favorites", id="favorites-button", compact=True)
+        yield Button("Playlists", id="playlists-button", compact=True)
+        yield Button("Radio", id="radio-button", compact=True)
+        yield Button("Tools", id="tools-button", compact=True)
+        yield Button("? Help", id="help-button", compact=True)
     with Horizontal(id="main"):
         with Vertical(id="left"):
-            yield Input(placeholder="Search YouTube Music", id="search")
+            yield Label("DISCOVER", id="library-title")
+            yield Input(placeholder="Search songs, artists, albums…", id="search")
+            yield Static(
+                "Find something worth keeping.\n\n"
+                "Search a song or artist, then Enter.\n"
+                "Try album: Discovery or radio:\n\n"
+                "Favorites keeps your finds on this device.\n"
+                "F1 opens the keyboard guide.",
+                id="library-empty", markup=False,
+            )
             yield ListView(id="results")
             yield AlbumTree("albums", id="album-tree")
-            yield Static("", id="left-visual")
+            yield Static("Enter play / add   Space mark   f favorite", id="results-hint")
         yield PaneSplitter("left", "right", grows_leftward=False)
         with Vertical(id="center"):
-            yield Label("Playlist / Queue", id="queue-title")
+            yield Label("Queue (0)", id="queue-title", markup=False)
             yield ListView(id="queue")
-            yield Static("", id="big-visual")
+            yield Static("Enter play   d remove   j/k reorder", id="queue-hint")
         yield PaneSplitter("right", "left", grows_leftward=True)
         with Vertical(id="right"):
-            yield from _build_player_panel(visualizer_text, effect)
+            yield Label("YOUR WORKSPACE", id="tools-title")
+            yield from _build_tools()
+    with Vertical(id="stage"):
+        with Horizontal(id="stage-heading"):
+            yield Label("ASTRA / SIGNAL FIELD", id="stage-title")
+            yield Select(EFFECT_OPTIONS, value=effect, allow_blank=False, id="effect-select")
+            yield Button("V Expand", id="stage-button", compact=True)
+        yield VisualStage("", id="big-visual")
+        yield Static("Search for a track to begin", id="stage-track", markup=False)
+    with Vertical(id="player"):
+        with Horizontal(id="now-playing"):
+            yield Label("NOW PLAYING", id="player-title")
+            yield Static("No track playing.", id="track", markup=False)
+            yield Static("0:00 / 0:00", id="progress-time")
+        yield ProgressBar(total=1, show_eta=False, show_percentage=False, id="progress")
+        with Horizontal(id="controls"):
+            with Horizontal(id="transport"):
+                yield Button("Prev", id="prev-button", compact=True)
+                yield Button("-10s", id="rewind-button", compact=True)
+                yield Button("Play", id="play-button", compact=True)
+                yield Button("+10s", id="forward-button", compact=True)
+                yield Button("Next", id="next-button", compact=True)
+            with Horizontal(id="volume-row"):
+                yield Button("Vol-", id="volume-down-button", compact=True)
+                yield Button("Vol+", id="volume-up-button", compact=True)
+                yield Button("Mute", id="mute-button", compact=True)
+            yield Button("Favorite playing", id="favorite-playing-button", compact=True)
+            yield Static(visualizer_text, id="visualizer")
+    yield Static("", id="status", markup=False)
 
 
-def _build_player_panel(visualizer_text: str, effect: str = "mythos") -> ComposeResult:
-    yield Label("Now Playing", id="player-title")
-    yield Static("No track playing.", id="track")
-    yield Static("0:00 / 0:00", id="progress-time")
-    yield ProgressBar(total=1, show_eta=False, id="progress")
-    yield Static(visualizer_text, id="visualizer")
-    with Horizontal(id="transport"):
-        yield Button("Prev", id="prev-button", compact=True)
-        yield Button("-10s", id="rewind-button", compact=True)
-        yield Button("Play", id="play-button", compact=True)
-        yield Button("+10s", id="forward-button", compact=True)
-        yield Button("Next", id="next-button", compact=True)
-    with Horizontal(id="volume-row"):
-        yield Button("Vol-", id="volume-down-button", compact=True)
-        yield Button("Vol+", id="volume-up-button", compact=True)
-        yield Button("Mute", id="mute-button", compact=True)
-    with Horizontal(id="transition-row"):
-        yield Button("Mix", id="transition-button", compact=True)
-        yield Button("Fade-", id="fade-down-button", compact=True)
-        yield Button("Fade+", id="fade-up-button", compact=True)
-    yield Label("Playlist / Queue", id="playlist-section-title")
-    yield Input(placeholder="playlist name", id="playlist-name")
-    with Horizontal(id="playlist-actions"):
-        yield Button("New", id="new-playlist-button", compact=True)
-        yield Button("Save", id="save-queue-button", compact=True)
-        yield Button("Add", id="add-local-playlist-button", compact=True)
-        yield Button("Remove", id="remove-local-playlist-button", compact=True)
-    with Horizontal(id="queue-actions"):
-        yield Button("Shuffle", id="shuffle-button", compact=True)
-        yield Button("Clear", id="clear-button", compact=True)
-    yield Label("Playlist Builder", id="builder-title")
-    yield BuilderTextArea(id="builder", language="markdown")
-    with Horizontal(id="builder-actions"):
-        yield Button("Build Playlist", id="build-button", compact=True)
-    with Horizontal(id="effect-row"):
-        yield Label("Visuals", id="effect-label")
-        yield Select(EFFECT_OPTIONS, value=effect, allow_blank=False, id="effect-select")
-    yield Static("", id="status")
-    yield Static("", id="right-visual")
+def _build_tools() -> ComposeResult:
+    with Collapsible(title="Playlist / Queue", collapsed=False, id="playlist-tools"):
+        yield Input(placeholder="Playlist name", id="playlist-name")
+        with Horizontal(id="playlist-actions"):
+            yield Button("New", id="new-playlist-button", compact=True)
+            yield Button("Save", id="save-queue-button", compact=True)
+            yield Button("Add", id="add-local-playlist-button", compact=True)
+            yield Button("Remove", id="remove-local-playlist-button", compact=True)
+        with Horizontal(id="queue-actions"):
+            yield Button("Shuffle", id="shuffle-button", compact=True)
+            yield Button("Clear", id="clear-button", compact=True)
+    with Collapsible(title="Playlist builder", collapsed=False, id="builder-tools"):
+        yield BuilderTextArea(id="builder", language="markdown")
+        with Horizontal(id="builder-actions"):
+            yield Button("Build Playlist", id="build-button", compact=True)
+    with Collapsible(title="DJ / Crossfade", collapsed=True, id="mix-tools"):
+        with Horizontal(id="transition-row"):
+            yield Button("Mix", id="transition-button", compact=True)
+            yield Button("Fade-", id="fade-down-button", compact=True)
+            yield Button("Fade+", id="fade-up-button", compact=True)

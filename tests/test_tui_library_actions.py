@@ -530,8 +530,8 @@ def test_favs_query_lists_favorites_with_marker(monkeypatch, tmp_path) -> None:
 
     items = widgets["#results"].items
     assert [item.candidate.video_id for item in items] == ["v2"]
-    assert items[0].base_label == "SONG  Territory - Sepultura *"
-    assert statuses[-1] == "1 songs result(s)."
+    assert items[0].base_label == "SONG  Territory - Sepultura [fav]"
+    assert statuses[-1] == "1 local favorite(s). f removes; Enter plays; a queues."
 
 
 def test_search_results_mark_faved_songs(monkeypatch, tmp_path) -> None:
@@ -553,8 +553,8 @@ def test_search_results_mark_faved_songs(monkeypatch, tmp_path) -> None:
     _drain_workers(workers)
 
     labels = [item.base_label for item in widgets["#results"].items]
-    assert labels[0].endswith(" *")
-    assert not labels[1].endswith(" *")
+    assert labels[0].endswith(" [fav]")
+    assert not labels[1].endswith(" [fav]")
 
 
 def test_toggle_favorite_relabels_the_result_row(monkeypatch, tmp_path) -> None:
@@ -574,14 +574,15 @@ def test_toggle_favorite_relabels_the_result_row(monkeypatch, tmp_path) -> None:
 
     asyncio.run(app._search("favs:"))
     item = widgets["#results"].items[0]
-    assert item.base_label.endswith(" *")
+    assert item.base_label.endswith(" [fav]")
 
     widgets["#results"].highlighted_child = item
     app.action_toggle_favorite()  # unfav from the favs list
     _drain_workers(workers)
 
-    assert not item.base_label.endswith(" *")
+    assert not item.base_label.endswith(" [fav]")
     assert str(item.label_widget.render()) == item.base_label
+    assert widgets["#results"].items == []
     assert FavoritesStore().ids() == set()
 
 

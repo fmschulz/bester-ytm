@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import partial
 
 from textual import events
-from textual.widgets import Input, Label, ListItem, ListView, TextArea
+from textual.widgets import Input, Label, ListItem, ListView, Static, TextArea
 
 from .config import ConfigError
 from .local_files import local_search_items
@@ -32,6 +32,7 @@ class LibraryActions:
     """Mixin with search, result loading, and current-track lookup helpers."""
 
     selected_queue_video_id: str | None
+    result_selection_anchor_video_id: str | None
     candidates_by_video_id: dict[str, SongCandidate]
     current_candidate: SongCandidate | None
     build_in_progress: bool
@@ -39,6 +40,23 @@ class LibraryActions:
     _pending_playlist_delete: str | None
     _results_load_id: int
     _results_focus_snapshot: tuple[object | None, str | None]
+    _favorites_query: str | None = None
+
+    async def action_show_favorites(self) -> None:
+        self.action_leave_stage()
+        search = self._query_optional("#search", Input)
+        if search is not None:
+            search.value = "favs:"
+        await self._search("favs:")
+
+    def _update_library_summary(self, title: str, empty_message: str = "") -> None:
+        heading = self._query_optional("#library-title", Static)
+        if heading is not None:
+            heading.update(title)
+        empty = self._query_optional("#library-empty", Static)
+        if empty is not None:
+            empty.update(empty_message)
+            empty.display = bool(empty_message)
 
     async def _search(self, query: str) -> None:
         results = self.query_one("#results", ListView)
@@ -50,9 +68,12 @@ class LibraryActions:
         self._note_results_focus()
         if not query.strip():
             self._show_results_list()
+            self._update_library_summary("Library", "Search for music or open Favorites.")
             return
+        self._update_library_summary("Library / Searching")
         self._set_status(f"Searching {query!r}...")
         parsed = parse_search_query(query)
+        self._favorites_query = parsed.text if parsed.lists_favorites else None
         if parsed.lists_local_playlists:
             await self._show_search_results(
                 parsed, LocalPlaylistStore().search_items(), self._results_load_id
@@ -67,13 +88,9 @@ class LibraryActions:
             await self._show_search_results(parsed, items, self._results_load_id)
             return
         if parsed.lists_radio_stations:
-            await self._show_search_results(
-                parsed, station_search_items(), self._results_load_id
-            )
+            await self._show_search_results(parsed, station_search_items(), self._results_load_id)
             return
-        worker = (
-            self._local_search_worker if parsed.lists_local_files else self._search_worker
-        )
+        worker = self._local_search_worker if parsed.lists_local_files else self._search_worker
         self.run_worker(
             partial(worker, parsed, self._results_load_id),
             name="search",
@@ -103,9 +120,7 @@ class LibraryActions:
         if load_id == self._results_load_id:
             self._set_status(message)
 
-    def _finish_search(
-        self, parsed: ParsedSearch, items: list[SearchItem], load_id: int
-    ) -> None:
+    def _finish_search(self, parsed: ParsedSearch, items: list[SearchItem], load_id: int) -> None:
         if load_id != self._results_load_id:
             return  # superseded by a newer search or playlist listing
         self.run_worker(self._show_search_results(parsed, items, load_id), exclusive=False)
@@ -117,9 +132,12 @@ class LibraryActions:
             return  # a newer search or listing started after this was scheduled
         if parsed.kind == "album":
             await self._populate_album_tree(items)
+            self._update_library_summary(
+                f"Library / Albums / {len(items)}",
+                "No matching albums. Try another search." if not items else "",
+            )
             self._set_status(
-                f"{len(items)} album(s). Enter expands; space/x mark; "
-                "shift+space ranges."
+                f"{len(items)} album(s). Enter expands; space/x mark; shift+space ranges."
             )
             return
         results = self.query_one("#results", ListView)
@@ -128,7 +146,28 @@ class LibraryActions:
         for search_item in items:
             await results.append(self._result_item(search_item, favorite_ids))
         self._focus_first_result(results, bool(items))
-        self._set_status(f"{len(items)} {parsed.view} result(s).")
+        if parsed.lists_favorites:
+            self._update_favorites_summary(len(items))
+            self._set_status(f"{len(items)} local favorite(s). f removes; Enter plays; a queues.")
+        else:
+            self._update_library_summary(
+                f"Library / {parsed.view.title()} / {len(items)}",
+                "No matches. Try another search or open Favorites." if not items else "",
+            )
+            self._set_status(f"{len(items)} {parsed.view} result(s).")
+
+    def _update_favorites_summary(self, count: int) -> None:
+        self._update_library_summary(
+            f"Favorites / {count} saved locally",
+            (
+                "No matching favorites. Edit favs: to change the filter."
+                if self._favorites_query
+                else "Your favorites live here. Highlight a song and press f to save it.\n"
+                "Use Favorite playing to save the current track. No account needed."
+            )
+            if count == 0
+            else "",
+        )
 
     async def _refresh_local_playlist_library(self, highlight_id: str | None = None) -> None:
         """Repopulate the left pane with local playlists (offline; no YouTube fetch) so a
@@ -137,9 +176,11 @@ class LibraryActions:
         if results is None:
             return
         self._show_results_list()
+        self._favorites_query = None
         await results.clear()
         highlight_index: int | None = None
-        for index, search_item in enumerate(LocalPlaylistStore().search_items()):
+        items = LocalPlaylistStore().search_items()
+        for index, search_item in enumerate(items):
             await results.append(self._result_item(search_item))
             if highlight_id and search_item.playlist_id == highlight_id:
                 highlight_index = index
@@ -148,6 +189,10 @@ class LibraryActions:
                 results.index = highlight_index
             except AttributeError:
                 pass
+        self._update_library_summary(
+            f"Local playlists / {len(items)}",
+            "Save the queue with w to create a local playlist." if not items else "",
+        )
 
     def _result_item(
         self, search_item: SearchItem, favorite_ids: set[str] | None = None
@@ -156,7 +201,7 @@ class LibraryActions:
         candidate_id = search_item.candidate.video_id if search_item.candidate else None
         if favorite_ids and candidate_id in favorite_ids:
             display += FAVORITE_SUFFIX
-        label_widget = Label(display)
+        label_widget = Label(display, markup=False)
         item = ResultListItem(label_widget)
         item.search_item = search_item  # type: ignore[attr-defined]
         item.base_label = display  # type: ignore[attr-defined]
@@ -207,9 +252,7 @@ class LibraryActions:
             tracks=playlist.tracks,
         )
         await self._load_snapshot(snapshot, playlist.name, local_playlist_id=playlist.id)
-        self._set_status(
-            f"Loaded local playlist {playlist.name}: {len(playlist.tracks)} track(s)."
-        )
+        self._set_status(f"Loaded local playlist {playlist.name}: {len(playlist.tracks)} track(s).")
         return True
 
     async def _load_snapshot(
@@ -249,12 +292,61 @@ class LibraryActions:
     def _refresh_favorite_markers(self, video_id: str, faved: bool) -> None:
         """Reflect a favorite toggle in the result rows, the queue, and Now Playing."""
         self._relabel_result_favorite(video_id, faved)
+        tree = self._album_tree()
+        if tree is not None:
+            favorite_ids = self._favorite_video_ids()
+            for album in tree.root.children:
+                for node in self._song_children(album):
+                    if self._song_candidate(node).video_id == video_id:
+                        node.set_label(self._song_label(
+                            self._song_candidate(node), video_id in self.selected_result_video_ids,
+                            favorite_ids,
+                        ))
+        if self._favorites_query is not None:
+            self.run_worker(
+                self._refresh_favorites_view(self._results_load_id),
+                exclusive=True,
+                group="favorites-refresh",
+            )
         self.run_worker(self._render_queue(), exclusive=True, group="queue-render")
         current = self.current_candidate
         if current is not None and current.video_id == video_id:
-            self._update_track_label(
-                current.display_name + (FAVORITE_SUFFIX if faved else "")
+            self._update_track_label(current.display_name + (FAVORITE_SUFFIX if faved else ""))
+
+    async def _refresh_favorites_view(self, load_id: int) -> None:
+        """Keep the filter, cursor and surviving selections when a favorite changes."""
+        if load_id != self._results_load_id or self._favorites_query is None:
+            return
+        results = self.query_one("#results", ListView)
+        highlighted = self._highlighted_result_candidate()
+        index = getattr(results, "index", 0) or 0
+        try:
+            items = FavoritesStore().search_items(self._favorites_query)
+        except ConfigError as exc:
+            self._set_status(str(exc))
+            return
+        ids = [item.candidate.video_id for item in items if item.candidate]
+        self.selected_result_video_ids.intersection_update(ids)
+        if self.result_selection_anchor_video_id not in self.selected_result_video_ids:
+            self.result_selection_anchor_video_id = next(
+                (video_id for video_id in ids if video_id in self.selected_result_video_ids), None
             )
+        await results.clear()
+        for search_item in items:
+            if load_id != self._results_load_id:
+                return
+            item = self._result_item(search_item, set(ids))
+            self._render_result_marker(
+                item, item.candidate.video_id in self.selected_result_video_ids
+            )
+            await results.append(item)
+        if ids:
+            results.index = (
+                ids.index(highlighted.video_id)
+                if highlighted is not None and highlighted.video_id in ids
+                else min(index, len(ids) - 1)
+            )
+        self._update_favorites_summary(len(items))
 
     def _relabel_result_favorite(self, video_id: str, faved: bool) -> None:
         results = self._query_optional("#results", ListView)
@@ -289,6 +381,7 @@ class LibraryActions:
         """Record focus at load start so a deferred completion can tell whether
         the user has since focused or typed into an input."""
         self._results_focus_snapshot = self._focus_snapshot()
+        self._favorites_query = None
 
     def _focus_snapshot(self) -> tuple[object | None, str | None]:
         try:
@@ -323,11 +416,17 @@ class LibraryActions:
         return self.selected_queue_video_id
 
     def _highlighted_result_candidate(self):
+        if self._album_tree_active():
+            tree = self._album_tree()
+            return self._selection_candidate(getattr(tree, "cursor_node", None))
         results = self._query_optional("#results", ListView)
         item = getattr(results, "highlighted_child", None) if results else None
         return getattr(item, "candidate", None) if item else None
 
     def _current_video_id(self) -> str | None:
+        if self._focus_context() == "results":
+            candidate = self._highlighted_result_candidate()
+            return candidate.video_id if candidate else None
         highlighted = self._highlighted_queue_video_id()
         if highlighted:
             return highlighted
@@ -342,6 +441,8 @@ class LibraryActions:
             return None
 
     def _current_candidate(self):
+        if self._focus_context() == "results":
+            return self._highlighted_result_candidate()
         video_id = self._current_video_id()
         if video_id and video_id in self.candidates_by_video_id:
             return self.candidates_by_video_id[video_id]

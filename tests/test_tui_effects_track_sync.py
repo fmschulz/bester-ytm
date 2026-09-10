@@ -79,7 +79,7 @@ def test_now_playing_label_marks_faved_track(monkeypatch, tmp_path) -> None:
 
     app._refresh_playback()
 
-    assert widgets["#track"].value == "A - One *"
+    assert widgets["#track"].value == "A - One [fav]"
 
 
 def test_corrupt_favorites_store_degrades_to_status_message(monkeypatch, tmp_path) -> None:

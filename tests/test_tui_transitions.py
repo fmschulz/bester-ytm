@@ -85,7 +85,11 @@ def _make_app(monkeypatch, tmp_path, playback) -> tuple[tui.BesterYTMApp, list[s
 
 
 def test_transition_keys_are_bound() -> None:
-    assert ("t", "cycle_transition", "Mix") in tui.BesterYTMApp.BINDINGS
+    assert any(
+        getattr(binding, "action", None) == "cycle_transition"
+        and getattr(binding, "key", None) == "t"
+        for binding in tui.BesterYTMApp.BINDINGS
+    )
     bracket_bindings = {
         binding.key: binding
         for binding in tui.BesterYTMApp.BINDINGS
@@ -296,6 +300,10 @@ def test_mix_and_fade_buttons_drive_transition_actions(monkeypatch, tmp_path) ->
         app.playback = playback  # type: ignore[assignment]
         app.transition_settings = playback.transition
         async with app.run_test(size=(100, 40)) as pilot:
+            await pilot.press("f2")
+            app.query_one("#mix-tools").collapsed = False
+            app.query_one("#transition-row").scroll_visible(animate=False)
+            await pilot.pause()
             await pilot.click("#fade-up-button")
             await pilot.pause()
             assert playback.transition.fade_seconds == 7.0

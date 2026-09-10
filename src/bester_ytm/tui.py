@@ -6,7 +6,8 @@ import random
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import Footer, Header, Input, Static
+from textual.widget import Widget
+from textual.widgets import Button, Footer, Header, Input, Static
 
 from .config import (
     ConfigError,
@@ -24,7 +25,7 @@ from .tui_builder import BuilderActions
 from .tui_effects import PlaybackRenderer, render_deck_status
 from .tui_events import EventHandlers
 from .tui_help import HelpScreen
-from .tui_layout import build_layout
+from .tui_layout import WorkspaceScreen, build_layout
 from .tui_library import LibraryActions
 from .tui_metadata import TrackMetadataActions
 from .tui_options import UiOptionsActions
@@ -57,7 +58,10 @@ class BesterYTMApp(
     App[None],
 ):
     TITLE = "bester-ytm"
-    SUB_TITLE = "YouTube Music"
+    SUB_TITLE = "Astra music terminal"
+    COMMAND_PALETTE_BINDING = "ctrl+shift+p"
+    HORIZONTAL_BREAKPOINTS = [(0, "compact"), (110, "wide")]
+    VERTICAL_BREAKPOINTS = [(0, "short"), (35, "tall")]
 
     CSS = APP_CSS
 
@@ -67,10 +71,18 @@ class BesterYTMApp(
         ("n", "next_track", "Next"),
         ("s", "shuffle_queue", "Shuffle"),
         ("x", "toggle_select", "Select"),
-        ("t", "cycle_transition", "Mix"),
-        ("g", "add_similar", "Similar"),
-        ("i", "build_playlist", "Build"),
-        Binding("ctrl+p", "show_playlists", "Playlists", priority=True),
+        Binding("t", "cycle_transition", "Mix", show=False),
+        Binding("g", "add_similar", "Similar", show=False),
+        Binding("i", "build_playlist", "Build", show=False),
+        Binding("ctrl+p", "show_playlists", "Playlists", priority=True, show=False),
+        Binding("ctrl+f", "show_favorites", "Favorites", priority=True, show=False),
+        Binding("ctrl+space", "toggle_playback", "Pause", priority=True, show=False),
+        Binding("f1", "help", "Help", priority=True, show=False),
+        Binding("f2", "toggle_tools", "Tools", priority=True, show=False),
+        Binding("ctrl+shift+p", "command_palette", "Themes / commands",
+                priority=True, show=False),
+        Binding("V", "toggle_stage", "Expand", show=True),
+        Binding("escape", "leave_stage", "Back", show=False),
         ("q", "quit", "Quit"),
         Binding("enter", "play_selected", "Play/Add"),
         Binding("shift+space", "range_select", "Range select", show=False),
@@ -92,7 +104,7 @@ class BesterYTMApp(
         Binding("k", "move_queue_track_up", "Move up", show=False),
         Binding("j", "move_queue_track_down", "Move down", show=False),
         Binding("w", "save_queue_playlist", "Save"),
-        Binding("f", "toggle_favorite", "Favorite", show=False),
+        Binding("f", "toggle_favorite", "Favorite"),
         Binding("tab", "focus_next", "Next pane", show=False),
         Binding("shift+tab", "focus_previous", "Previous pane", show=False),
         Binding("a", "add_to_queue", "Add"),
@@ -149,8 +161,9 @@ class BesterYTMApp(
         self.visualizer_effect = (
             self.app_options.visualizer
             if self.app_options.visualizer in EFFECT_ORDER
-            else "mythos"
+            else "astra"
         )
+        self._stage_focus: Widget | None = None
         self.selected_result_video_ids: set[str] = set()
         self.result_selection_anchor_video_id: str | None = None
         self.build_in_progress = False
@@ -160,6 +173,9 @@ class BesterYTMApp(
         self.audio_meter = AudioLevelMeter(
             1.0 / self.visual_fps if self.visual_fps else 1.0
         )
+
+    def get_default_screen(self) -> WorkspaceScreen:
+        return WorkspaceScreen(id="_default")
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -208,6 +224,7 @@ class BesterYTMApp(
             return None
 
     async def action_focus_search(self) -> None:
+        self.action_leave_stage()
         self.query_one("#search", Input).focus()
 
     async def action_shuffle_queue(self) -> None:
@@ -241,7 +258,46 @@ class BesterYTMApp(
         self._set_status(f"Shuffled {len(visible)} upcoming track(s).")
 
     def action_help(self) -> None:
-        self.push_screen(HelpScreen())
+        if isinstance(self.screen, HelpScreen):
+            self.screen.dismiss(None)
+        else:
+            self.push_screen(HelpScreen())
+
+    def action_toggle_tools(self) -> None:
+        self.action_leave_stage()
+        if not self.screen.has_class("compact"):
+            self.query_one("#playlist-name", Input).focus()
+            return
+        self.screen.toggle_class("tools-open")
+        if self.screen.has_class("tools-open"):
+            self.query_one("#playlist-name", Input).focus()
+        else:
+            self.query_one("#search", Input).focus()
+
+    def action_toggle_stage(self) -> None:
+        immersive = not self.screen.has_class("immersive")
+        if immersive:
+            self._stage_focus = self.focused
+            self.set_focus(None)
+        self.screen.set_class(immersive, "immersive")
+        self.query_one("#stage-button", Button).label = "V Return" if immersive else "V Expand"
+        if not immersive and self._stage_focus is not None:
+            self.set_focus(self._stage_focus)
+        self._last_visual_state = "resize"
+        self.call_after_refresh(self._animate_visual_panel)
+
+    def action_leave_stage(self) -> None:
+        if not self.is_running:
+            return
+        if self.screen.has_class("immersive"):
+            self.action_toggle_stage()
+        elif isinstance(self.focused, Input):
+            self.set_focus(None)
+
+    async def action_show_radio(self) -> None:
+        self.action_leave_stage()
+        self.query_one("#search", Input).value = "radio:"
+        await self._search("radio:")
 
     async def action_quit(self) -> None:
         """Stop the live mpv and any crossfade decks before exiting."""

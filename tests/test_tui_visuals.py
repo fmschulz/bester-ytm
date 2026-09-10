@@ -8,13 +8,14 @@ import pytest
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.tui import BesterYTMApp
 from bester_ytm.tui_visuals import (
+    EFFECT_ORDER,
     AudioLevelMeter,
     _mythos_nodes,
     render_visual_panel,
     strip_markup,
 )
 
-EFFECTS = ("mythos", "oracle", "bars", "wave", "pulse", "scope")
+EFFECTS = EFFECT_ORDER
 
 
 def _plain_rows(panel: str) -> list[str]:
@@ -137,6 +138,32 @@ def test_audio_level_meter_delays_readings_to_match_the_speakers() -> None:
 
     assert all(value == start for value in early)  # still in the delay line
     assert heard != start  # the sixth tick is when the loud audio reaches the ears
+
+
+@pytest.mark.parametrize("silence", [-100.0, -math.inf])
+def test_audio_silence_releases_after_the_speaker_delay(silence: float) -> None:
+    meter = AudioLevelMeter(sample_interval=0.05)
+    meter.level = 1.0
+    early = [meter.update(silence) for _ in range(5)]
+    assert early == [1.0] * 5
+    assert meter.update(silence) < 1.0
+    for _ in range(40):
+        meter.update(silence)
+    assert meter.level < 0.001
+    for _ in range(6):
+        meter.update(-10.0)
+    assert meter.level > 0.9
+    assert math.isfinite(meter.floor_db) and math.isfinite(meter.ceiling_db)
+
+
+@pytest.mark.parametrize("interval", [0.025, 0.05, 0.125])
+def test_silence_decay_is_independent_of_sample_rate(interval: float) -> None:
+    meter = AudioLevelMeter(sample_interval=interval)
+    meter.level = 1.0
+    for _ in range(round(1.25 / interval)):
+        meter.update(-math.inf)
+    # The first quarter second is buffered; one second of audible silence follows.
+    assert meter.level == pytest.approx(0.004)
 
 
 def test_mythos_nodes_glide_rather_than_teleport() -> None:

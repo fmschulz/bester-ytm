@@ -21,12 +21,24 @@ class TrackMetadataActions:
 
     def action_toggle_favorite(self) -> None:
         """Fav/unfav the highlighted song, falling back to the playing track."""
-        candidate = self._favorite_target()
+        self._toggle_track_favorite(self._favorite_target())
+
+    def action_toggle_playing_favorite(self) -> None:
+        """The player button always acts on Now Playing, regardless of pane focus."""
+        self._toggle_track_favorite(self.current_candidate)
+
+    def _toggle_track_favorite(self, candidate) -> None:
         if candidate is None:
             self._set_status("No track to favorite.")
             return
         if is_radio_video_id(candidate.video_id):
             # A radio station is not a song; fav the track it is playing.
+            if (
+                self.current_candidate is None
+                or candidate.video_id != self.current_candidate.video_id
+            ):
+                self._set_status("Tune to this station before favoriting its current song.")
+                return
             self._favorite_radio_song()
             return
         try:
@@ -35,7 +47,6 @@ class TrackMetadataActions:
             self._set_status(str(exc))
             return
         self._refresh_favorite_markers(candidate.video_id, faved)
-        self._sync_ytm_like(candidate.video_id, faved)
         if faved:
             self._set_status(f"Favorited {candidate.display_name}.")
         else:
@@ -46,15 +57,14 @@ class TrackMetadataActions:
         playing track — never the queue's remembered row while browsing results."""
         context = self._focus_context()
         if context == "results":
-            candidate = self._highlighted_result_candidate()
-            if candidate is not None:
-                return candidate
+            return self._highlighted_result_candidate()
         if context == "queue":
             queue = self._query_optional("#queue", ListView)
             item = getattr(queue, "highlighted_child", None) if queue else None
             video_id = getattr(item, "video_id", None) if item else None
             if video_id and video_id in self.candidates_by_video_id:
                 return self.candidates_by_video_id[video_id]
+            return None
         return self.current_candidate
 
     def action_add_to_local_playlist(self) -> None:

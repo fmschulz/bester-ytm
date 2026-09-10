@@ -1,202 +1,79 @@
-"""Stylesheet for the BesterYTMApp screen."""
+"""Layout and theme-aware styling for the music workspace and visual stage."""
 
 from __future__ import annotations
 
 APP_CSS = """
-Screen {
-    layout: vertical;
+Screen { layout: vertical; }
+Header { display: none; }
+#navigation { height: 1; background: $panel; }
+#brand { width: 1fr; color: $accent; text-style: bold; padding-left: 1; }
+Button { min-width: 5; margin: 0 1 0 0; }
+#navigation Button { min-width: 6; }
+#main { height: 1fr; }
+#left { width: 3fr; }
+#center { width: 3fr; }
+#right { width: 2fr; min-width: 30; overflow-y: auto; scrollbar-size-vertical: 1; }
+#left, #center, #right { border: round $primary-muted; padding: 0 1; }
+#left, #center { min-width: 20; }
+#left:focus-within, #center:focus-within, #right:focus-within { border: round $accent; }
+PaneSplitter { width: 1; height: 1fr; background: $background; }
+PaneSplitter:hover { background: $accent; }
+#library-title, #queue-title, #tools-title { color: $accent; text-style: bold; height: 1; }
+#search { margin: 0; }
+#results, #queue, #album-tree { height: 1fr; }
+#album-tree { display: none; }
+#library-empty { height: auto; color: $text-muted; padding: 1 0; }
+#results-hint, #queue-hint { height: 1; color: $text-muted; text-overflow: ellipsis; }
+ListItem { padding: 0 1; }
+ListItem Label { width: 1fr; text-overflow: ellipsis; }
+#queue .playing { background: $primary-muted; color: $accent; text-style: bold; }
+#album-tree .tree--cursor { background: $primary-muted; color: $accent; text-style: bold; }
+Collapsible { padding: 0; margin: 0; border: none; }
+Collapsible > Contents { padding: 0; }
+#playlist-actions, #queue-actions, #builder-actions, #transition-row { height: auto; }
+#playlist-actions Button { min-width: 3; margin-right: 1; }
+#builder { height: 4; }
+#stage { height: 38%; min-height: 8; border: round $primary-muted; padding: 0 1; }
+#stage-heading { height: 3; align-vertical: middle; }
+#stage-title {
+    width: 1fr; color: $accent; text-style: bold; content-align: left middle; height: 3;
 }
-#main {
-    height: 1fr;
-}
-#left {
-    width: 2fr;
-}
-#center {
-    width: 3fr;
-}
-#right {
-    width: 2fr;
-}
-#left, #center, #right {
-    border: solid #5b4a55;
-    padding: 1;
-}
-#left, #right {
-    min-width: 16;
-}
-#center {
-    min-width: 20;
-}
-PaneSplitter {
-    width: 1;
-    height: 1fr;
-    background: #3b2330;
-}
-PaneSplitter:hover {
-    background: #e07a5f;
-}
-#right {
-    overflow-y: auto;
-    scrollbar-size-vertical: 1;
-}
-#right.playing-effect {
-    border: heavy #e07a5f;
-}
-#right.paused-effect {
-    border: heavy #9ca3af;
-}
-#left:focus-within, #center:focus-within, #right:focus-within {
-    border: heavy #e07a5f;
-}
-#search {
-    dock: top;
-    margin-bottom: 1;
-}
-#queue-title, #player-title,
-#playlist-section-title, #builder-title {
-    color: #e07a5f;
-    text-style: bold;
-}
-#playlist-section-title, #builder-title {
-    margin-top: 1;
-}
-#queue {
-    height: 1fr;
-}
-#results {
-    height: 1fr;
-}
-#album-tree {
-    height: 1fr;
-    display: none;
-}
-#album-tree .tree--cursor {
-    background: #3b2330;
-    color: #f2cc8f;
-    text-style: bold;
-}
-#big-visual, #left-visual, #right-visual {
-    margin-top: 1;
-    color: #e07a5f;
-}
-#big-visual {
-    height: 9;
-}
-#left-visual {
-    height: 8;
-}
-#right-visual {
-    dock: bottom;
-    height: 7;
-}
-#big-visual.idle-effect,
-#left-visual.idle-effect,
-#right-visual.idle-effect {
-    color: #6b7280;
-}
-#big-visual.paused-effect,
-#left-visual.paused-effect,
-#right-visual.paused-effect {
-    color: #9ca3af;
-}
-#queue .playing {
-    background: #3b2330;
-    color: #f2cc8f;
-    text-style: bold;
-}
-#track {
-    min-height: 3;
-    margin-bottom: 1;
-}
-#progress-time {
-    height: 1;
-}
-#progress {
-    margin: 0 0 1 0;
-}
-#visualizer {
-    height: 1;
-    margin: 0;
-    color: #eda36c;
-}
-#visualizer.idle-effect {
-    color: #6b7280;
-}
-#visualizer.paused-effect {
-    color: #9ca3af;
-}
-#transport, #queue-actions, #volume-row, #transition-row, #playlist-actions {
-    height: auto;
-    layout: horizontal;
-}
-#transition-row {
-    margin-bottom: 1;
-}
-Button {
-    margin-right: 1;
-    min-width: 5;
-}
-#builder {
-    height: 4;
-}
-#builder-actions {
-    height: auto;
-    layout: horizontal;
-    margin-top: 1;
-}
-#effect-row {
-    height: auto;
-    layout: horizontal;
-    margin-top: 1;
-}
-#effect-label {
-    margin-right: 1;
-    padding-top: 1;
-}
-#effect-select {
-    width: 20;
-}
-#status {
-    height: auto;
-    margin-top: 1;
-}
-HelpScreen {
-    align: center middle;
-}
-#help-panel {
-    width: 60;
-    max-width: 90%;
-    height: auto;
-    max-height: 90%;
-    border: heavy #e07a5f;
-    padding: 1 2;
-    scrollbar-size-vertical: 1;
-}
-#help-title {
-    color: #e07a5f;
-    text-style: bold;
-}
-#help-hint {
-    color: #6b7280;
-    margin-top: 1;
-}
-.help-section {
-    color: #e07a5f;
-    text-style: bold;
-    margin-top: 1;
-}
-.help-row {
-    height: 1;
-}
-.help-key {
-    width: 13;
-    text-align: right;
-    color: #f2cc8f;
-    text-style: bold;
-}
-.help-desc {
-    width: 1fr;
-    padding-left: 2;
-}
+#effect-select { width: 23; }
+#stage-button { margin-top: 1; }
+#big-visual { height: 1fr; overflow: hidden; }
+#stage-track { height: 1; text-align: center; color: $text-muted; }
+#player { height: 4; padding: 0 1; background: $panel; }
+#now-playing { height: 1; }
+#player-title { width: 13; color: $accent; text-style: bold; }
+#track { width: 1fr; height: 1; text-overflow: ellipsis; }
+#progress-time { width: 29; text-align: right; }
+#progress { height: 1; width: 1fr; margin: 0; }
+#progress > Bar { width: 1fr; }
+#controls { height: 1; }
+#transport, #volume-row { width: auto; height: 1; }
+#play-button { width: 8; }
+#visualizer { width: 1fr; height: 1; text-align: right; color: $text-muted; }
+#visualizer.idle-effect { color: $text-muted; }
+#visualizer.paused-effect { color: $warning; }
+#big-visual.paused-effect { opacity: 85%; }
+#big-visual.idle-effect { opacity: 70%; }
+#right.playing-effect { border: round $primary; }
+#right.paused-effect { border: round $primary-muted; }
+#status { height: 1; padding: 0 1; color: $text-muted; text-overflow: ellipsis; }
+Screen.immersive #main, Screen.immersive #navigation { display: none; }
+Screen.immersive #stage { height: 1fr; }
+Screen.compact #right, Screen.compact PaneSplitter { display: none; }
+Screen.compact.tools-open #right { display: block; width: 1fr; min-width: 25; }
+Screen.compact.tools-open #left { width: 1fr; }
+Screen.compact.tools-open #center { display: none; }
+Screen.compact #brand { display: none; }
+Screen.compact #navigation Button { width: 1fr; }
+Screen.compact #visualizer { display: none; }
+Screen.short #library-empty { display: none; }
+Screen.compact #results-hint, Screen.compact #queue-hint { display: none; }
+Screen.short #stage { height: 8; }
+Screen.short #stage-heading, Screen.short #stage-title { height: 1; }
+Screen.short #effect-select { display: none; }
+Screen.short #stage-button { margin-top: 0; }
+Screen.short.immersive #stage { height: 1fr; }
 """

@@ -15,7 +15,8 @@ YouTube Music account.
 
 - **Terminal player** — a Textual TUI with search, album browsing, an
   editable queue, local playlists, favorites, local audio files, web
-  radio with live song names, and audio-reactive visuals.
+  radio with live song names, searchable keyboard help, and the Astra visual
+  stage. Press `V` for the immersive view, `Ctrl+F` for favorites, or `F1` for help.
 - **DJ transitions** — the next track is prebuffered on a second silent
   `mpv` deck and blended in with an equal-power crossfade.
 - **Playlist builder** — turn seed songs or a prose brief ("15 songs in the
@@ -61,10 +62,8 @@ plays; pasting a path like `~/Music` lists and plays your local audio files.
 
 ## Logging in (for account features)
 
-Library playlists, playlist create/edit/delete, and liking songs on YouTube
-Music (`f` mirrors your local favorites as YTM likes, including the song a
-radio station is playing) need a login. The default takes seconds and **no
-Google Cloud setup**: sign in at
+YouTube library playlists and playlist create/edit/delete need a login.
+Local favorites work without an account. For browser login, sign in at
 [music.youtube.com](https://music.youtube.com) in any browser, then run
 `bester-ytm auth login` — it reads the login straight from your browser and
 verifies it. No browser access on this machine? `bester-ytm auth login --paste`

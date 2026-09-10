@@ -88,7 +88,7 @@ class PlanStore:
 
 # Marker appended to a faved song's row label in the results and queue lists.
 # Distinct from the multi-select marker, which is a "* " prefix on the left.
-FAVORITE_SUFFIX = " *"
+FAVORITE_SUFFIX = " [fav]"
 
 _LEGACY_FAVORITE_LINE = re.compile(r"^- (?P<name>.+) \((?P<video_id>[^()\s]+)\)$")
 

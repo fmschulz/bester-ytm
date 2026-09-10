@@ -26,6 +26,7 @@ class PlaylistLoadActions:
     _play_queue_after_load: bool
 
     async def action_show_playlists(self) -> None:
+        self.action_leave_stage()
         self.query_one("#search", Input).value = ""
         results = self.query_one("#results", ListView)
         await results.clear()
@@ -33,6 +34,9 @@ class PlaylistLoadActions:
         # A newer search or playlist listing supersedes any in-flight one.
         self._results_load_id += 1
         self._note_results_focus()
+        self._show_results_list()
+        self._clear_result_selection()
+        self._update_library_summary("Playlists")
         local_items = LocalPlaylistStore().search_items()
         for search_item in local_items:
             await results.append(self._result_item(search_item))
@@ -89,7 +93,7 @@ class PlaylistLoadActions:
         results = self.query_one("#results", ListView)
         for playlist in playlists:
             title = playlist.title or playlist.playlist_id
-            item = ListItem(Label(f"{title} ({playlist.track_count})"))
+            item = ListItem(Label(f"{title} ({playlist.track_count})", markup=False))
             item.playlist_id = playlist.playlist_id  # type: ignore[attr-defined]
             item.playlist_title = title  # type: ignore[attr-defined]
             await results.append(item)
@@ -98,11 +102,11 @@ class PlaylistLoadActions:
             f"{len(local_items)} local + {len(playlists)} YouTube playlist(s)."
         )
 
-    async def action_pause_resume(self) -> None:
-        """Space: when it triggers a deferred playlist load, play once tracks arrive."""
+    async def action_toggle_playback(self) -> None:
+        """Transport starts deferred playlist loads once their tracks arrive."""
         self._play_queue_after_load = True
         try:
-            await super().action_pause_resume()  # type: ignore[misc]  # PlaybackActions, via the app MRO
+            await super().action_toggle_playback()  # type: ignore[misc]  # PlaybackActions, via the app MRO
         finally:
             self._play_queue_after_load = False
 

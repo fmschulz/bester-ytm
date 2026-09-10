@@ -12,8 +12,8 @@ from typing import Any
 
 from .config import ConfigError, get_paths, load_config_document, rewrite_config_sections
 
-DEFAULT_VISUALIZER = "mythos"
-DEFAULT_THEME = "ember"
+DEFAULT_VISUALIZER = "astra"
+DEFAULT_THEME = "astra"
 DEFAULT_VISUAL_FPS = 20
 MAX_VISUAL_FPS = 30
 MIN_PANE_CELLS = 10

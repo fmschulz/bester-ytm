@@ -13,14 +13,14 @@ def _sandbox(tmp_path: Path, monkeypatch) -> Path:
     return get_paths().config_file
 
 
-def test_ember_theme_registered_and_applied_by_default(tmp_path, monkeypatch) -> None:
+def test_astra_theme_default_and_ember_still_available(tmp_path, monkeypatch) -> None:
     _sandbox(tmp_path, monkeypatch)
     app = BesterYTMApp()
 
     async def run() -> None:
         async with app.run_test(size=(110, 50)):
             assert "ember" in app.available_themes
-            assert app.theme == "ember"
+            assert app.theme == "astra"
 
     asyncio.run(run())
 

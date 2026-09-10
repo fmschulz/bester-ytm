@@ -6,6 +6,7 @@ import inspect
 from dataclasses import dataclass
 from functools import partial
 
+from rich.text import Text
 from textual import events
 from textual.widgets import ListView, Tree
 from textual.widgets.tree import TreeNode
@@ -13,6 +14,7 @@ from textual.widgets.tree import TreeNode
 from .config import ConfigError
 from .playlist_plan import SongCandidate
 from .search_query import SearchItem
+from .stores import FAVORITE_SUFFIX
 from .ytm_client import PlaylistSnapshot, YTMClientError
 
 SELECTED_PREFIX = "* "
@@ -110,16 +112,22 @@ class AlbumActions:
 
     # --- labels -----------------------------------------------------------
 
-    def _album_label(self, item: SearchItem, selected: bool) -> str:
+    def _album_label(self, item: SearchItem, selected: bool) -> Text:
         details = item.subtitle
         if item.year and item.year not in details:
             details = f"{details} ({item.year})" if details else item.year
         text = f"{item.title} - {details}" if details else item.title
-        return f"{SELECTED_PREFIX}{text}" if selected else text
+        return Text(f"{SELECTED_PREFIX}{text}" if selected else text)
 
-    def _song_label(self, candidate: SongCandidate, selected: bool) -> str:
+    def _song_label(
+        self, candidate: SongCandidate, selected: bool, favorite_ids: set[str] | None = None
+    ) -> Text:
         text = candidate.display_name
-        return f"{SELECTED_PREFIX}{text}" if selected else text
+        if favorite_ids is None:
+            favorite_ids = self._favorite_video_ids()
+        if candidate.video_id in favorite_ids:
+            text += FAVORITE_SUFFIX
+        return Text(f"{SELECTED_PREFIX}{text}" if selected else text)
 
     @staticmethod
     def _song_children(node: TreeNode) -> list[TreeNode]:
@@ -165,11 +173,12 @@ class AlbumActions:
         if data.get("loaded"):
             return
         data["loaded"] = True
+        favorite_ids = self._favorite_video_ids()
         for track in snapshot.tracks:
             self.candidates_by_video_id[track.video_id] = track
             selected = track.video_id in self.selected_result_video_ids
             node.add_leaf(
-                self._song_label(track, selected),
+                self._song_label(track, selected, favorite_ids),
                 data={"kind": "song", "candidate": track},
             )
 
