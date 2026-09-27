@@ -14,6 +14,7 @@ from bester_ytm.tui_player import (
     TrackEnvelope,
     VolumeMeter,
     crossfader_text,
+    loudness,
     track_text,
     volume_text,
 )
@@ -178,3 +179,10 @@ def test_volume_wedge_mutes_on_click_and_turns_with_the_wheel() -> None:
             assert app.actions == ["mute", "up"]
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    ("rms_db", "expected"), [(-60.0, 0.0), (-42.0, 0.0), (-27.0, 0.5), (-12.0, 1.0), (-3.0, 1.0)]
+)
+def test_loudness_uses_a_fixed_scale(rms_db: float, expected: float) -> None:
+    assert loudness(rms_db) == pytest.approx(expected)

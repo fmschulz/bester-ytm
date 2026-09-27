@@ -25,6 +25,10 @@ from .playlist_plan import SongCandidate
 LEVEL_GLYPHS = "▁▂▃▄▅▆▇█"
 BASELINE = LEVEL_GLYPHS[0]
 ENVELOPE_BUCKETS = 240
+# The seek bar compares parts of one track, so it uses a fixed loudness scale
+# rather than the stage's adaptive meter, which would lift a quiet intro to mid.
+QUIET_DB = -42.0
+LOUD_DB = -12.0
 RAIL_CELLS = 11
 PLAY_GLYPH = "▶"
 PAUSE_GLYPH = "❚❚"
@@ -41,6 +45,11 @@ def format_time(seconds: float | None) -> str:
     if hours:
         return f"{hours}:{minutes:02d}:{secs:02d}"
     return f"{minutes}:{secs:02d}"
+
+
+def loudness(rms_db: float) -> float:
+    """An RMS reading on the fixed 0..1 scale the seek bar draws."""
+    return min(1.0, max(0.0, (rms_db - QUIET_DB) / (LOUD_DB - QUIET_DB)))
 
 
 class TrackEnvelope:

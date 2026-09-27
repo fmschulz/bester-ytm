@@ -22,6 +22,7 @@ from .tui_player import (
     VolumeMeter,
     crossfader_text,
     format_time,
+    loudness,
     track_text,
 )
 from .tui_rows import QueueRow, queue_heading
@@ -171,22 +172,23 @@ class PlaybackRenderer:
         """Sample and draw the stage while music plays; draw once per state change."""
         state = self._playback_state()
         if state == "live" and self.visual_fps > 0:
-            self.signal.sample(self._read_audio_level())
-            self._record_envelope()
+            rms_db = self._read_audio_level()
+            self.signal.sample(rms_db)
+            self._record_envelope(rms_db)
         elif state == self._stage_state:
             return  # paused or idle: the last frame stays on screen
         self._stage_state = state
         self._draw_stage(state)
 
-    def _record_envelope(self) -> None:
+    def _record_envelope(self, rms_db: float | None) -> None:
         """Note the loudness just heard at the playhead and redraw the seek bar."""
         status = self.last_playback_status
         if status is None:
             return
         position = self._position_seconds(status)
-        if status.current_video_id and status.duration_seconds:
+        if rms_db is not None and status.current_video_id and status.duration_seconds:
             fraction = position / status.duration_seconds
-            self.envelope.record(status.current_video_id, fraction, self.signal.history[-1])
+            self.envelope.record(status.current_video_id, fraction, loudness(rms_db))
         self._update_seek_bar(status, position)
 
     def _draw_stage(self, state: StageState) -> None:
