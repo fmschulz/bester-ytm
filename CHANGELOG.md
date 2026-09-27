@@ -7,36 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-27
+
 ### Added
 
-- Pulsar, a stage scene that plots recent loudness as a ridgeline in the
-  style of the pulsar plot on Joy Division's *Unknown Pleasures*.
-- A seek bar that draws how loud each stretch of the playing track was, so
-  the played part shows the shape of the song. Click it to seek.
-- A crossfader in the player that shows the live deck and slides with each
-  blend, and a volume wedge that mutes on click and turns with the scroll
-  wheel.
+- Pulsar, a stage scene that draws recent loudness as a ridgeline like the
+  pulsar plot on Joy Division's *Unknown Pleasures*.
+- A seek bar that draws each stretch of the track at the loudness it had when
+  it played; click it to seek.
+- A crossfader that shows the live deck and slides during each blend, and a
+  volume wedge that mutes on click and turns with the scroll wheel.
 - Tooltips on the player and stage controls, and a hint in an empty queue.
 
 ### Changed
 
-- The stage draws on a half-block pixel canvas (two pixels per cell) in the
-  colors of the active theme and no longer builds markup for each frame; its
-  CPU time per full-screen frame drops by about two thirds. Astra is now a
-  black hole with a Doppler-bright accretion disk, photon ring, and lensed
-  halo.
+- The stage draws two pixels per character cell in the active theme's colors
+  and no longer builds markup for each frame, which cuts its CPU time per
+  full-screen frame by about two thirds. Astra is now a black hole with an
+  accretion disk, photon ring, and lensed halo.
 - Mythos, Oracle, Wave, and Pulse are retired; a saved choice of one of them
   opens on Astra.
 - Pane titles and key hints sit in the pane borders, the stage heading takes
-  one row, and the player takes two rows with symbol transport buttons.
-  Clicking the stage toggles full screen.
-- Result and queue rows fit on one line with a right-aligned duration or
-  kind. `★` marks favorites, `●` marked results, and `▶` the playing track,
-  replacing `[fav]`, `* `, and `NOW`.
-- Workspace buttons name their action: New playlist, Save queue, Add track,
-  Remove track, Clear queue.
-- The footer shows fewer keys so it fits at 120 columns; `x`, `s`, and `c`
-  remain listed in the keyboard guide.
+  one row, and the player uses symbol transport buttons. Clicking the stage
+  toggles full screen.
+- Results and the queue use one-line rows with right-aligned durations or kind
+  tags. `★`, `●`, and `▶` replace `[fav]`, `* `, and `NOW`.
+- Workspace buttons name their action (New playlist, Save queue, Add track,
+  Remove track, Clear queue), and the footer fits at 120 columns; `x`, `s`,
+  and `c` remain in the keyboard guide.
+- The documentation is shorter and matches the new interface.
 
 ## [1.4.0] - 2026-09-09
 
