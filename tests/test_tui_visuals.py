@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import time
+from dataclasses import replace
 
 import pytest
 
@@ -331,46 +332,58 @@ def _heard(app: BesterYTMApp) -> int:
     return sum(level is not None for level in app.envelope.levels)
 
 
-def _playing(video_id: str, deck: str = "A") -> PlaybackStatus:
+def _playing(video_id: str, process_id: int = 100) -> PlaybackStatus:
     return PlaybackStatus(
         running=True,
         current_video_id=video_id,
         position_seconds=80,
         duration_seconds=100,
-        active_deck=deck,
+        process_id=process_id,
     )
 
 
-def test_seek_bar_picture_starts_afresh_after_a_detour_to_radio(monkeypatch, tmp_path) -> None:
-    app = _make_app(monkeypatch, tmp_path, FakeStage())
-    app._follow_playback_instance(_playing("v1"))
-    app.envelope.record("v1", 0.8, 0.9)
+def _discard_worker(work: object, **kwargs: object) -> None:
+    """Drop a worker unrun; a coroutine must be closed or Python warns."""
+    close = getattr(work, "close", None)
+    if close is not None:
+        close()
 
-    app._follow_playback_instance(_playing("radio:bytefm"))
-    app._follow_playback_instance(_playing("v1"))
+
+def _app_hearing_v1(monkeypatch, tmp_path) -> BesterYTMApp:
+    """An app whose seek bar has heard 80% into v1, played by process 100."""
+    app = _make_app(monkeypatch, tmp_path, FakeStage())
+    monkeypatch.setattr(app, "run_worker", _discard_worker)
+    app._refresh_playback(_playing("v1"))
+    app.envelope.record("v1", 0.8, 0.9)
+    return app
+
+
+def test_seek_bar_picture_starts_afresh_after_a_detour_to_radio(monkeypatch, tmp_path) -> None:
+    app = _app_hearing_v1(monkeypatch, tmp_path)
+
+    app._refresh_playback(_playing("radio:bytefm", process_id=101))
+    app._refresh_playback(_playing("v1", process_id=102))
 
     assert app.envelope.video_id == "v1"
     assert _heard(app) == 0
 
 
-def test_a_crossfade_into_the_same_song_starts_a_fresh_picture(monkeypatch, tmp_path) -> None:
-    app = _make_app(monkeypatch, tmp_path, FakeStage())
-    app._follow_playback_instance(_playing("v1", deck="A"))
-    app.envelope.record("v1", 0.8, 0.9)
+def test_a_restart_of_the_same_song_starts_a_fresh_picture(monkeypatch, tmp_path) -> None:
+    """A cut or a crossfade into the same song runs a new mpv process."""
+    app = _app_hearing_v1(monkeypatch, tmp_path)
 
-    app._follow_playback_instance(_playing("v1", deck="B"))
+    app._refresh_playback(_playing("v1", process_id=101))
 
     assert _heard(app) == 0
 
 
-def test_resyncing_the_playing_track_keeps_its_picture(monkeypatch, tmp_path) -> None:
+def test_polls_pause_and_resync_keep_the_picture(monkeypatch, tmp_path) -> None:
     """Starting a new playlist re-syncs the playing track; its picture must survive."""
-    app = _make_app(monkeypatch, tmp_path, FakeStage())
-    app._follow_playback_instance(_playing("v1"))
-    app.envelope.record("v1", 0.8, 0.9)
+    app = _app_hearing_v1(monkeypatch, tmp_path)
 
+    app._refresh_playback(_playing("v1"))
     app._sync_current_track("v1")
-    app._follow_playback_instance(_playing("v1"))
+    app._refresh_playback(replace(_playing("v1"), paused=True))
 
     assert _heard(app) == 1
 

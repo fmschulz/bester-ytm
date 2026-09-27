@@ -20,3 +20,6 @@ class PlaybackStatus:
     mix_progress: float | None = None
     active_deck: str = "A"
     transition_error: str | None = None
+    # The live mpv process; every start and every crossfade promotion brings a
+    # new one, so it tells a restart of the same song from a continuation.
+    process_id: int | None = None

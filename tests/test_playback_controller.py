@@ -11,6 +11,8 @@ from bester_ytm.playback import PlaybackController, PlaybackError
 
 
 class RunningProcess:
+    pid = 4242
+
     def __init__(self) -> None:
         self.signals: list[int] = []
         self.terminated = False

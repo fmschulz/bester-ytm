@@ -46,7 +46,7 @@ class PlaybackRenderer:
     last_playback_status: PlaybackStatus | None
     current_candidate: SongCandidate | None
     _status_clock: float
-    _playback_instance: tuple[str | None, str]
+    _playback_instance: tuple[str | None, int | None]
     _stage_state: StageState | None
     _rendered_now_playing_id: str | None
     _synced_current_video_id: str | None
@@ -79,10 +79,10 @@ class PlaybackRenderer:
     def _follow_playback_instance(self, status: PlaybackStatus) -> None:
         """Start a fresh seek bar picture whenever a track starts playing.
 
-        A crossfade always switches decks, so the (track, deck) pair changes even
-        when the same song follows itself; a stop clears the track.
+        Every start and crossfade runs a new mpv process, so the (track, process)
+        pair changes even when the same song follows itself; a stop clears both.
         """
-        instance = (status.current_video_id, status.active_deck)
+        instance = (status.current_video_id, status.process_id)
         if instance != self._playback_instance:
             self._playback_instance = instance
             self.envelope.start(status.current_video_id)

@@ -170,7 +170,7 @@ class BesterYTMApp(
         self._status_clock = 0.0
         self.signal = AudioSignal(1.0 / self.visual_fps if self.visual_fps else 1.0)
         self.envelope = TrackEnvelope()
-        self._playback_instance: tuple[str | None, str] = (None, "A")
+        self._playback_instance: tuple[str | None, int | None] = (None, None)
         self._stage_state: StageState | None = None
 
     def get_default_screen(self) -> WorkspaceScreen:

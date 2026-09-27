@@ -11,6 +11,8 @@ from bester_ytm.transitions import (
 
 
 class RunningProcess:
+    pid = 4242
+
     def poll(self) -> None:
         return None
 
@@ -357,6 +359,7 @@ def test_play_video_sets_volume_flag_and_resets_active_deck(monkeypatch) -> None
 
     class FakeProcess:
         returncode = None
+        pid = 4243
 
         def poll(self) -> None:
             return None

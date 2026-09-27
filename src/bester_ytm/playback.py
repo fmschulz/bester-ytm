@@ -276,6 +276,7 @@ class PlaybackController:
             mix_progress=eng.mix_progress if (eng := self._engine) and eng.is_mixing else None,
             active_deck=self.active_deck,
             transition_error=self.last_transition_error,
+            process_id=self.process.pid if running and self.process else None,
         )
 
     def read_audio_level_db(self) -> float | None:
