@@ -2,34 +2,13 @@ import asyncio
 
 from textual.widgets import Select
 
-from bester_ytm.playback import PlaybackStatus
 from bester_ytm.tui import BesterYTMApp
-from bester_ytm.tui_effects import render_deck_status
 from bester_ytm.tui_layout import EFFECT_OPTIONS
 from bester_ytm.tui_visuals import EFFECT_ORDER
 
 
 def test_effect_registry_matches_dropdown_options() -> None:
     assert [value for _, value in EFFECT_OPTIONS] == list(EFFECT_ORDER)
-
-
-def test_deck_status_reports_deck_and_transition() -> None:
-    status = PlaybackStatus(
-        running=True, active_deck="A", transition_style="crossfade", fade_seconds=4
-    )
-    line = render_deck_status(status)
-    assert "DECK A" in line and "xfade 4s" in line and "playing" in line
-
-
-def test_deck_status_shows_mix_progress_during_a_crossfade() -> None:
-    status = PlaybackStatus(running=True, active_deck="B", mix_progress=0.5)
-    line = render_deck_status(status)
-    assert line.startswith("MIX") and "A" in line and "B" in line
-
-
-def test_deck_status_marks_idle_and_paused() -> None:
-    assert "idle" in render_deck_status(PlaybackStatus(running=False))
-    assert "paused" in render_deck_status(PlaybackStatus(running=True, paused=True))
 
 
 def test_dropdown_changes_visualizer_effect(monkeypatch, tmp_path) -> None:

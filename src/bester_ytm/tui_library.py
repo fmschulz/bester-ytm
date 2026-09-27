@@ -14,6 +14,7 @@ from .playlist_plan import SongCandidate
 from .radio import station_search_items
 from .search_query import ParsedSearch, SearchItem, parse_search_query
 from .stores import FAVORITE_SUFFIX, FavoritesStore, LocalPlaylistStore
+from .tui_effects import NO_TRACK
 from .ytm_client import PlaylistSnapshot, YTMClientError
 
 
@@ -278,7 +279,8 @@ class LibraryActions:
             # Pre-fill the save name so w writes straight back to this playlist.
             name_input.value = title
         self.current_candidate = None
-        self._update_track_label("No track playing.")
+        self._update_track_label(NO_TRACK)
+        self._show_playing_favorite(False)
         await self._render_queue()
 
     def _favorite_video_ids(self) -> set[str]:
@@ -311,7 +313,7 @@ class LibraryActions:
         self.run_worker(self._render_queue(), exclusive=True, group="queue-render")
         current = self.current_candidate
         if current is not None and current.video_id == video_id:
-            self._update_track_label(current.display_name + (FAVORITE_SUFFIX if faved else ""))
+            self._show_playing_favorite(faved)
 
     async def _refresh_favorites_view(self, load_id: int) -> None:
         """Keep the filter, cursor and surviving selections when a favorite changes."""

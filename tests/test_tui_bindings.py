@@ -1,9 +1,12 @@
 import asyncio
+from dataclasses import replace
 
+import pytest
 from textual.binding import Binding
 
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.tui import BesterYTMApp
+from bester_ytm.tui_player import PAUSE_GLYPH, PLAY_GLYPH
 
 
 def test_playlist_shortcut_has_priority_binding() -> None:
@@ -117,9 +120,6 @@ def test_volume_buttons_send_playback_commands() -> None:
         app = BesterYTMApp()
         app.playback = FakePlayback()  # type: ignore[assignment]
         async with app.run_test() as pilot:
-            # The right pane scrolls; bring the volume row into view first.
-            app.query_one("#volume-row").scroll_visible(animate=False)
-            await pilot.pause()
             await pilot.click("#volume-down-button")
             await pilot.pause()
             assert app.playback.volume == 45
@@ -128,9 +128,10 @@ def test_volume_buttons_send_playback_commands() -> None:
             await pilot.pause()
             assert app.playback.volume == 50
 
-            await pilot.click("#mute-button")
+            await pilot.click("#volume")  # the volume wedge mutes on click
             await pilot.pause()
             assert app.playback.muted is True
+            assert "mute" in str(app.query_one("#volume").render())
 
     asyncio.run(run_flow())
 
@@ -171,32 +172,17 @@ def test_punctuation_keys_trigger_bound_actions(monkeypatch) -> None:
     asyncio.run(run_flow())
 
 
-def test_playback_effects_update_for_playing_paused_and_idle(monkeypatch) -> None:
+def test_transport_reflects_playing_paused_and_idle(monkeypatch) -> None:
     class FakeWidget:
         def __init__(self) -> None:
-            self.value = ""
-            self.classes = set()
+            self.value: object = ""
+            self.label = ""
 
-        def update(self, value: str) -> None:
+        def update(self, value: object) -> None:
             self.value = value
 
-        def add_class(self, class_name: str) -> None:
-            self.classes.add(class_name)
-
-        def remove_class(self, class_name: str) -> None:
-            self.classes.discard(class_name)
-
-    visualizer = FakeWidget()
-    panel = FakeWidget()
-    progress_time = FakeWidget()
-    volume = FakeWidget()
-    track = FakeWidget()
-    status_widget = FakeWidget()
-    progress_updates = []
-
-    class FakeProgress:
-        def update(self, *, total, progress) -> None:
-            progress_updates.append((total, progress))
+        def show(self, *args, **kwargs) -> None:
+            self.value = (args, kwargs)
 
     class FakePlayback:
         def __init__(self) -> None:
@@ -213,15 +199,18 @@ def test_playback_effects_update_for_playing_paused_and_idle(monkeypatch) -> Non
             return self.current
 
     widgets = {
-        "#visualizer": visualizer,
-        "#right": panel,
-        "#progress-time": progress_time,
-        "#volume-status": volume,
-        "#track": track,
-        "#status": status_widget,
-        "#progress": FakeProgress(),
+        name: FakeWidget()
+        for name in (
+            "#play-button",
+            "#progress-time",
+            "#duration-time",
+            "#progress",
+            "#crossfader",
+            "#volume",
+            "#track",
+            "#status",
+        )
     }
-
     app = BesterYTMApp()
     app.playback = FakePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
@@ -229,30 +218,21 @@ def test_playback_effects_update_for_playing_paused_and_idle(monkeypatch) -> Non
 
     app._refresh_playback()
 
-    assert visualizer.value.startswith("DECK")
-    assert "(playing)" in visualizer.value
-    assert "playing-effect" in panel.classes
-    assert "paused-effect" not in panel.classes
-    assert progress_updates[-1] == (60, 15)
+    assert widgets["#play-button"].label == PAUSE_GLYPH
+    assert widgets["#progress-time"].value == "0:15"
+    assert widgets["#duration-time"].value == "1:00"
+    (fraction, _levels), _ = widgets["#progress"].value
+    assert fraction == pytest.approx(0.25, abs=0.01)
+    assert widgets["#volume"].value == ((55,), {"muted": False})
 
-    app.playback.current = PlaybackStatus(
-        running=True,
-        current_video_id="v1",
-        paused=True,
-        position_seconds=30,
-        duration_seconds=60,
-        volume=55,
-    )
+    app.playback.current = replace(app.playback.current, paused=True, position_seconds=30)
     app._refresh_playback()
 
-    assert "(paused)" in visualizer.value
-    assert "paused-effect" in panel.classes
-    assert "playing-effect" not in panel.classes
+    assert widgets["#play-button"].label == PLAY_GLYPH
+    assert widgets["#progress-time"].value == "0:30"
 
     app.playback.current = PlaybackStatus(running=False, current_video_id=None)
     app._refresh_playback()
 
-    assert "(idle)" in visualizer.value
-    assert "idle-effect" in visualizer.classes
-    assert "playing-effect" not in panel.classes
-    assert "paused-effect" not in panel.classes
+    assert widgets["#play-button"].label == PLAY_GLYPH
+    assert widgets["#progress"].value == ((None, ()), {})

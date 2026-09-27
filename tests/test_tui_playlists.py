@@ -498,7 +498,7 @@ def test_tui_space_on_selected_playlist_loads_and_starts_queue(monkeypatch) -> N
 
     assert app.playback.current_video_id == "v1"
     assert app.playback.queue == ["v2"]
-    assert track.value == "Beach House - Myth"
+    assert track.value == "Myth  Beach House"
     assert [_item_label(item) for item in queue.items] == [
         "NOW  Beach House - Myth",
         "02  Beach House - Silver Soul",
@@ -568,7 +568,7 @@ def test_tui_queue_item_selection_jumps_to_that_song(monkeypatch) -> None:
 
     assert app.playback.current_video_id == "v2"
     assert app.playback.queue == ["v3"]
-    assert track.value == "Artist B - Two"
+    assert track.value == "Two  Artist B"
     assert [_item_label(item) for item in queue.items] == [
         "01  Artist A - One",
         "NOW  Artist B - Two",
@@ -642,7 +642,7 @@ def test_tui_auto_advances_when_playing_track_finishes(monkeypatch) -> None:
     assert app.playback.queue == []
     assert app.playback_was_active is True
     assert app.auto_advance_pending is False
-    assert track.value == "Artist B - Two"
+    assert track.value == "Two  Artist B"
     assert [_item_label(item) for item in queue.items] == [
         "01  Artist A - One",
         "NOW  Artist B - Two",
@@ -901,7 +901,7 @@ def test_tui_search_result_replaces_loaded_queue_before_playing(monkeypatch) -> 
     assert app.playback.replaced_with == ["search-v1"]
     assert app.playback.current_video_id == "search-v1"
     assert app.playback.queue == []
-    assert track.value == "Artist - Search Song"
+    assert track.value == "Search Song  Artist"
     assert status.value == "Playing."
 
 
@@ -1025,7 +1025,7 @@ def test_tui_keyboard_playlist_flow_loads_and_starts_queue(monkeypatch, tmp_path
 
             assert app.playback.current_video_id == "v1"
             assert app.playback.queue == ["v2"]
-            assert str(app.query_one("#track").render()) == "Artist A - One"
+            assert str(app.query_one("#track").render()) == "One  Artist A"
 
     monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
 

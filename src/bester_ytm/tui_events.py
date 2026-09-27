@@ -25,7 +25,6 @@ class EventHandlers:
 
     BUTTON_ACTIONS = {
         "prev-button": "previous_track",
-        "rewind-button": "seek_backward",
         "play-button": "toggle_playback",
         "favorites-button": "show_favorites",
         "favorite-playing-button": "toggle_playing_favorite",
@@ -34,7 +33,6 @@ class EventHandlers:
         "help-button": "help",
         "tools-button": "toggle_tools",
         "stage-button": "toggle_stage",
-        "forward-button": "seek_forward",
         "next-button": "next_track",
         "shuffle-button": "shuffle_queue",
         "transition-button": "cycle_transition",
@@ -43,7 +41,6 @@ class EventHandlers:
         "fade-up-button": "fade_longer",
         "volume-down-button": "volume_down",
         "volume-up-button": "volume_up",
-        "mute-button": "mute",
         "new-playlist-button": "new_playlist",
         "add-local-playlist-button": "add_to_local_playlist",
         "remove-local-playlist-button": "remove_from_playlist",
@@ -138,16 +135,3 @@ class EventHandlers:
         result = getattr(self, f"action_{action_name}")()
         if inspect.iscoroutine(result):
             await result
-
-    async def on_click(self, event: events.Click) -> None:
-        widget = event.widget
-        while widget is not None and getattr(widget, "id", None) != "progress":
-            widget = getattr(widget, "parent", None)
-        if widget is None:
-            return
-        status = self.playback.status()
-        if not status.duration_seconds:
-            return
-        width = max(1, widget.size.width)
-        ratio = min(1.0, max(0.0, event.x / width))
-        self._seek_absolute(status.duration_seconds * ratio)

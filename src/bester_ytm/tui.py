@@ -22,7 +22,7 @@ from .transitions import DEFAULT_APP_SETTINGS
 from .tui_album import AlbumActions
 from .tui_album_actions import AlbumQueueActions
 from .tui_builder import BuilderActions
-from .tui_effects import PlaybackRenderer, StageState, render_deck_status
+from .tui_effects import PlaybackRenderer, StageState
 from .tui_events import EventHandlers
 from .tui_help import HelpScreen
 from .tui_layout import WorkspaceScreen, build_layout
@@ -30,6 +30,7 @@ from .tui_library import LibraryActions
 from .tui_metadata import TrackMetadataActions
 from .tui_options import UiOptionsActions
 from .tui_playback import PlaybackActions
+from .tui_player import TrackEnvelope, crossfader_text, volume_text
 from .tui_playlists import PlaylistLoadActions
 from .tui_queue import QueueEditActions
 from .tui_radio import RadioActions
@@ -166,7 +167,9 @@ class BesterYTMApp(
         self.result_selection_anchor_video_id: str | None = None
         self.build_in_progress = False
         self.last_playback_status: PlaybackStatus | None = None
+        self._status_clock = 0.0
         self.signal = AudioSignal(1.0 / self.visual_fps if self.visual_fps else 1.0)
+        self.envelope = TrackEnvelope()
         self._stage_state: StageState | None = None
 
     def get_default_screen(self) -> WorkspaceScreen:
@@ -174,17 +177,17 @@ class BesterYTMApp(
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        yield from build_layout(self._idle_visualizer_text(), self.visualizer_effect)
-        yield Footer()
-
-    def _idle_visualizer_text(self) -> str:
-        return render_deck_status(
-            PlaybackStatus(
-                running=False,
-                transition_style=self.transition_settings.style.value,
-                fade_seconds=self.transition_settings.fade_seconds,
-            )
+        idle = PlaybackStatus(
+            running=False,
+            transition_style=self.transition_settings.style.value,
+            fade_seconds=self.transition_settings.fade_seconds,
         )
+        yield from build_layout(
+            self.visualizer_effect,
+            crossfader_text(idle),
+            volume_text(self.app_options.volume, muted=False),
+        )
+        yield Footer()
 
     async def on_mount(self) -> None:
         self._apply_branded_theme()

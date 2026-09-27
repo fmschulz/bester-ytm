@@ -6,6 +6,7 @@ from bester_ytm import tui
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.stores import FavoritesStore
+from bester_ytm.tui_player import FAVORITE_GLYPH
 
 
 class FakeStatic:
@@ -16,6 +17,18 @@ class FakeStatic:
     def update(self, value: str) -> None:
         self.value = value
         self.update_count += 1
+
+
+class FakeButton:
+    def __init__(self) -> None:
+        self.label = ""
+        self.classes: set[str] = set()
+
+    def set_class(self, enabled: bool, name: str) -> None:
+        if enabled:
+            self.classes.add(name)
+        else:
+            self.classes.discard(name)
 
 
 class FakePlayback:
@@ -34,7 +47,7 @@ class FakePlayback:
 def _make_app(monkeypatch, tmp_path, playback) -> tuple[tui.BesterYTMApp, dict, list[str]]:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
-    widgets = {"#track": FakeStatic()}
+    widgets = {"#track": FakeStatic(), "#favorite-playing-button": FakeButton()}
     app = tui.BesterYTMApp()
     app.playback = playback  # type: ignore[assignment]
     app.candidates_by_video_id = {
@@ -54,12 +67,12 @@ def test_track_change_updates_now_playing_label(monkeypatch, tmp_path) -> None:
     playback = FakePlayback("v1")
     app, widgets, _ = _make_app(monkeypatch, tmp_path, playback)
     app._refresh_playback()
-    assert widgets["#track"].value == "A - One"
+    assert widgets["#track"].value == "One  A"
 
     playback.current_video_id = "v2"
     app._refresh_playback()
 
-    assert widgets["#track"].value == "B - Two"
+    assert widgets["#track"].value == "Two  B"
 
 
 def test_tick_with_unchanged_track_does_not_rerender_label(monkeypatch, tmp_path) -> None:
@@ -73,13 +86,16 @@ def test_tick_with_unchanged_track_does_not_rerender_label(monkeypatch, tmp_path
     assert widgets["#track"].update_count == renders
 
 
-def test_now_playing_label_marks_faved_track(monkeypatch, tmp_path) -> None:
+def test_player_star_fills_for_a_faved_track(monkeypatch, tmp_path) -> None:
     app, widgets, _ = _make_app(monkeypatch, tmp_path, FakePlayback("v1"))
     FavoritesStore().toggle(app.candidates_by_video_id["v1"])
 
     app._refresh_playback()
 
-    assert widgets["#track"].value == "A - One [fav]"
+    star = widgets["#favorite-playing-button"]
+    assert widgets["#track"].value == "One  A"
+    assert star.label == FAVORITE_GLYPH
+    assert "is-favorite" in star.classes
 
 
 def test_corrupt_favorites_store_degrades_to_status_message(monkeypatch, tmp_path) -> None:
@@ -91,6 +107,6 @@ def test_corrupt_favorites_store_degrades_to_status_message(monkeypatch, tmp_pat
 
     app._refresh_playback()
 
-    assert widgets["#track"].value == "A - One"
+    assert widgets["#track"].value == "One  A"
     assert "corrupt" in statuses[-1]
     assert "Move the file aside" in statuses[-1]

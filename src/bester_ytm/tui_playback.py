@@ -10,6 +10,7 @@ from .playlist_plan import SongCandidate
 from .radio import is_radio_video_id
 from .transitions import TransitionSettings, TransitionStyle
 from .tui_effects import format_time
+from .tui_player import SeekBar
 
 
 class PlaybackActions:
@@ -245,6 +246,11 @@ class PlaybackActions:
         self._refresh_playback(status)
         direction = "forward" if seconds > 0 else "back"
         self._set_status(f"Seeked {direction} {abs(int(seconds))}s.")
+
+    def on_seek_bar_seek(self, message: SeekBar.Seek) -> None:
+        status = self.playback.status()
+        if status.duration_seconds:
+            self._seek_absolute(status.duration_seconds * message.fraction)
 
     def _seek_absolute(self, seconds: float) -> None:
         try:

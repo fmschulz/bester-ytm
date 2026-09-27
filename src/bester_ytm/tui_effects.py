@@ -1,18 +1,32 @@
-"""Visualizer rendering and playback status widgets for the TUI."""
+"""Reflect playback into the stage, the player deck, and the queue."""
 
 from __future__ import annotations
 
+import time
 from typing import Literal
 
-from textual.widgets import Button, Label, ListItem, ListView, ProgressBar, Static
+from textual.content import Content
+from textual.widgets import Button, Label, ListItem, ListView, Static
 
 from .playback import PlaybackError, PlaybackStatus
 from .playlist_plan import SongCandidate
 from .stores import FAVORITE_SUFFIX
+from .tui_player import (
+    ENVELOPE_BUCKETS,
+    FAVORITE_GLYPH,
+    NOT_FAVORITE_GLYPH,
+    PAUSE_GLYPH,
+    PLAY_GLYPH,
+    SeekBar,
+    TrackEnvelope,
+    VolumeMeter,
+    crossfader_text,
+    track_text,
+)
 from .tui_stage import Stage
 from .tui_visuals import AudioSignal
 
-METER_SLOTS = 12
+NO_TRACK = "No track playing."
 
 StageState = Literal["live", "paused", "idle"]
 
@@ -28,30 +42,6 @@ def format_time(seconds: float | None) -> str:
     return f"{minutes}:{secs:02d}"
 
 
-def mix_meter(progress: float) -> str:
-    filled = int(METER_SLOTS * min(1.0, max(0.0, progress)))
-    return "[" + "#" * filled + "-" * (METER_SLOTS - filled) + "]"
-
-
-def style_label(status) -> str:
-    if status.transition_style == "cut":
-        return "cut"
-    return f"xfade {status.fade_seconds:g}s"
-
-
-def render_deck_status(status) -> str:
-    """The one-line deck/crossfade readout under the transport (the audio-reactive
-    panels carry the motion now; this just reports which deck is live and how it mixes)."""
-    label = style_label(status)
-    state = "playing" if status.running and not status.paused else (
-        "paused" if status.running else "idle"
-    )
-    if status.mix_progress is None:
-        return f"DECK {status.active_deck}  {label}  ({state})"
-    outgoing = "B" if status.active_deck == "A" else "A"
-    return f"MIX  {outgoing} {mix_meter(status.mix_progress)} {status.active_deck}  {label}"
-
-
 class PlaybackRenderer:
     """Mixin that reflects playback and queue state into the mounted widgets."""
 
@@ -60,8 +50,10 @@ class PlaybackRenderer:
     playback_was_active: bool
     visualizer_effect: str
     signal: AudioSignal
+    envelope: TrackEnvelope
     last_playback_status: PlaybackStatus | None
     current_candidate: SongCandidate | None
+    _status_clock: float
     _stage_state: StageState | None
     _rendered_now_playing_id: str | None
     _synced_current_video_id: str | None
@@ -76,7 +68,7 @@ class PlaybackRenderer:
         except PlaybackError:
             return
         self.last_playback_status = status
-        self._update_playback_effects(status)
+        self._status_clock = time.monotonic()
         self._announce_transition(status)
         if self._handle_auto_advance(status):
             return
@@ -137,56 +129,74 @@ class PlaybackRenderer:
             self._set_status("Queue finished.")
         return False
 
-    def _update_transport_widgets(self, status) -> None:
-        duration = status.duration_seconds or 1
-        position = status.position_seconds or 0
-        if status.duration_seconds:
-            position = min(position, duration)
-        progress = self._query_optional("#progress", ProgressBar)
-        if progress:
-            progress.update(total=duration, progress=position)
-
-        progress_time = self._query_optional("#progress-time", Static)
-        if progress_time:
-            state = "paused" if status.paused else "playing" if status.running else "stopped"
-            end = format_time(status.duration_seconds) if status.duration_seconds else (
-                "LIVE" if status.running else "0:00"
-            )
-            progress_time.update(f"{format_time(position)} / {end}  {state}")
-
+    def _update_transport_widgets(self, status: PlaybackStatus) -> None:
+        position = self._position_seconds(status)
+        elapsed = self._query_optional("#progress-time", Static)
+        if elapsed is not None:
+            elapsed.update(format_time(position))
+        total = self._query_optional("#duration-time", Static)
+        if total is not None:
+            total.update(self._duration_label(status))
+        self._update_seek_bar(status, position)
         play_button = self._query_optional("#play-button", Button)
-        if play_button:
-            play_button.label = "Resume" if status.paused else "Pause" if status.running else "Play"
+        if play_button is not None:
+            is_playing = status.running and not status.paused
+            play_button.label = PAUSE_GLYPH if is_playing else PLAY_GLYPH
+        crossfader = self._query_optional("#crossfader", Static)
+        if crossfader is not None:
+            crossfader.update(crossfader_text(status))
+        volume = self._query_optional("#volume", VolumeMeter)
+        if volume is not None:
+            volume.show(status.volume, muted=status.muted)
 
-        mute_button = self._query_optional("#mute-button", Button)
-        if mute_button:
-            mute_button.label = "Unmute" if status.muted else "Mute"
-
-    def _update_playback_effects(self, status) -> None:
-        visualizer = self._query_optional("#visualizer", Static)
-        panel = self._query_optional("#right")
-        playing = bool(status.running and not status.paused)
-        paused = bool(status.running and status.paused)
-        idle = not status.running
-
-        self._toggle_widget_class(panel, "playing-effect", playing)
-        self._toggle_widget_class(panel, "paused-effect", paused)
-        self._toggle_widget_class(visualizer, "idle-effect", idle)
-        self._toggle_widget_class(visualizer, "paused-effect", paused)
-
-        if visualizer is None:
+    def _update_seek_bar(self, status: PlaybackStatus, position: float) -> None:
+        seek_bar = self._query_optional("#progress", SeekBar)
+        if seek_bar is None:
             return
-        visualizer.update(render_deck_status(status))
+        if not status.running:
+            seek_bar.show(None, ())
+        elif status.duration_seconds:
+            heard = self.envelope.video_id == status.current_video_id
+            seek_bar.show(position / status.duration_seconds, self.envelope.levels if heard else ())
+        else:  # a stream has no end: show its recent loudness instead
+            seek_bar.show(1.0, list(self.signal.history)[-ENVELOPE_BUCKETS:])
+
+    def _position_seconds(self, status: PlaybackStatus) -> float:
+        """The last reported position plus the time played since that report."""
+        position = status.position_seconds or 0.0
+        if status.running and not status.paused:
+            position += time.monotonic() - self._status_clock
+        if status.duration_seconds:
+            position = min(position, status.duration_seconds)
+        return position
+
+    @staticmethod
+    def _duration_label(status: PlaybackStatus) -> str:
+        if status.duration_seconds:
+            return format_time(status.duration_seconds)
+        return "live" if status.running else "0:00"
 
     def _animate_visual_panel(self) -> None:
         """Sample and draw the stage while music plays; draw once per state change."""
         state = self._playback_state()
         if state == "live" and self.visual_fps > 0:
             self.signal.sample(self._read_audio_level())
+            self._record_envelope()
         elif state == self._stage_state:
             return  # paused or idle: the last frame stays on screen
         self._stage_state = state
         self._draw_stage(state)
+
+    def _record_envelope(self) -> None:
+        """Note the loudness just heard at the playhead and redraw the seek bar."""
+        status = self.last_playback_status
+        if status is None:
+            return
+        position = self._position_seconds(status)
+        if status.current_video_id and status.duration_seconds:
+            fraction = position / status.duration_seconds
+            self.envelope.record(status.current_video_id, fraction, self.signal.history[-1])
+        self._update_seek_bar(status, position)
 
     def _draw_stage(self, state: StageState) -> None:
         stage = self._query_optional("#big-visual", Stage)
@@ -208,35 +218,29 @@ class PlaybackRenderer:
         read = getattr(self.playback, "read_audio_level_db", None)
         return read() if read is not None else None
 
-    def _toggle_widget_class(self, widget, class_name: str, enabled: bool) -> None:
-        if widget is None:
-            return
-        if enabled:
-            add_class = getattr(widget, "add_class", None)
-            if callable(add_class):
-                add_class(class_name)
-            return
-        remove_class = getattr(widget, "remove_class", None)
-        if callable(remove_class):
-            remove_class(class_name)
-
     def _sync_current_track(self, video_id: str | None) -> None:
         self._synced_current_video_id = video_id
-        if not video_id:
-            self.current_candidate = None
-            self._update_track_label("No track playing.")
-            return
-        candidate = self.candidates_by_video_id.get(video_id)
+        candidate = self.candidates_by_video_id.get(video_id) if video_id else None
         self.current_candidate = candidate
-        label = candidate.display_name if candidate else video_id
-        if video_id in self._favorite_video_ids():
-            label += FAVORITE_SUFFIX
-        self._update_track_label(label)
+        if not video_id:
+            self._update_track_label(NO_TRACK)
+            self._show_playing_favorite(False)
+            return
+        self._update_track_label(track_text(candidate) if candidate else video_id)
+        self._show_playing_favorite(video_id in self._favorite_video_ids())
 
-    def _update_track_label(self, label: str) -> None:
+    def _update_track_label(self, label: str | Content) -> None:
         track = self._query_optional("#track", Static)
         if track:
             track.update(label)
+
+    def _show_playing_favorite(self, is_favorite: bool) -> None:
+        """Fill the player's star when the playing song is a favorite."""
+        button = self._query_optional("#favorite-playing-button", Button)
+        if button is None:
+            return
+        button.label = FAVORITE_GLYPH if is_favorite else NOT_FAVORITE_GLYPH
+        button.set_class(is_favorite, "is-favorite")
 
     def _update_queue_title(self, count: int) -> None:
         title = self._query_optional("#queue-title", Label)

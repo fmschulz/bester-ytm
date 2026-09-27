@@ -5,15 +5,16 @@ from __future__ import annotations
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.content import Content
 from textual.message import Message
 from textual.screen import Screen
+from textual.widget import Widget
 from textual.widgets import (
     Button,
     Collapsible,
     Input,
     Label,
     ListView,
-    ProgressBar,
     Select,
     Static,
     TextArea,
@@ -21,6 +22,7 @@ from textual.widgets import (
 
 from .playlist_plan import parse_seed_text
 from .tui_album import AlbumTree
+from .tui_player import NOT_FAVORITE_GLYPH, PLAY_GLYPH, SeekBar, VolumeMeter
 from .tui_splitter import PaneSplitter
 from .tui_stage import Stage
 from .tui_visuals import EFFECT_OPTIONS
@@ -53,7 +55,7 @@ class WorkspaceScreen(Screen):
         self.set_class(self.app.size.height < 35, "short")
 
 
-def build_layout(visualizer_text: str, effect: str = "astra") -> ComposeResult:
+def build_layout(effect: str, deck: Content, volume: Content) -> ComposeResult:
     with Horizontal(id="navigation"):
         yield Label("B / Y  •  MUSIC TERMINAL", id="brand")
         yield Button("Favorites", id="favorites-button", compact=True)
@@ -97,26 +99,48 @@ def build_layout(visualizer_text: str, effect: str = "astra") -> ComposeResult:
             )
             yield Button("Full screen", id="stage-button", compact=True, tooltip="Full screen (V)")
         yield Stage(effect, id="big-visual")
+    yield from _build_player(deck, volume)
+    yield Static("", id="status", markup=False)
+
+
+def _build_player(deck: Content, volume: Content) -> ComposeResult:
+    """Now playing with transport on top; seek bar, crossfader and volume below."""
     with Vertical(id="player"):
         with Horizontal(id="now-playing"):
-            yield Label("NOW PLAYING", id="player-title")
             yield Static("No track playing.", id="track", markup=False)
-            yield Static("0:00 / 0:00", id="progress-time")
-        yield ProgressBar(total=1, show_eta=False, show_percentage=False, id="progress")
-        with Horizontal(id="controls"):
             with Horizontal(id="transport"):
-                yield Button("Prev", id="prev-button", compact=True)
-                yield Button("-10s", id="rewind-button", compact=True)
-                yield Button("Play", id="play-button", compact=True)
-                yield Button("+10s", id="forward-button", compact=True)
-                yield Button("Next", id="next-button", compact=True)
+                yield Button("|◀", id="prev-button", compact=True, tooltip="Previous track (p)")
+                yield Button(
+                    PLAY_GLYPH, id="play-button", compact=True, tooltip="Play or pause (Ctrl+Space)"
+                )
+                yield Button("▶|", id="next-button", compact=True, tooltip="Next track (n)")
+                yield Button(
+                    NOT_FAVORITE_GLYPH,
+                    id="favorite-playing-button",
+                    compact=True,
+                    tooltip="Favorite the playing song",
+                )
+        with Horizontal(id="seek-row"):
+            yield Static("0:00", id="progress-time")
+            yield SeekBar(id="progress")
+            yield Static("0:00", id="duration-time")
+            yield _tipped(
+                Static(deck, id="crossfader"),
+                "The live deck. t switches cut and crossfade; [ and ] set the fade.",
+            )
             with Horizontal(id="volume-row"):
-                yield Button("Vol-", id="volume-down-button", compact=True)
-                yield Button("Vol+", id="volume-up-button", compact=True)
-                yield Button("Mute", id="mute-button", compact=True)
-            yield Button("Favorite playing", id="favorite-playing-button", compact=True)
-            yield Static(visualizer_text, id="visualizer")
-    yield Static("", id="status", markup=False)
+                yield Button("−", id="volume-down-button", compact=True, tooltip="Volume down (-)")
+                yield _tipped(
+                    VolumeMeter(volume, id="volume"),
+                    "Click to mute (m); scroll to change the volume",
+                )
+                yield Button("+", id="volume-up-button", compact=True, tooltip="Volume up (=)")
+
+
+def _tipped(widget: Widget, tooltip: str) -> Widget:
+    """Give a widget whose constructor takes no tooltip one anyway."""
+    widget.tooltip = tooltip
+    return widget
 
 
 def _build_tools() -> ComposeResult:

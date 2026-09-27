@@ -38,23 +38,22 @@ Collapsible > Contents { padding: 0; }
 #effect-select { width: 14; }
 #stage-button { dock: right; }
 #big-visual { height: 1fr; background: $background; }
-#player { height: 4; padding: 0 1; background: $panel; }
-#now-playing { height: 1; }
-#player-title { width: 13; color: $accent; text-style: bold; }
-#track { width: 1fr; height: 1; text-overflow: ellipsis; }
-#progress-time { width: 29; text-align: right; }
-#progress { height: 1; width: 1fr; margin: 0; }
-#progress > Bar { width: 1fr; }
-#controls { height: 1; }
-#transport, #volume-row { width: auto; height: 1; }
-#play-button { width: 8; }
-#visualizer { width: 1fr; height: 1; text-align: right; color: $text-muted; }
-#visualizer.idle-effect { color: $text-muted; }
-#visualizer.paused-effect { color: $warning; }
+#player { height: 3; padding: 1 1 0 1; background: $panel; }
+#now-playing, #seek-row { height: 1; }
+#track { width: 1fr; height: 1; text-wrap: nowrap; text-overflow: ellipsis; }
+#transport { width: auto; height: 1; }
+#transport Button { min-width: 4; margin: 0 0 0 1; }
+#favorite-playing-button.is-favorite { color: $accent; }
+#progress-time, #duration-time { width: auto; height: 1; color: $text-muted; }
+#progress-time { margin-right: 1; }
+#duration-time { margin-left: 1; }
+#progress { width: 1fr; }
+#crossfader { width: auto; height: 1; margin-left: 3; }
+#volume-row { width: auto; height: 1; margin-left: 3; }
+#volume-row Button { min-width: 3; margin: 0; }
+#volume { width: auto; height: 1; margin: 0 1; }
 #big-visual.paused-effect { opacity: 85%; }
 #big-visual.idle-effect { opacity: 70%; }
-#right.playing-effect { border: round $primary; }
-#right.paused-effect { border: round $primary-muted; }
 #status { height: 1; padding: 0 1; color: $text-muted; text-overflow: ellipsis; }
 Screen.immersive #main, Screen.immersive #navigation { display: none; }
 Screen.immersive #stage { height: 1fr; }
@@ -64,7 +63,7 @@ Screen.compact.tools-open #left { width: 1fr; }
 Screen.compact.tools-open #center { display: none; }
 Screen.compact #brand { display: none; }
 Screen.compact #navigation Button { width: 1fr; }
-Screen.compact #visualizer { display: none; }
+Screen.compact #crossfader { display: none; }
 Screen.short #library-empty { display: none; }
 Screen.compact #results-hint, Screen.compact #queue-hint { display: none; }
 Screen.short #stage { height: 7; }

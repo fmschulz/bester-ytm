@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 import pytest
 
@@ -255,7 +256,11 @@ class FakeStage:
 def _make_app(monkeypatch, tmp_path, stage: FakeStage) -> BesterYTMApp:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     app = BesterYTMApp()
-    monkeypatch.setattr(app, "_query_optional", lambda selector, widget_type=None: stage)
+    monkeypatch.setattr(
+        app,
+        "_query_optional",
+        lambda selector, widget_type=None: stage if selector == "#big-visual" else None,
+    )
     return app
 
 
@@ -294,3 +299,19 @@ def test_animation_freezes_when_paused_and_dims_when_stopped(monkeypatch, tmp_pa
     assert len(stage.frames) == 2
     assert stage.frames[-1][1].level == IDLE_LEVEL
     assert stage.classes == {"idle-effect"}
+
+
+def test_live_frames_record_loudness_at_the_playhead(monkeypatch, tmp_path) -> None:
+    app = _make_app(monkeypatch, tmp_path, FakeStage())
+    app.last_playback_status = PlaybackStatus(
+        running=True, current_video_id="v1", position_seconds=50, duration_seconds=100
+    )
+    app._status_clock = time.monotonic()
+    monkeypatch.setattr(app.playback, "read_audio_level_db", lambda: -10.0)
+
+    for _ in range(8):
+        app._animate_visual_panel()
+
+    assert app.envelope.video_id == "v1"
+    assert app.envelope.levels[len(app.envelope.levels) // 2] is not None
+    assert sum(level is not None for level in app.envelope.levels) == 1

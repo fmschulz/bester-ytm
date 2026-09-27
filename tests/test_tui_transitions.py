@@ -26,9 +26,9 @@ class FakeWidget:
         self.classes.discard(class_name)
 
 
-class FakeProgress:
-    def update(self, *, total, progress) -> None:
-        pass
+class FakeSeekBar:
+    def show(self, fraction, levels) -> None:
+        self.fraction = fraction
 
 
 class FakeTransitionPlayback:
@@ -179,18 +179,16 @@ def test_fade_adjustments_report_length_clamps_and_cut_hint(monkeypatch, tmp_pat
 
 def _status_widgets() -> dict[str, object]:
     return {
-        "#visualizer": FakeWidget(),
-        "#right": FakeWidget(),
+        "#crossfader": FakeWidget(),
         "#progress-time": FakeWidget(),
-        "#volume-status": FakeWidget(),
+        "#duration-time": FakeWidget(),
         "#track": FakeWidget(),
-        "#progress": FakeProgress(),
+        "#progress": FakeSeekBar(),
         "#play-button": FakeWidget(),
-        "#mute-button": FakeWidget(),
     }
 
 
-def test_visualizer_renders_mix_meter_and_announces_mix_once(monkeypatch, tmp_path) -> None:
+def test_crossfader_slides_during_a_mix_and_announces_it_once(monkeypatch, tmp_path) -> None:
     widgets = _status_widgets()
     playback = FakeTransitionPlayback(style=TransitionStyle.CROSSFADE)
     app, statuses = _make_app(monkeypatch, tmp_path, playback)
@@ -213,7 +211,7 @@ def test_visualizer_renders_mix_meter_and_announces_mix_once(monkeypatch, tmp_pa
     )
     app._refresh_playback()
 
-    assert widgets["#visualizer"].value == "MIX  A [######------] B  xfade 6s"
+    assert widgets["#crossfader"].value == "A ━━━━━●━━━━━ B  6s"
     assert statuses == ["Mixing into Band - Two."]
 
     playback.current = replace(playback.current, mix_progress=0.75)
@@ -222,10 +220,10 @@ def test_visualizer_renders_mix_meter_and_announces_mix_once(monkeypatch, tmp_pa
 
     playback.current = replace(playback.current, mix_progress=None, fade_seconds=8.0)
     app._refresh_playback()
-    assert widgets["#visualizer"].value == "DECK B  xfade 8s  (playing)"
+    assert widgets["#crossfader"].value == "A ━━━━━━━━━━● B  8s"
 
 
-def test_visualizer_renders_deck_line_when_idle(monkeypatch, tmp_path) -> None:
+def test_crossfader_rests_on_deck_a_when_idle(monkeypatch, tmp_path) -> None:
     widgets = _status_widgets()
     playback = FakeTransitionPlayback()
     app, statuses = _make_app(monkeypatch, tmp_path, playback)
@@ -233,7 +231,7 @@ def test_visualizer_renders_deck_line_when_idle(monkeypatch, tmp_path) -> None:
 
     app._refresh_playback()
 
-    assert widgets["#visualizer"].value == "DECK A  cut  (idle)"
+    assert widgets["#crossfader"].value == "A ●┄┄┄┄┄┄┄┄┄┄ B  cut"
 
 
 def test_refresh_reports_transition_error_once(monkeypatch, tmp_path) -> None:
