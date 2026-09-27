@@ -55,17 +55,22 @@ class WorkspaceScreen(Screen):
         self.set_class(self.app.size.height < 35, "short")
 
 
+RESULTS_HINT = "[b]enter[/b] play  [b]a[/b] add  [b]space[/b] mark  [b]f[/b] favorite"
+QUEUE_HINT = "[b]enter[/b] play  [b]d[/b] remove  [b]j/k[/b] move  [b]w[/b] save"
+
+
 def build_layout(effect: str, deck: Content, volume: Content) -> ComposeResult:
     with Horizontal(id="navigation"):
-        yield Label("B / Y  •  MUSIC TERMINAL", id="brand")
+        yield Label("✦ bester-ytm", id="brand")
         yield Button("Favorites", id="favorites-button", compact=True)
         yield Button("Playlists", id="playlists-button", compact=True)
         yield Button("Radio", id="radio-button", compact=True)
         yield Button("Tools", id="tools-button", compact=True)
         yield Button("? Help", id="help-button", compact=True)
     with Horizontal(id="main"):
-        with Vertical(id="left"):
-            yield Label("DISCOVER", id="library-title")
+        with Vertical(id="left") as library:
+            library.border_title = "Library"
+            library.border_subtitle = RESULTS_HINT
             yield Input(placeholder="Search songs, artists, albums…", id="search")
             yield Static(
                 "Find something worth keeping.\n\n"
@@ -73,19 +78,26 @@ def build_layout(effect: str, deck: Content, volume: Content) -> ComposeResult:
                 "Try album: Discovery or radio:\n\n"
                 "Favorites keeps your finds on this device.\n"
                 "F1 opens the keyboard guide.",
-                id="library-empty", markup=False,
+                id="library-empty",
+                markup=False,
             )
             yield ListView(id="results")
             yield AlbumTree("albums", id="album-tree")
-            yield Static("Enter play / add   Space mark   f favorite", id="results-hint")
         yield PaneSplitter("left", "right", grows_leftward=False)
-        with Vertical(id="center"):
-            yield Label("Queue (0)", id="queue-title", markup=False)
+        with Vertical(id="center") as queue:
+            queue.border_title = "Queue"
+            queue.border_subtitle = QUEUE_HINT
+            yield Static(
+                "Nothing queued yet.\n\n"
+                "Press a on a search result to add it here,\n"
+                "or Enter to play it now.",
+                id="queue-empty",
+                markup=False,
+            )
             yield ListView(id="queue")
-            yield Static("Enter play   d remove   j/k reorder", id="queue-hint")
         yield PaneSplitter("right", "left", grows_leftward=True)
-        with Vertical(id="right"):
-            yield Label("YOUR WORKSPACE", id="tools-title")
+        with Vertical(id="right") as workspace:
+            workspace.border_title = "Workspace"
             yield from _build_tools()
     with Vertical(id="stage"):
         with Horizontal(id="stage-heading"):
@@ -144,22 +156,28 @@ def _tipped(widget: Widget, tooltip: str) -> Widget:
 
 
 def _build_tools() -> ComposeResult:
-    with Collapsible(title="Playlist / Queue", collapsed=False, id="playlist-tools"):
+    with Collapsible(title="Playlist", collapsed=False, id="playlist-tools"):
         yield Input(placeholder="Playlist name", id="playlist-name")
         with Horizontal(id="playlist-actions"):
-            yield Button("New", id="new-playlist-button", compact=True)
-            yield Button("Save", id="save-queue-button", compact=True)
-            yield Button("Add", id="add-local-playlist-button", compact=True)
-            yield Button("Remove", id="remove-local-playlist-button", compact=True)
+            yield Button("New playlist", id="new-playlist-button", compact=True)
+            yield Button("Save queue", id="save-queue-button", compact=True)
+        with Horizontal(id="track-actions"):
+            yield Button("Add track", id="add-local-playlist-button", compact=True)
+            yield Button("Remove track", id="remove-local-playlist-button", compact=True)
         with Horizontal(id="queue-actions"):
             yield Button("Shuffle", id="shuffle-button", compact=True)
-            yield Button("Clear", id="clear-button", compact=True)
+            yield Button("Clear queue", id="clear-button", compact=True)
     with Collapsible(title="Playlist builder", collapsed=False, id="builder-tools"):
-        yield BuilderTextArea(id="builder", language="markdown")
+        yield BuilderTextArea(
+            id="builder",
+            language="markdown",
+            placeholder="Describe a playlist, e.g. 15 songs like Blind Guardian, "
+            "or paste Artist - Title lines.",
+        )
         with Horizontal(id="builder-actions"):
-            yield Button("Build Playlist", id="build-button", compact=True)
-    with Collapsible(title="DJ / Crossfade", collapsed=True, id="mix-tools"):
+            yield Button("Build playlist", id="build-button", compact=True)
+    with Collapsible(title="Crossfade", collapsed=True, id="mix-tools"):
         with Horizontal(id="transition-row"):
-            yield Button("Mix", id="transition-button", compact=True)
-            yield Button("Fade-", id="fade-down-button", compact=True)
-            yield Button("Fade+", id="fade-up-button", compact=True)
+            yield Button("Mix style", id="transition-button", compact=True)
+            yield Button("Fade −", id="fade-down-button", compact=True)
+            yield Button("Fade +", id="fade-up-button", compact=True)

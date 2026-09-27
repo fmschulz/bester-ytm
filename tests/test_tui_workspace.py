@@ -133,7 +133,9 @@ def test_idle_transport_and_background_updates_work_under_help():
             await app._render_queue()
             app._sync_current_track("song")
             assert "Title" in str(main.query_one("#track", Static).content)
-            title = str(main.query_one("#queue-title", Static).content)
+            # The public getter re-encodes the title as markup that loses "[Chill]";
+            # the stored title is what the border draws.
+            title = main.query_one("#center")._border_title.plain
             assert "[Chill] Mix [/unexpected]" in title
             await pilot.resize_terminal(80, 24)
             app._check_resize()

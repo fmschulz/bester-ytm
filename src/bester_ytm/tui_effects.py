@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from typing import Literal
 
 from textual.content import Content
-from textual.widgets import Button, Label, ListItem, ListView, Static
+from textual.widgets import Button, ListView, Static
 
 from .playback import PlaybackError, PlaybackStatus
 from .playlist_plan import SongCandidate
-from .stores import FAVORITE_SUFFIX
 from .tui_player import (
     ENVELOPE_BUCKETS,
     FAVORITE_GLYPH,
@@ -21,25 +21,16 @@ from .tui_player import (
     TrackEnvelope,
     VolumeMeter,
     crossfader_text,
+    format_time,
     track_text,
 )
+from .tui_rows import QueueRow, queue_heading
 from .tui_stage import Stage
 from .tui_visuals import AudioSignal
 
 NO_TRACK = "No track playing."
 
 StageState = Literal["live", "paused", "idle"]
-
-
-def format_time(seconds: float | None) -> str:
-    if seconds is None or seconds < 0:
-        return "0:00"
-    whole = int(seconds)
-    minutes, secs = divmod(whole, 60)
-    hours, minutes = divmod(minutes, 60)
-    if hours:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes}:{secs:02d}"
 
 
 class PlaybackRenderer:
@@ -242,10 +233,16 @@ class PlaybackRenderer:
         button.label = FAVORITE_GLYPH if is_favorite else NOT_FAVORITE_GLYPH
         button.set_class(is_favorite, "is-favorite")
 
-    def _update_queue_title(self, count: int) -> None:
-        title = self._query_optional("#queue-title", Label)
-        if title:
-            title.update(f"{self.playlist_title} ({count})")
+    def _update_queue_title(self, video_ids: Sequence[str]) -> None:
+        """Name, size and running time in the queue's border; an empty queue says so."""
+        candidates = [self.candidates_by_video_id.get(video_id) for video_id in video_ids]
+        seconds = sum(candidate.duration_seconds or 0 for candidate in candidates if candidate)
+        pane = self._query_optional("#center")
+        if pane is not None:
+            pane.border_title = queue_heading(self.playlist_title, len(video_ids), seconds)
+        empty = self._query_optional("#queue-empty")
+        if empty is not None:
+            empty.display = not video_ids
 
     async def _render_queue(self, focus_video_id: str | None = None) -> None:
         """Serialize rebuilds so a direct render and a tick render cannot interleave into dupes."""
@@ -271,20 +268,20 @@ class PlaybackRenderer:
         # Set before the first await so a tick firing mid-rebuild sees no change and skips a render.
         self._rendered_now_playing_id = current
         await queue.clear()
-        video_ids = self.playlist_video_ids or self.playback.queue
-        self._update_queue_title(len(video_ids))
+        video_ids = list(self.playlist_video_ids or self.playback.queue)
+        self._update_queue_title(video_ids)
         favorite_ids = self._favorite_video_ids()
-        for index, video_id in enumerate(video_ids, start=1):
-            candidate = self.candidates_by_video_id.get(video_id)
-            label = candidate.display_name if candidate else video_id
-            if video_id in favorite_ids:
-                label += FAVORITE_SUFFIX
-            prefix = "NOW" if video_id == current else f"{index:02d}"
-            item = ListItem(Label(f"{prefix}  {label}", markup=False))
-            if video_id == current:
-                item.add_class("playing")
-            item.video_id = video_id  # type: ignore[attr-defined]
-            await queue.append(item)
+        playing_index = video_ids.index(current) if current in video_ids else 0
+        for position, video_id in enumerate(video_ids, start=1):
+            row = QueueRow(
+                video_id,
+                position,
+                self.candidates_by_video_id.get(video_id),
+                is_playing=video_id == current,
+                is_played=position <= playing_index,
+                is_favorite=video_id in favorite_ids,
+            )
+            await queue.append(row)
         cursor_id: str | None = focus_video_id
         if cursor_id is None:
             cursor_id = held_cursor_id or self.selected_queue_video_id

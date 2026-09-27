@@ -9,8 +9,7 @@ from .playback import PlaybackError, PlaybackStatus
 from .playlist_plan import SongCandidate
 from .radio import is_radio_video_id
 from .transitions import TransitionSettings, TransitionStyle
-from .tui_effects import format_time
-from .tui_player import SeekBar
+from .tui_player import SeekBar, format_time
 
 
 class PlaybackActions:

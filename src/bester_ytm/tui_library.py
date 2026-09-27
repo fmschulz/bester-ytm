@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from functools import partial
 
-from textual import events
-from textual.widgets import Input, Label, ListItem, ListView, Static, TextArea
+from textual.content import Content
+from textual.widgets import Input, ListView, Static, TextArea
 
 from .config import ConfigError
 from .local_files import local_search_items
@@ -13,20 +13,10 @@ from .playback import PlaybackError
 from .playlist_plan import SongCandidate
 from .radio import station_search_items
 from .search_query import ParsedSearch, SearchItem, parse_search_query
-from .stores import FAVORITE_SUFFIX, FavoritesStore, LocalPlaylistStore
+from .stores import FavoritesStore, LocalPlaylistStore
 from .tui_effects import NO_TRACK
+from .tui_rows import ResultRow
 from .ytm_client import PlaylistSnapshot, YTMClientError
-
-
-class ResultListItem(ListItem):
-    """Search result row with shift-click range selection before ListView activation."""
-
-    def _on_click(self, event: events.Click) -> None:  # type: ignore[override]
-        if event.shift and self.app._range_select_clicked_result(self):
-            event.stop()
-            event.prevent_default()
-            return
-        super()._on_click(event)
 
 
 class LibraryActions:
@@ -51,9 +41,9 @@ class LibraryActions:
         await self._search("favs:")
 
     def _update_library_summary(self, title: str, empty_message: str = "") -> None:
-        heading = self._query_optional("#library-title", Static)
-        if heading is not None:
-            heading.update(title)
+        pane = self._query_optional("#left")
+        if pane is not None:
+            pane.border_title = Content(title)
         empty = self._query_optional("#library-empty", Static)
         if empty is not None:
             empty.update(empty_message)
@@ -197,23 +187,12 @@ class LibraryActions:
 
     def _result_item(
         self, search_item: SearchItem, favorite_ids: set[str] | None = None
-    ) -> ListItem:
-        display = search_item.display_name
-        candidate_id = search_item.candidate.video_id if search_item.candidate else None
-        if favorite_ids and candidate_id in favorite_ids:
-            display += FAVORITE_SUFFIX
-        label_widget = Label(display, markup=False)
-        item = ResultListItem(label_widget)
-        item.search_item = search_item  # type: ignore[attr-defined]
-        item.base_label = display  # type: ignore[attr-defined]
-        item.label_widget = label_widget  # type: ignore[attr-defined]
-        if search_item.candidate:
-            item.candidate = search_item.candidate  # type: ignore[attr-defined]
-            self.candidates_by_video_id[search_item.candidate.video_id] = search_item.candidate
-        if search_item.playlist_id:
-            item.playlist_id = search_item.playlist_id  # type: ignore[attr-defined]
-            item.playlist_title = search_item.title  # type: ignore[attr-defined]
-        return item
+    ) -> ResultRow:
+        candidate = search_item.candidate
+        if candidate:
+            self.candidates_by_video_id[candidate.video_id] = candidate
+        is_favorite = bool(candidate and favorite_ids and candidate.video_id in favorite_ids)
+        return ResultRow(search_item, favorite=is_favorite)
 
     async def _load_search_item(self, item: SearchItem) -> bool:
         if item.item_type == "song":
@@ -338,9 +317,8 @@ class LibraryActions:
             if load_id != self._results_load_id:
                 return
             item = self._result_item(search_item, set(ids))
-            self._render_result_marker(
-                item, item.candidate.video_id in self.selected_result_video_ids
-            )
+            candidate = item.candidate
+            item.marked = bool(candidate and candidate.video_id in self.selected_result_video_ids)
             await results.append(item)
         if ids:
             results.index = (
@@ -356,15 +334,8 @@ class LibraryActions:
             return
         for item in getattr(results, "children", []):
             candidate = getattr(item, "candidate", None)
-            base = getattr(item, "base_label", None)
-            if candidate is None or base is None or candidate.video_id != video_id:
-                continue
-            if base.endswith(FAVORITE_SUFFIX):
-                base = base[: -len(FAVORITE_SUFFIX)]
-            if faved:
-                base += FAVORITE_SUFFIX
-            item.base_label = base
-            self._render_result_marker(item, video_id in self.selected_result_video_ids)
+            if candidate is not None and candidate.video_id == video_id:
+                item.favorite = faved
 
     def _focus_first_result(self, results: ListView, has_items: bool) -> None:
         if not has_items:

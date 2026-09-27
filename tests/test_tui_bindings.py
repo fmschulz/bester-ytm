@@ -60,7 +60,7 @@ def test_footer_stays_compact_and_palette_enabled(monkeypatch) -> None:
     results = visible_in("results")
     queue = visible_in("queue")
 
-    assert "toggle_select" in results and "toggle_select" not in everywhere
+    assert "add_to_queue" in results and "add_to_queue" not in everywhere
     # d removes queue tracks and, in results, deletes highlighted local playlists.
     assert "remove_from_queue" in queue and "remove_from_queue" in results
     assert "remove_from_queue" not in everywhere

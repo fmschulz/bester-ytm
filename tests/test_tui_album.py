@@ -168,7 +168,7 @@ def test_select_song_then_add_queues_only_that_song(monkeypatch, tmp_path) -> No
 
             app.action_toggle_select()
             assert app.selected_result_video_ids == {"t1"}
-            assert str(tree.cursor_node.label) == "* Metallica - Battery"
+            assert str(tree.cursor_node.label) == "● Metallica - Battery"
 
             await app.action_add_to_queue()
             await pilot.pause()
@@ -524,7 +524,7 @@ def test_toggle_select_on_collapsed_album_defers_then_selects(
             await pilot.pause()
             assert app.selected_result_video_ids == {"t1", "t2"}
             first = tree.root.children[0]
-            assert str(first.label).startswith("* ")
+            assert str(first.label).startswith("● ")
 
     asyncio.run(run())
 

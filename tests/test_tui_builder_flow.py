@@ -6,7 +6,7 @@ import asyncio
 from functools import partial
 
 import pytest
-from textual.widgets import Label, TextArea
+from textual.widgets import TextArea
 
 from bester_ytm.intelligence.llm import IntelligenceSettings
 from bester_ytm.tui import BesterYTMApp
@@ -49,8 +49,7 @@ def test_typing_prose_in_big_box_and_clicking_build_starts_a_build(
             await pilot.pause()
             await pilot.click("#build-button")
             await pilot.pause()
-            title = app.query_one("#queue-title", Label)
-            assert "Building playlist" in str(title.render())
+            assert "Building playlist" in app.query_one("#center").border_title
 
     asyncio.run(flow())
 

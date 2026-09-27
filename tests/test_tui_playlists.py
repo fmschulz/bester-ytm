@@ -12,8 +12,7 @@ from bester_ytm.ytm_client import PlaylistSnapshot, YTMClientError
 
 
 def _item_label(item) -> str:
-    children = item.children if len(item.children) else item._pending_children
-    return str(children[0].render())
+    return str(item.label)
 
 
 def _capture_workers(app, monkeypatch) -> list:
@@ -316,8 +315,8 @@ def test_tui_selecting_playlist_loads_named_tracks(monkeypatch) -> None:
 
     assert app.playback.queue == ["v1", "v2"]
     assert [_item_label(item) for item in queue.items] == [
-        "01  Beach House - Myth",
-        "02  Beach House - Silver Soul",
+        "   1  Myth  Beach House",
+        "   2  Silver Soul  Beach House",
     ]
     assert status.value == "Loaded ByteFM Inspired 30: 2 track(s)."
 
@@ -500,8 +499,8 @@ def test_tui_space_on_selected_playlist_loads_and_starts_queue(monkeypatch) -> N
     assert app.playback.queue == ["v2"]
     assert track.value == "Myth  Beach House"
     assert [_item_label(item) for item in queue.items] == [
-        "NOW  Beach House - Myth",
-        "02  Beach House - Silver Soul",
+        "▶  1  Myth  Beach House",
+        "   2  Silver Soul  Beach House",
     ]
     assert status.value == "Playing."
 
@@ -570,9 +569,9 @@ def test_tui_queue_item_selection_jumps_to_that_song(monkeypatch) -> None:
     assert app.playback.queue == ["v3"]
     assert track.value == "Two  Artist B"
     assert [_item_label(item) for item in queue.items] == [
-        "01  Artist A - One",
-        "NOW  Artist B - Two",
-        "03  Artist C - Three",
+        "   1  One  Artist A",
+        "▶  2  Two  Artist B",
+        "   3  Three  Artist C",
     ]
     assert status.value == "Playing."
 
@@ -644,8 +643,8 @@ def test_tui_auto_advances_when_playing_track_finishes(monkeypatch) -> None:
     assert app.auto_advance_pending is False
     assert track.value == "Two  Artist B"
     assert [_item_label(item) for item in queue.items] == [
-        "01  Artist A - One",
-        "NOW  Artist B - Two",
+        "   1  One  Artist A",
+        "▶  2  Two  Artist B",
     ]
     assert status.value == "Playing next."
 
@@ -837,9 +836,9 @@ def test_tui_shuffle_keeps_current_track_and_shuffles_upcoming(monkeypatch) -> N
     assert app.playlist_video_ids == ["v1", "v3", "v2"]
     assert app.playback.queue == ["v3", "v2"]
     assert [_item_label(item) for item in queue.items] == [
-        "NOW  Artist A - One",
-        "02  Artist C - Three",
-        "03  Artist B - Two",
+        "▶  1  One  Artist A",
+        "   2  Three  Artist C",
+        "   3  Two  Artist B",
     ]
     assert status.value == "Shuffled 2 upcoming track(s)."
 
@@ -949,7 +948,7 @@ def test_tui_playback_error_clears_stale_track(monkeypatch) -> None:
 
     assert app.current_candidate is None
     assert track.value == "No track playing."
-    assert [_item_label(item) for item in queue.items] == ["01  v2"]
+    assert [_item_label(item) for item in queue.items] == ["   1  v2"]
     assert status.value == "mpv failed"
 
 
@@ -1016,8 +1015,8 @@ def test_tui_keyboard_playlist_flow_loads_and_starts_queue(monkeypatch, tmp_path
 
             queue = app.query_one("#queue")
             assert [_item_label(item) for item in queue.children] == [
-                "01  Artist A - One",
-                "02  Artist B - Two",
+                "   1  One  Artist A",
+                "   2  Two  Artist B",
             ]
 
             await pilot.press("space")
@@ -1065,14 +1064,14 @@ def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) ->
     status = FakeStatic()
     track = FakeStatic()
     playlist_name = FakeInput()
-    queue_title = FakeStatic()
+    queue_pane = SimpleNamespace(border_title=None)
     widgets = {
         "#results": results,
         "#queue": queue,
         "#status": status,
         "#track": track,
         "#playlist-name": playlist_name,
-        "#queue-title": queue_title,
+        "#center": queue_pane,
     }
 
     app = tui.BesterYTMApp()
@@ -1092,10 +1091,10 @@ def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) ->
     assert app.playlist_title == "Against"
     assert app.selected_queue_video_id == "v1"
     assert [_item_label(item) for item in queue.items] == [
-        "01  Sepultura - Against",
-        "02  Sepultura - Choke",
+        "   1  Against  Sepultura",
+        "   2  Choke  Sepultura",
     ]
-    assert queue_title.value == "Against (2)"
+    assert queue_pane.border_title == "Against  2 tracks"
     assert status.value == "Loaded album Against: 2 track(s)."
 
 
@@ -1111,14 +1110,14 @@ def test_tui_playlist_query_lists_and_loads_local_playlists(monkeypatch, tmp_pat
     status = FakeStatic()
     track = FakeStatic()
     playlist_name = FakeInput()
-    queue_title = FakeStatic()
+    queue_pane = SimpleNamespace(border_title=None)
     widgets = {
         "#results": results,
         "#queue": queue,
         "#status": status,
         "#track": track,
         "#playlist-name": playlist_name,
-        "#queue-title": queue_title,
+        "#center": queue_pane,
     }
 
     app = tui.BesterYTMApp()
@@ -1126,14 +1125,15 @@ def test_tui_playlist_query_lists_and_loads_local_playlists(monkeypatch, tmp_pat
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
 
     asyncio.run(app._search("playlist:"))
-    assert _item_label(results.items[0]) == "LOCAL PLAYLIST  Local Metal"
+    assert _item_label(results.items[0]) == "  Local Metal"
+    assert str(results.items[0].tail).strip() == "local"
 
     asyncio.run(app.action_play_selected())
 
     assert app.playback.queue == ["v1"]
     assert app.active_local_playlist_id == "local-metal"
     assert playlist_name.value == "Local Metal"
-    assert [_item_label(item) for item in queue.items] == ["01  Sepultura - Territory"]
+    assert [_item_label(item) for item in queue.items] == ["   1  Territory  Sepultura"]
     assert status.value == "Loaded local playlist Local Metal: 1 track(s)."
 
 
@@ -1148,14 +1148,14 @@ def test_tui_favorite_and_local_playlist_controls_target_highlighted_queue_song(
     status = FakeStatic()
     track = FakeStatic()
     playlist_name = FakeInput("Selected Tracks")
-    queue_title = FakeStatic()
+    queue_pane = SimpleNamespace(border_title=None)
     widgets = {
         "#results": results,
         "#queue": queue,
         "#status": status,
         "#track": track,
         "#playlist-name": playlist_name,
-        "#queue-title": queue_title,
+        "#center": queue_pane,
     }
 
     app = tui.BesterYTMApp()
@@ -1184,11 +1184,12 @@ def test_tui_favorite_and_local_playlist_controls_target_highlighted_queue_song(
     assert playlist.video_ids == ["v2"]
     assert playlist.tracks[0].title == "Choke"
 
-    # The queue re-render after the toggle marks the faved row.
+    # The queue re-render after the toggle stars the faved row.
     assert [_item_label(item) for item in queue.items] == [
-        "01  Sepultura - Against",
-        "02  Sepultura - Choke [fav]",
+        "   1  Against  Sepultura",
+        "   2  Choke  Sepultura",
     ]
+    assert [item.is_favorite for item in queue.items] == [False, True]
 
     asyncio.run(app.action_remove_from_playlist())
 

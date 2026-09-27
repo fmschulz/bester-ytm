@@ -6,7 +6,7 @@ import re
 from functools import partial
 from pathlib import Path
 
-from textual.widgets import Label, TextArea
+from textual.widgets import TextArea
 
 from .config import ConfigError, resolve_existing_input
 from .config_options import AppOptions
@@ -63,9 +63,9 @@ class BuilderActions:
             )
             return
         self.build_in_progress = True
-        title = self._query_optional("#queue-title", Label)
-        if title:
-            title.update("Building playlist...")
+        queue = self._query_optional("#center")
+        if queue is not None:
+            queue.border_title = "Building playlist…"
         self._set_status(self._build_start_message(builder_text, brief))
         self.run_worker(
             partial(self._build_playlist_worker, builder_text, brief),
@@ -105,7 +105,7 @@ class BuilderActions:
 
     def _report_build_failure(self, message: str) -> None:
         self.build_in_progress = False
-        self._update_queue_title(len(self.playlist_video_ids or self.playback.queue))
+        self._update_queue_title(self.playlist_video_ids or self.playback.queue)
         self._set_status(message)
 
     def _run_playlist_build(self, builder_text: str, brief: str) -> tuple[PlaylistPlan, str]:

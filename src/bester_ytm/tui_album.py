@@ -14,10 +14,12 @@ from textual.widgets.tree import TreeNode
 from .config import ConfigError
 from .playlist_plan import SongCandidate
 from .search_query import SearchItem
-from .stores import FAVORITE_SUFFIX
+from .tui_player import FAVORITE_GLYPH
+from .tui_rows import MARKED_GLYPH
 from .ytm_client import PlaylistSnapshot, YTMClientError
 
-SELECTED_PREFIX = "* "
+SELECTED_PREFIX = f"{MARKED_GLYPH} "
+FAVORITE_SUFFIX = f" {FAVORITE_GLYPH}"
 
 
 class AlbumTree(Tree):

@@ -10,8 +10,7 @@ from bester_ytm.playlist_plan import SongCandidate
 
 
 def _item_label(item) -> str:
-    children = item.children if len(item.children) else item._pending_children
-    return str(children[0].render())
+    return str(item.label)
 
 
 class FakeListView:
@@ -69,7 +68,7 @@ class FakePlayback:
 
 
 def _make_app(monkeypatch, playback, queue) -> tuple[tui.BesterYTMApp, list]:
-    widgets = {"#queue": queue, "#track": FakeStatic(), "#queue-title": FakeStatic()}
+    widgets = {"#queue": queue, "#track": FakeStatic()}
     workers: list = []
     app = tui.BesterYTMApp()
     app.playback = playback  # type: ignore[assignment]
@@ -88,7 +87,7 @@ def _make_app(monkeypatch, playback, queue) -> tuple[tui.BesterYTMApp, list]:
 
 
 def test_render_queue_marks_playing_track_without_moving_cursor(monkeypatch) -> None:
-    """Q1: the playing track gets the NOW/.playing marker; the cursor is not yanked onto it."""
+    """Q1: the playing track gets the play mark and .playing; the cursor stays put."""
     queue = FakeListView()
     app, _ = _make_app(monkeypatch, FakePlayback("v2", ["v3"]), queue)
     app.playlist_video_ids = ["v1", "v2", "v3"]
@@ -96,9 +95,9 @@ def test_render_queue_marks_playing_track_without_moving_cursor(monkeypatch) -> 
     asyncio.run(app._render_queue())
 
     labels = [_item_label(item) for item in queue.items]
-    assert labels[1].startswith("NOW")
+    assert labels[1].startswith("▶")
     assert queue.items[1].has_class("playing")
-    assert queue.index == 0  # nothing selected -> cursor stays at the default row, not the NOW row
+    assert queue.index == 0  # nothing selected: the cursor stays on the first row
     assert app._rendered_now_playing_id == "v2"
 
 
@@ -118,7 +117,7 @@ def test_cursor_stays_put_when_playback_advances(monkeypatch) -> None:
     asyncio.run(workers[0])
 
     labels = [_item_label(item) for item in queue.items]
-    assert labels[1].startswith("NOW")  # marker moved to the new playing track
+    assert labels[1].startswith("▶")  # marker moved to the new playing track
     assert queue.items[1].has_class("playing")
     assert queue.index == 2  # cursor did NOT jump to the playing track
     assert queue.items[queue.index].video_id == "v3"
@@ -142,7 +141,7 @@ def test_refresh_playback_reschedules_render_when_track_changes(monkeypatch) -> 
     asyncio.run(workers[0])
 
     labels = [_item_label(item) for item in queue.items]
-    assert labels[1].startswith("NOW")
+    assert labels[1].startswith("▶")
     assert app._rendered_now_playing_id == "v2"
 
 

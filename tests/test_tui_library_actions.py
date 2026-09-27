@@ -202,7 +202,6 @@ def test_load_search_item_loads_remote_playlist_off_the_ui_thread(
         "#queue": FakeListView(),
         "#track": FakeStatic(),
         "#playlist-name": FakeInput(),
-        "#queue-title": FakeStatic(),
     }
     app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
     app.client = PlaylistClient()  # type: ignore[assignment]
@@ -240,7 +239,6 @@ def test_load_search_item_loads_album_off_the_ui_thread(monkeypatch, tmp_path) -
         "#queue": FakeListView(),
         "#track": FakeStatic(),
         "#playlist-name": FakeInput(),
-        "#queue-title": FakeStatic(),
     }
     app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
     app.client = AlbumClient()  # type: ignore[assignment]
@@ -530,7 +528,8 @@ def test_favs_query_lists_favorites_with_marker(monkeypatch, tmp_path) -> None:
 
     items = widgets["#results"].items
     assert [item.candidate.video_id for item in items] == ["v2"]
-    assert items[0].base_label == "SONG  Territory - Sepultura [fav]"
+    assert str(items[0].label) == "  Territory  Sepultura"
+    assert items[0].favorite
     assert statuses[-1] == "1 local favorite(s). f removes; Enter plays; a queues."
 
 
@@ -552,9 +551,7 @@ def test_search_results_mark_faved_songs(monkeypatch, tmp_path) -> None:
     asyncio.run(app._search("beach house"))
     _drain_workers(workers)
 
-    labels = [item.base_label for item in widgets["#results"].items]
-    assert labels[0].endswith(" [fav]")
-    assert not labels[1].endswith(" [fav]")
+    assert [item.favorite for item in widgets["#results"].items] == [True, False]
 
 
 def test_toggle_favorite_relabels_the_result_row(monkeypatch, tmp_path) -> None:
@@ -574,14 +571,13 @@ def test_toggle_favorite_relabels_the_result_row(monkeypatch, tmp_path) -> None:
 
     asyncio.run(app._search("favs:"))
     item = widgets["#results"].items[0]
-    assert item.base_label.endswith(" [fav]")
+    assert item.favorite
 
     widgets["#results"].highlighted_child = item
     app.action_toggle_favorite()  # unfav from the favs list
     _drain_workers(workers)
 
-    assert not item.base_label.endswith(" [fav]")
-    assert str(item.label_widget.render()) == item.base_label
+    assert not item.favorite
     assert widgets["#results"].items == []
     assert FavoritesStore().ids() == set()
 

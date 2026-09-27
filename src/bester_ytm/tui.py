@@ -7,7 +7,7 @@ import random
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widget import Widget
-from textual.widgets import Button, Footer, Header, Input, Static
+from textual.widgets import Button, Footer, Input, Static
 
 from .config import (
     ConfigError,
@@ -68,10 +68,10 @@ class BesterYTMApp(
 
     BINDINGS = [
         ("/", "focus_search", "Search"),
-        ("space", "pause_resume", "Select/Pause"),
+        ("space", "pause_resume", "Mark/Pause"),
         ("n", "next_track", "Next"),
-        ("s", "shuffle_queue", "Shuffle"),
-        ("x", "toggle_select", "Select"),
+        Binding("s", "shuffle_queue", "Shuffle", show=False),
+        Binding("x", "toggle_select", "Mark", show=False),
         Binding("t", "cycle_transition", "Mix", show=False),
         Binding("g", "add_similar", "Similar", show=False),
         Binding("i", "build_playlist", "Build", show=False),
@@ -80,8 +80,8 @@ class BesterYTMApp(
         Binding("ctrl+space", "toggle_playback", "Pause", priority=True, show=False),
         Binding("f1", "help", "Help", priority=True, show=False),
         Binding("f2", "toggle_tools", "Tools", priority=True, show=False),
-        Binding("ctrl+shift+p", "command_palette", "Themes / commands", priority=True, show=False),
-        Binding("V", "toggle_stage", "Expand", show=True),
+        Binding("ctrl+shift+p", "command_palette", "Commands", priority=True, show=False),
+        Binding("V", "toggle_stage", "Stage", show=True),
         Binding("escape", "leave_stage", "Back", show=False),
         ("q", "quit", "Quit"),
         Binding("enter", "play_selected", "Play/Add"),
@@ -99,7 +99,7 @@ class BesterYTMApp(
         Binding("equals_sign", "volume_up", "Vol+", key_display="=", show=False),
         Binding("plus", "volume_up", "Vol+", key_display="+", show=False),
         Binding("m", "mute", "Mute", show=False),
-        Binding("c", "clear_queue", "Clear"),
+        Binding("c", "clear_queue", "Clear", show=False),
         Binding("d", "remove_from_queue", "Remove"),
         Binding("k", "move_queue_track_up", "Move up", show=False),
         Binding("j", "move_queue_track_down", "Move down", show=False),
@@ -176,7 +176,6 @@ class BesterYTMApp(
         return WorkspaceScreen(id="_default")
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
         idle = PlaybackStatus(
             running=False,
             transition_style=self.transition_settings.style.value,

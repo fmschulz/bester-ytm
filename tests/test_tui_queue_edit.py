@@ -78,7 +78,6 @@ def _make_app(monkeypatch, tmp_path, playback) -> tuple[BesterYTMApp, dict, list
     widgets = {
         "#queue": FakeListView(),
         "#track": FakeStatic(),
-        "#queue-title": FakeStatic(),
     }
     statuses: list[str] = []
     app = BesterYTMApp()

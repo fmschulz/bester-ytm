@@ -32,6 +32,17 @@ FAVORITE_GLYPH = "★"
 NOT_FAVORITE_GLYPH = "☆"
 
 
+def format_time(seconds: float | None) -> str:
+    """``m:ss``, or ``h:mm:ss`` from an hour up; unknown or negative reads ``0:00``."""
+    if seconds is None or seconds < 0:
+        return "0:00"
+    minutes, secs = divmod(int(seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
 class TrackEnvelope:
     """The loudness heard at each stretch of one track; stretches never heard stay None.
 

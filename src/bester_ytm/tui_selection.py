@@ -7,8 +7,6 @@ from textual.widgets import ListView
 from .playback import PlaybackError
 from .playlist_plan import SongCandidate
 
-SELECTED_PREFIX = "* "
-
 
 class SelectionActions:
     """Mixin that lets the user mark several search results and queue them in order."""
@@ -178,14 +176,7 @@ class SelectionActions:
                 if parent is not None:
                     self._refresh_album_marker(parent)
                 return
-        self._render_result_marker(item, selected)
-
-    def _render_result_marker(self, item: object, selected: bool) -> None:
-        label = getattr(item, "label_widget", None)
-        base = getattr(item, "base_label", None)
-        if label is None or base is None:
-            return
-        label.update(f"{SELECTED_PREFIX}{base}" if selected else base)
+        item.marked = selected  # a result row redraws its marker
 
     def _clear_result_selection(self) -> None:
         self.selected_result_video_ids.clear()

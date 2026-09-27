@@ -4,7 +4,6 @@ from __future__ import annotations
 
 APP_CSS = """
 Screen { layout: vertical; }
-Header { display: none; }
 #navigation { height: 1; background: $panel; }
 #brand { width: 1fr; color: $accent; text-style: bold; padding-left: 1; }
 Button { min-width: 5; margin: 0 1 0 0; }
@@ -13,24 +12,31 @@ Button { min-width: 5; margin: 0 1 0 0; }
 #left { width: 3fr; }
 #center { width: 3fr; }
 #right { width: 2fr; min-width: 30; overflow-y: auto; scrollbar-size-vertical: 1; }
-#left, #center, #right { border: round $primary-muted; padding: 0 1; }
+#left, #center, #right {
+    border: round $primary-muted;
+    border-title-color: $accent;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    border-subtitle-align: left;
+    padding: 0 1;
+}
 #left, #center { min-width: 20; }
 #left:focus-within, #center:focus-within, #right:focus-within { border: round $accent; }
 PaneSplitter { width: 1; height: 1fr; background: $background; }
 PaneSplitter:hover { background: $accent; }
-#library-title, #queue-title, #tools-title { color: $accent; text-style: bold; height: 1; }
 #search { margin: 0; }
-#results, #queue, #album-tree { height: 1fr; }
+#results, #queue, #album-tree { height: 1fr; background: transparent; }
 #album-tree { display: none; }
-#library-empty { height: auto; color: $text-muted; padding: 1 0; }
-#results-hint, #queue-hint { height: 1; color: $text-muted; text-overflow: ellipsis; }
-ListItem { padding: 0 1; }
-ListItem Label { width: 1fr; text-overflow: ellipsis; }
-#queue .playing { background: $primary-muted; color: $accent; text-style: bold; }
+#library-empty, #queue-empty { height: auto; color: $text-muted; padding: 1 0; }
+ListItem { padding: 0 1; height: 1; }
+#queue .playing { color: $accent; }
+#queue .played { color: $text-muted; }
 #album-tree .tree--cursor { background: $primary-muted; color: $accent; text-style: bold; }
 Collapsible { padding: 0; margin: 0; border: none; }
 Collapsible > Contents { padding: 0; }
-#playlist-actions, #queue-actions, #builder-actions, #transition-row { height: auto; }
+#playlist-actions, #track-actions, #queue-actions, #builder-actions, #transition-row {
+    height: auto;
+}
 #playlist-actions Button { min-width: 3; margin-right: 1; }
 #builder { height: 4; }
 #stage { height: 40%; min-height: 7; background: $background; }
@@ -65,7 +71,6 @@ Screen.compact #brand { display: none; }
 Screen.compact #navigation Button { width: 1fr; }
 Screen.compact #crossfader { display: none; }
 Screen.short #library-empty { display: none; }
-Screen.compact #results-hint, Screen.compact #queue-hint { display: none; }
 Screen.short #stage { height: 7; }
 Screen.short.immersive #stage { height: 1fr; }
 """

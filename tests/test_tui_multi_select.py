@@ -6,19 +6,10 @@ from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.search_query import search_item_from_song
 
 
-class FakeLabel:
-    def __init__(self, text: str) -> None:
-        self.text = text
-
-    def update(self, text: str) -> None:
-        self.text = text
-
-
 class FakeResultItem:
     def __init__(self, video_id: str, title: str) -> None:
         self.candidate = SongCandidate(video_id=video_id, title=title, artists=["A"])
-        self.base_label = self.candidate.display_name
-        self.label_widget = FakeLabel(self.base_label)
+        self.marked = False
 
 
 class FakeResults:
@@ -101,11 +92,11 @@ def test_toggle_select_marks_and_unmarks_highlighted_result(monkeypatch) -> None
 
     app.action_toggle_select()
     assert app.selected_result_video_ids == {"v1"}
-    assert items[0].label_widget.text.startswith("* ")
+    assert items[0].marked
 
     app.action_toggle_select()
     assert app.selected_result_video_ids == set()
-    assert items[0].label_widget.text == items[0].base_label
+    assert not items[0].marked
 
 
 def test_space_toggles_highlighted_result_when_results_are_focused(monkeypatch) -> None:
@@ -117,7 +108,7 @@ def test_space_toggles_highlighted_result_when_results_are_focused(monkeypatch) 
 
     assert app.selected_result_video_ids == {"v1"}
     assert app.result_selection_anchor_video_id == "v1"
-    assert items[0].label_widget.text.startswith("* ")
+    assert items[0].marked
 
 
 def test_shift_space_range_selects_from_anchor_to_highlight(monkeypatch) -> None:
@@ -136,10 +127,7 @@ def test_shift_space_range_selects_from_anchor_to_highlight(monkeypatch) -> None
 
     assert app.selected_result_video_ids == {"v1", "v2", "v3"}
     assert app.result_selection_anchor_video_id == "v1"
-    assert items[0].label_widget.text.startswith("* ")
-    assert items[1].label_widget.text.startswith("* ")
-    assert items[2].label_widget.text.startswith("* ")
-    assert items[3].label_widget.text == items[3].base_label
+    assert [item.marked for item in items] == [True, True, True, False]
 
 
 def test_shift_click_range_selects_up_from_anchor(monkeypatch) -> None:
@@ -183,7 +171,7 @@ def test_shift_click_selects_range_without_activating_result(monkeypatch, tmp_pa
             await pilot.pause()
 
             app.action_toggle_select()
-            clicked = await pilot.click(results.children[2].label_widget, shift=True)
+            clicked = await pilot.click(results.children[2], shift=True)
             await pilot.pause()
 
             assert clicked is True
