@@ -2,262 +2,207 @@
 
 ## The TUI
 
-Launch with `bester-ytm`. Search and browse on the left, arrange the queue
-in the center, and use the workspace on the right for playlists, the builder,
-and crossfade settings. The stage fills the width below the panes, and the
-player sits under it. Each pane's border shows its name and its main keys.
-On narrow terminals, `F2` or **Tools** switches between the queue and workspace.
-The top bar opens Favorites, Playlists, Radio, and Help.
+Run `bester-ytm`. The left pane searches and browses, the center pane holds the
+queue, and the right pane (the workspace) holds playlist tools, the playlist
+builder, and crossfade settings. The stage spans the width below the panes,
+with the player under it. Each pane's border shows its name and main keys. On
+narrow terminals, `F2` or **Tools** switches between the queue and the
+workspace. The top bar opens Favorites, Playlists, Radio, and Help.
 
-Press `F1` from any input, or `?` outside an input, to open the keyboard guide.
-Filter it by key or action, such as `favorite` or `volume`. `Esc` or `F1` closes
-it and returns to the previous view.
+`F1` (from anywhere) or `?` (outside an input) opens the keyboard guide. Type
+to filter it, such as `favorite` or `volume`; `Esc` or `F1` closes it.
 
 ### Keys
 
-Pane-scoped keys act only while their pane has focus: `x`, `Shift+Space`,
-`a`, `A`, and `Enter`-on-results need the results pane; `j`/`k`, `c`, and
-`w` need the queue pane; `s`, `d`, `Space`-as-select, and `Enter`-on-queue
-work from either list pane. The footer shows the main keys for the focused
-pane; the keyboard guide lists every key.
+`x`, `Shift+Space`, `a`, and `A` act in the results pane; `j`/`k`, `c`, and
+`w` act in the queue. The footer shows the keys for the focused pane.
 
 ```text
 /          focus search
-Enter      play selected search result, playlist, or queue item
-x          mark/unmark the highlighted search result
-Shift+Space  range-select: mark every song from the first marked one
-           through the highlighted row (shift+click does the same)
-a          add the highlighted song or album to the queue, or every row
-           marked with x (keeps what is already queued)
-A          play now, replacing the queue: the highlighted or marked songs
-           in song results, or the album/highlighted song in album
-           searches (shift+a)
-Ctrl+Space pause/resume from any pane, including while typing
-Space      play/pause; in the results pane it marks the highlighted
-           song instead (same as x)
+Enter      play the selected result, playlist, or queue row
+x          mark or unmark the highlighted result
+Shift+Space  mark every song from the first marked one to the highlighted row
+           (shift+click does the same)
+a          add the highlighted song or album, or every marked row, to the queue
+A          play now, replacing the queue (shift+a): the highlighted or marked
+           songs, or in album results the album or the album from that song on
+Ctrl+Space pause or resume from any pane, including while typing
+Space      pause or resume; in the results pane it marks the highlighted song
 n          next track
 p or b     previous track
-s          shuffle playlist/queue
-c          clear the queue (keeps the playing track)
-d          remove the highlighted queue track (the playing row is kept;
-           press n to skip it); in search results, delete the highlighted
-           playlist (local or YouTube) after a confirming second press
-j / k      move the highlighted queue track down / up
-w          save the queue as a local playlist (also the Save button)
-g          add 5 AI-suggested similar tracks to the queue; type digits
-           right after g to change the count (g11 adds 11), Esc cancels
-i          build a playlist from the builder prompt (right pane)
-t          toggle transition style (cut / crossfade)
-[ / ]      shorten / lengthen the crossfade (1-15s)
-v          next stage scene (Astra, Pulsar, Bars, Scope)
-V          full-screen stage (Shift+v; clicking the stage does the same); Esc returns
-F2         open the workspace tools on a narrow terminal
-Left/Right seek -10s/+10s
-,/.        seek -30s/+30s
-- / = / +  volume down / up (both = and + raise it)
-m          mute/unmute
-f          toggle the focused song's local favorite; otherwise the playing song
-           ★ marks saved songs; radio favorites resolve the live song
-Ctrl+F     browse favorites (also the Favorites button)
-Ctrl+P     show playlists (local first, then your YouTube library)
-Ctrl+A     show auth status
-Tab / Shift+Tab  cycle panes forwards / backwards
-F1 / ?     open the searchable keyboard guide (Esc or F1 closes it)
+s          shuffle the queue
+c          clear the queue (the playing track stays)
+d          remove the highlighted queue row (not the playing one; press n to
+           skip it); on a playlist result, delete that playlist after a second d
+j / k      move the highlighted queue row down / up
+w          save the queue as a local playlist
+g          queue 5 AI-suggested similar tracks; digits after g set the count
+           (g11 adds 11); Esc cancels
+i          build a playlist from the builder box
+t          switch the transition between cut and crossfade
+[ / ]      shorten / lengthen the crossfade (1-15 s)
+v          next stage scene: Astra, Pulsar, Bars, Scope
+V          full-screen stage (a click on the stage does the same); Esc returns
+F2         show or hide the workspace on a narrow terminal
+Left/Right seek -10 s / +10 s
+, / .      seek -30 s / +30 s
+- / = / +  volume down / up
+m          mute or unmute
+f          favorite or unfavorite the focused song, else the playing song
+Ctrl+F     browse favorites
+Ctrl+P     browse playlists (local first, then your YouTube library)
+Ctrl+A     show the login status
+Tab / Shift+Tab  next / previous pane
+F1 / ?     keyboard guide
 q          quit
 ```
 
 ### Search syntax
 
-The search box understands structured queries:
-
 ```text
-song:metallica                      songs ranked by relevance (songs: also works)
+song:metallica                      songs by relevance (songs: also works)
 album:metallica                     albums by name (albums: also works)
-album:metallica,year:1986           albums from a given year
-artist:sepultura                    popular songs by the artist
+album:metallica,year:1986           albums from one year
+artist:sepultura                    the artist's popular songs
 artist:sepultura,albums             the artist's albums
 artist:sepultura,year:1998,songs    tracks from the artist's 1998 releases
 playlist:                           your local playlists (playlists: also works)
 playlist:indie                      community playlists on YouTube Music
-favs:                               your faved songs (favorites: and liked: too)
-favs:sepultura                      faved songs matching the text
-radio:                              web radio stations (ByteFM, KALX, your own)
-local:~/Music                       audio files under a local folder
-/home/you/Music/song.mp3            a pasted path also works (/, ~, or ./)
+favs:                               your favorites (favorites: and liked: too)
+favs:sepultura                      favorites that match the text
+radio:                              web radio stations
+local:~/Music                       audio files under a folder
+/home/you/Music/song.mp3            a pasted path (starting with /, ~, or ./)
 ```
 
-`song:` lists individual tracks; `album:` shows a tree of album names in the
-left pane. Each album title is a branch you expand to its songs:
+Result rows show the title, the artist and album, and the duration. Albums,
+playlists, local playlists, and stations carry a tag instead of a duration
+(`album`, `playlist`, `local`, `radio`); playlists from your YouTube library
+carry `youtube`.
+
+`album:` searches show a tree: each album is a branch that opens to its songs.
 
 ```text
-left pane (album search)
-- Enter on an album title    expand/collapse it (songs load on first expand)
-- Enter on a song            play it now (or queue it if something is playing)
-- Space / x                  mark/unmark the highlighted row (marked *)
-                               on an album title this marks all its songs
-- Shift+Space                range-select from the first marked song to the
-                               highlighted one (shift+click does the same)
-- a                          add to the queue (keeps what is already there):
-                               album title -> all its songs
-                               song        -> that one song
-                               any selected -> every selected song, in order
-- A (shift+a)                play now, replacing the whole queue:
-                               album title -> the whole album from the top
-                               song        -> the album from that song on
-                               any selected -> the selected songs
+Enter on an album     open or close it (songs load the first time)
+Enter on a song       play it, or queue it if something is playing
+Space or x            mark or unmark the row (●); on an album, all its songs
+Shift+Space           mark from the first marked song to the highlighted one
+a                     add to the queue: the album, the song, or every marked song
+A (shift+a)           replace the queue and play: the album from the top, the
+                      album from that song on, or the marked songs
 ```
 
-`a` keeps the current queue and appends; `A` clears it and starts the album
-immediately. With an empty queue, `a` (or Enter on a song) also starts
-playback; with a loaded but stopped queue it only appends. `artist:...,albums`
-still lists albums in the normal results pane, where `Enter` loads the whole
-album into the queue. Selecting a playlist loads its tracks into the center
-queue pane. `Ctrl+P` lists all your playlists in one place: locally saved
-playlists (marked `LOCAL PLAYLIST`) first, then your YouTube Music library
-playlists when logged in.
+`a` appends to the queue and `A` replaces it. With an empty queue, `a` or
+`Enter` on a song also starts playback; with a loaded but stopped queue, `a`
+only appends. In `artist:...,albums` results, `Enter` on an album loads it
+into the queue. Selecting a playlist loads its tracks into the queue.
 
-### Building a queue from search
-
-In song results, mark songs with `x` or `Space` (marked rows show a `*`);
-`Shift+Space` or shift+click marks the whole range from the first marked
-song through the highlighted one. Press `a` to add every marked song to the
-queue in list order, or `Enter` to do the same. While something is playing
-(or a loaded queue is stopped), the songs are appended without interrupting
-it; with an empty queue the first one starts and auto-advance plays the
-rest.
+To queue several songs, mark them with `x` or `Space` (`●`), or a range with
+`Shift+Space` or shift+click, then press `a` or `Enter`. They join the queue in
+list order; with an empty queue, the first one starts playing.
 
 ### Playback and transitions
 
-The playing track carries `▶` in the queue, and tracks already played are
-dimmed. When a track nears its end and the transition style is crossfade
-(the default, 6 seconds), the next queued track is prebuffered on a second
-silent mpv deck and blended in DJ-style with an equal-power fade; set the
-transition to cut for instant switches. The crossfader in the player
-(`A ━━━━●━━━━ B`) shows the live deck, and its knob slides to the other
-deck while two tracks blend. A dotted rail means the transition is cut.
+The playing track shows `▶` in the queue, and played tracks are dimmed. In
+crossfade mode (the default, 6 seconds), the next track is prebuffered on a
+second mpv deck and blended in with an equal-power fade; in cut mode, tracks
+switch instantly. The player's crossfader (`A ━━━━●━━━━ B`) marks the live
+deck, its knob slides across during a blend, and a dotted rail means cut mode.
 
-The seek bar draws how loud each stretch of the current track was when it
-played, so the played part shows the shape of the song. Stretches skipped
-by seeking stay flat. Click the bar to seek to that position. A web radio
-stream has no end, so the bar shows its recent loudness instead.
+The seek bar draws how loud each stretch of the track was when it played;
+stretches skipped by seeking stay flat. Click it to seek. For web radio, it
+shows the recent loudness.
 
-The stage shows an audio-reactive scene in the colors of the active theme:
+### The stage
 
-- **Astra**: a black hole whose accretion disk heats up and spins faster
-  with the music; sudden onsets flare the photon ring.
-- **Pulsar**: a ridgeline plot of recent loudness, drawn like the pulsar
-  plot on the cover of Joy Division's *Unknown Pleasures*. The front ridge
-  moves live; older ridges recede.
+The stage draws one of four scenes in the colors of the active theme:
+
+- **Astra**: a black hole whose accretion disk brightens and spins faster with
+  the music; sudden onsets flare the photon ring.
+- **Pulsar**: a ridgeline plot of recent loudness, after the pulsar plot on
+  Joy Division's *Unknown Pleasures*. The front ridge moves live.
 - **Bars**: a loudness skyline with the newest sample on the right.
-- **Scope**: a Lissajous figure on a phosphor screen that swells with
-  loudness and leaves fading trails.
+- **Scope**: a Lissajous figure that swells with loudness and leaves fading
+  trails.
 
-The scenes react to the loudness that mpv reports; they have no frequency
-data. Pausing freezes the scene; with nothing playing, the stage shows a dim
-still.
+The scenes use the loudness mpv reports; they have no frequency data. Pausing
+freezes the scene, and with nothing playing the stage shows a dim still.
 
-Choose a scene from the stage dropdown or press `v`. Press `V` (Shift+v) or
-click the stage for full screen, and press `Esc` or click again to return.
-The player stays visible. Open the command palette with `Ctrl+Shift+P` to
-choose a theme; the stage takes its colors from it.
-On slow or remote terminals, lower `ui.visual_fps`, or set it to `0` for
-still frames. At `0` the seek bar shows progress without the loudness shape.
+Pick a scene with the stage dropdown or `v`. `V` or a click on the stage
+toggles full screen (`Esc` also returns); the player stays visible. Themes,
+and with them the stage colors, change in the command palette
+(`Ctrl+Shift+P`). On slow or remote terminals, lower `ui.visual_fps`; `0`
+gives still frames and a seek bar without the loudness shape.
 
 ### Favorites
 
-Press `f` to toggle the highlighted song in results, an expanded album, or
-the queue. Outside those lists, it acts on the playing track. The star
-button in the player always acts on the current track.
+`f` saves or removes the highlighted song in results, an open album, or the
+queue; outside those lists, it acts on the playing track. The star button in
+the player always acts on the playing track.
 
-Saved tracks show `★` in results, the queue, and album trees, and the
-player's star fills while a saved track plays. Open
-**Favorites** or press `Ctrl+F` to browse them. `Enter` plays or queues a
-song; `a` queues it; `f` removes it. Removal keeps the cursor on a remaining
-row. Edit the search to `favs:sepultura` to filter by text. `favorites:` and
-`liked:` are aliases for this local list.
+Saved songs show `★` in results, the queue, and album trees, and the player's
+star fills while one plays. **Favorites** or `Ctrl+F` lists them: `Enter` plays
+or queues a song, `a` queues it, and `f` removes it. Type `favs:sepultura` to
+filter; `favorites:` and `liked:` are aliases.
 
-Favorites are stored in `favorites.json` under the app's data directory.
-They work without a login and do not change YouTube Music likes.
+Favorites live in `favorites.json` in the data directory. They need no login
+and do not change your YouTube Music likes.
 
 ### Web radio
 
-Type `radio:` in the search box to list the web radio stations (rows are
-labelled `RADIO`): ByteFM and KALX ship built in, and you can add your own
-in the config (see [Configuration](configuration.md)). `Enter` on a station
-tunes to it: whatever is playing stops with a hard cut (no crossfade), the
-station starts, and it becomes the queue's only row — selecting another
-station switches the same way, so there is never more than one station in
-the queue. While a station plays, the Now Playing label shows the live
-track (`ByteFM · Artist - Song`), refreshed every ~20 seconds from the
-station's metadata, and `g` finds songs similar to that live track (not to
-the station) and queues them after it.
+`radio:` lists the stations: ByteFM and KALX are built in, and you can add
+more in the [configuration](configuration.md). `Enter` on a station cuts to it
+and makes it the only row in the queue. The player shows the live track
+(`ByteFM · Artist - Song`), refreshed about every 20 seconds; `g` queues songs
+similar to it, and `f` looks it up on YouTube Music and saves it to your
+favorites. Radio needs no login.
 
-Pressing `f` while radio plays favs the song the station is playing, not the
-station: the track is looked up on YouTube Music and saved to local favorites.
-The status line names the match. Radio playback and local favorites work
-without a login.
-
-To add a station without hunting for its stream URL yourself, type
-`add radio station <name>` (e.g. `add radio station WFMU`) into the playlist
-builder box and press Build: the configured AI provider looks up the
-station's direct stream URL, bester-ytm verifies the URL actually serves
-audio, and the station is written to `[radio.stations]` in `config.toml` —
-it then shows up under `radio:`. If the AI cannot find a working stream, the
-status line says so and nothing is written; you can always add a station
-manually in the config (see [Configuration](configuration.md)).
+To add a station, type `add radio station <name>` (for example
+`add radio station WFMU`) in the builder box and press **Build playlist**. The
+AI provider finds the stream URL, bester-ytm checks that it serves audio, and
+the station is saved to `[radio.stations]` in `config.toml`. If no working
+stream is found, the status line says so.
 
 ### Local files
 
-Type `local:` followed by a path — or just paste a path starting with `/`,
-`~`, or `./` — into the search box to list local audio files in the left
-pane. A folder is scanned recursively (`.mp3`, `.flac`, `.ogg`, `.opus`,
-`.m4a`, `.wav`, `.aac`, `.aiff`, `.wma`); a single file lists just that
-file. The rows behave like any song result: `Enter` plays, `a` queues, `f`
-favs, and crossfade transitions work between local and YouTube tracks alike.
-Local tracks can be saved into local playlists, but they cannot be added to
+Type `local:` and a path, or paste a path that starts with `/`, `~`, or `./`.
+Folders are searched recursively for `.mp3`, `.flac`, `.ogg`, `.opus`, `.m4a`,
+`.wav`, `.aac`, `.aiff`, and `.wma` files. The rows work like song results:
+`Enter` plays, `a` queues, `f` saves a favorite, and crossfades work between
+local and YouTube tracks. Local tracks can go into local playlists, not
 YouTube playlists.
 
-To try it without pointing at your own library, download three
-public-domain example songs (Musopen recordings) and list them:
+To try it, download three public-domain songs (Musopen recordings), then
+search `local:examples/music` from the repository directory:
 
 ```bash
 ./scripts/download-example-songs.sh
 ```
 
-Then search `local:examples/music` from the repo directory (or paste the
-absolute path).
-
 ### Local playlists
 
-Local playlists are independent of YouTube playlists — useful for collecting
-tracks before creating a real YouTube playlist.
+Local playlists live on this machine, apart from your YouTube playlists. The
+workspace's **Playlist** section treats the queue as a named playlist:
 
-The workspace's **Playlist** section manages the queue as a named playlist.
-It holds the playlist name field, the **New playlist**, **Save queue**,
-**Add track**, and **Remove track** buttons, and **Shuffle** and
-**Clear queue**. The **Mix style** and **Fade −** / **Fade +** controls are
-in the **Crossfade** section.
+- **New playlist** clears the queue (a playing track keeps playing as the first
+  row), detaches the loaded playlist, and focuses the empty name field.
+- **Save queue** (`w`) saves the queue as a local playlist under the typed
+  name, else the loaded playlist's title, else `Saved Queue`. Removals and
+  reordering are kept.
+- **Add track** adds the highlighted queue row (else the highlighted search
+  song, else the playing track) to the playlist named in the field, else to
+  the loaded local playlist, else to a new `TUI Playlist`.
+- **Remove track** removes that track from the loaded playlist: a local
+  playlist on disk, or a YouTube playlist in your account.
 
-- **New playlist** starts a fresh playlist: the queue is cleared (a playing
-  track keeps playing and stays as the first row), the loaded playlist is
-  detached, and the name field is emptied and focused so you can name the
-  new one.
-- **Save queue** (also `w`) saves the queue exactly as a local playlist
-  under the typed name, falling back to the loaded playlist's title, then
-  `Saved Queue`, so removals and reordering done with `d`/`j`/`k` persist.
-- **Add track** adds the selected track (the highlighted queue row, else
-  the highlighted search song, else the playing track) to the local
-  playlist named in the field; without a name it uses the loaded local
-  playlist, or creates `TUI Playlist`.
-- **Remove track** removes the selected track (chosen the same way as for
-  **Add track**) from the loaded playlist: local playlists are edited on
-  disk, YouTube playlists in your account.
+**Shuffle** and **Clear queue** sit in the same section. The **Crossfade**
+section holds **Mix style** (cut or crossfade) and **Fade −** / **Fade +**.
 
 ## The CLI
 
 ```bash
-bester-ytm                          # launch the TUI
-bester-ytm search "Artist Song" --limit 15    # search songs (1-25, default 10)
+bester-ytm                                     # start the TUI
+bester-ytm search "Artist Song" --limit 15     # search songs (1-25, default 10)
 bester-ytm play search "Artist Song" --seconds 20
 bester-ytm play video VIDEO_ID --seconds 20
 bester-ytm play playlist PLAYLIST_ID --transition crossfade --fade 8
@@ -269,20 +214,17 @@ bester-ytm playlist export PLAN_ID --format md
 
 bester-ytm favorites import-tuiradio path/to/favs.md
 
-bester-ytm auth login [--oauth] [--no-browser]
+bester-ytm auth login [--browser NAME | --paste | --cookies-file PATH | --oauth [--no-browser]]
 bester-ytm auth status
 bester-ytm auth logout --yes
 bester-ytm config show
 ```
 
-- `--seconds` on the `play` commands plays a sample of that length, then
-  exits.
-- `playlist build` takes `--brief` for a free-form prompt or constraints and
-  `--allow-variants` to permit obvious live/remix/cover candidates.
-- `auth login --no-browser` (with `--oauth`) skips opening the web browser
-  automatically; `auth logout --yes` skips the confirmation prompt.
-- `play playlist` requires a login even for public playlist ids, because it
-  fetches the playlist through the authenticated client.
-- `--transition` and `--fade` override the saved configuration for one run;
-  without them, `play playlist` uses the settings from
-  [`config.toml`](configuration.md).
+- `--seconds` plays a sample of that length, then exits.
+- `playlist build --brief` adds a free-form prompt; `--allow-variants` allows
+  obvious live, remix, and cover versions.
+- `auth login --oauth --no-browser` does not open the browser;
+  `auth logout --yes` skips the confirmation.
+- `play playlist` needs a login, even for public playlists.
+- `--transition` and `--fade` override [`config.toml`](configuration.md) for
+  one run.

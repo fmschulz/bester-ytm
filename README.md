@@ -6,41 +6,33 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
-A local terminal YouTube Music companion: search, queue, and play music
-through `mpv` with DJ-style dual-deck crossfades, build playlists from plain
-English briefs with the AI provider of your choice, and publish them to your
-YouTube Music account.
+A terminal YouTube Music player. Search, queue, and play through `mpv` with
+DJ-style crossfades, build playlists from plain-English briefs with the AI
+provider you choose, and publish them to your YouTube Music account.
 
 ![bester-ytm TUI demo](docs/assets/demo.gif)
 
-- **Terminal player**: a Textual TUI with search, album browsing, an
-  editable queue, local playlists, favorites, local audio files, web
-  radio with live song names, and searchable keyboard help. Press `Ctrl+F`
-  for favorites or `F1` for help.
-- **Audio-reactive stage**: a black hole, a pulsar plot in the style of Joy
-  Division's *Unknown Pleasures*, a loudness skyline, or an oscilloscope,
-  drawn at two pixels per character cell in the colors of your theme. Press
-  `V` for full screen.
-- **DJ transitions**: the next track is prebuffered on a second silent
-  `mpv` deck and blended in with an equal-power crossfade, shown on a
-  crossfader in the player. The seek bar draws how loud each part of the
-  track was as it played.
-- **Playlist builder**: turn seed songs or a prose brief ("15 songs in the
-  style of Blind Guardian, save as powermetal-15") into a reviewed plan,
-  then create the real playlist in your account.
-- **AI, your way**: briefs and similar-track suggestions run through the
-  Codex CLI, the Claude Code CLI, any OpenAI-compatible endpoint (OpenRouter,
-  Ollama, vLLM), the Anthropic API, or a fully offline heuristic.
-- **Local-first**: credentials, plans, playlists, and settings live under
-  your home directory; nothing leaves your machine except requests to
-  YouTube Music and the AI provider you configure.
+- **Player**: search, album browsing, an editable queue, local playlists,
+  favorites, local audio files, and web radio with live song names.
+- **Stage**: a black hole, a pulsar plot after Joy Division's *Unknown
+  Pleasures*, a loudness skyline, or an oscilloscope, driven by the music's
+  loudness and drawn in your theme's colors.
+- **DJ transitions**: the next track is prebuffered on a second `mpv` deck and
+  crossfaded in. The seek bar draws each track's loudness as it plays.
+- **Playlist builder**: turns seed songs or a brief ("15 songs like Blind
+  Guardian, save as powermetal-15") into a reviewed plan, then creates the
+  playlist in your account.
+- **AI providers**: the Codex CLI, the Claude Code CLI, any OpenAI-compatible
+  endpoint (OpenRouter, Ollama, vLLM), the Anthropic API, or an offline
+  heuristic.
+- **Local-first**: logins, plans, playlists, and settings stay under your home
+  directory. Only YouTube Music and your AI provider receive requests.
 
-Runs on **Linux and macOS** (mpv is controlled over a Unix socket; on
-Windows use WSL2).
+Runs on Linux and macOS; on Windows, use WSL2.
 
 ## Quick start
 
-Install the dependencies (`uv`, `mpv`, `yt-dlp`):
+Install `uv`, `mpv`, and `yt-dlp`:
 
 ```bash
 brew install uv mpv yt-dlp                  # macOS
@@ -48,63 +40,49 @@ sudo apt-get install -y mpv yt-dlp          # Ubuntu/Debian (uv: astral.sh/uv)
 sudo pacman -S --needed uv mpv yt-dlp       # Arch Linux
 ```
 
-Then, from a clone of this repository:
+From a clone of this repository:
 
 ```bash
-./install.sh    # registers the bester-ytm command (uv tool install)
-bester-ytm      # launch the TUI
+./install.sh    # installs the bester-ytm command (uv tool install)
+bester-ytm      # starts the TUI
 ```
 
-Search and playback work immediately — no account needed:
+Run `./install.sh` again after `git pull` to update the installed command.
+
+Search, playback, web radio (`radio:`), and local files (paste a path such as
+`~/Music`) work without an account. Library playlists and playlist editing
+need a login from a browser that is signed in at
+[music.youtube.com](https://music.youtube.com):
 
 ```bash
-bester-ytm search "Beach House Myth"
-bester-ytm play search "Beach House Myth" --seconds 20
+bester-ytm auth login
 ```
 
-In the TUI, `radio:` in the search box lists web radio stations (ByteFM and
-KALX built in, more via config) and shows the live song name while one
-plays; pasting a path like `~/Music` lists and plays your local audio files.
-
-## Logging in (for account features)
-
-YouTube library playlists and playlist create/edit/delete need a login.
-Local favorites work without an account. For browser login, sign in at
-[music.youtube.com](https://music.youtube.com) in any browser, then run
-`bester-ytm auth login` — it reads the login straight from your browser and
-verifies it. No browser access on this machine? `bester-ytm auth login --paste`
-takes a DevTools `Copy as cURL` request instead. Prefer a self-refreshing
-token? Create free Google OAuth credentials once and use
-`bester-ytm auth login --oauth`.
-
-Both flows, step by step:
-[Getting Started](https://fmschulz.github.io/bester-ytm/getting-started/).
+[Getting Started](https://fmschulz.github.io/bester-ytm/getting-started/)
+covers the paste and OAuth alternatives.
 
 ## Documentation
 
-Full documentation lives at
-**[fmschulz.github.io/bester-ytm](https://fmschulz.github.io/bester-ytm/)**:
-
-- [Getting Started](https://fmschulz.github.io/bester-ytm/getting-started/) — install and login
-- [Usage](https://fmschulz.github.io/bester-ytm/usage/) — TUI keys, search syntax, CLI commands
-- [Playlist Builder & AI](https://fmschulz.github.io/bester-ytm/builder/) — plans, briefs, AI providers
-- [Configuration](https://fmschulz.github.io/bester-ytm/configuration/) — `config.toml`, data locations
-- [Architecture](https://fmschulz.github.io/bester-ytm/architecture/) — the dual-deck engine
+[fmschulz.github.io/bester-ytm](https://fmschulz.github.io/bester-ytm/):
+[Getting Started](https://fmschulz.github.io/bester-ytm/getting-started/),
+[Usage](https://fmschulz.github.io/bester-ytm/usage/),
+[Playlist Builder & AI](https://fmschulz.github.io/bester-ytm/builder/),
+[Configuration](https://fmschulz.github.io/bester-ytm/configuration/),
+[Architecture](https://fmschulz.github.io/bester-ytm/architecture/), and
+[Development](https://fmschulz.github.io/bester-ytm/development/).
 
 ## Development
 
 ```bash
 uv sync
-uv run pytest -q     # fast: no network, no mpv
+uv run pytest -q     # no network, no mpv
 uv run ruff check .
 uv run mypy src
 ```
 
-CI gates lint, types, and 80% test coverage on Python 3.11 and 3.13. See
-[Development](https://fmschulz.github.io/bester-ytm/development/) for layout
-and conventions, and [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose
-changes.
+CI checks lint, types, and 80% test coverage on Python 3.11 and 3.13. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT; see [LICENSE](LICENSE).

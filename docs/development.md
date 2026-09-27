@@ -5,24 +5,24 @@
 ```bash
 uv sync                          # install with dev dependencies
 uv run bester-ytm                # run the TUI from the working tree
-uv run pytest -q                 # tests (fast: no network, no mpv, no sleeps)
+uv run pytest -q                 # tests: no network, no mpv, no sleeps
 uv run pytest -q --cov=bester_ytm --cov-report=term   # coverage report
-# CI enforces the 80% gate (--cov-fail-under=80 in .github/workflows/ci.yml)
 uv run ruff check .              # lint
 uv run mypy src                  # type check
 ```
 
-CI runs the same lint, type check, and coverage gate on every push and pull
-request, on Python 3.11 and 3.13. Contribution rules live in
+CI runs lint, the type check, and the tests with an 80% coverage gate
+(`--cov-fail-under=80`) on every push and pull request, on Python 3.11 and
+3.13. Contribution rules are in
 [CONTRIBUTING.md](https://github.com/fmschulz/bester-ytm/blob/main/CONTRIBUTING.md).
 
 ## Releasing
 
-Bump the version in `pyproject.toml` and `src/bester_ytm/__init__.py`, add a
-`## [X.Y.Z]` section to `CHANGELOG.md`, commit, and push a `vX.Y.Z` tag. The
-`Release` workflow fails unless tag, both version strings, and the changelog
-section agree; it then re-runs all checks and publishes the GitHub release
-with notes extracted from the changelog.
+Set the new version in `pyproject.toml` and `src/bester_ytm/__init__.py`, add a
+`## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`, commit, and push a
+`vX.Y.Z` tag. The `Release` workflow stops unless the tag, both version
+strings, and the changelog section agree; then it re-runs all checks and
+publishes a GitHub release with notes from the changelog.
 
 ## Layout and conventions
 
@@ -30,6 +30,9 @@ with notes extracted from the changelog.
 src/bester_ytm/
 ├── cli.py, cli_play.py, cli_config.py   Typer commands (thin; no API logic)
 ├── tui.py + tui_*.py                    Textual app shell and action mixins
+├── tui_canvas.py, tui_stage.py,         the stage: pixel canvas, widget,
+│   tui_visuals.py, tui_astra.py         audio signal, and scenes
+├── tui_player.py, tui_rows.py           player deck and list rows
 ├── playback.py                          PlaybackController: queue, history, mpv
 ├── transitions.py, deck.py, fader.py    dual-deck crossfade engine
 ├── playback_status.py, transition_settings.py   shared dataclasses
@@ -39,28 +42,29 @@ src/bester_ytm/
 ├── auth.py, config.py, config_options.py   logins, paths, config.toml
 ├── playlist_plan.py, playlist_builder.py, playlist_create.py, resolver.py
 ├── stores.py, search_query.py, similar.py
-└── intelligence/                        AI providers (heuristic, codex, openai, anthropic)
+└── intelligence/                        AI providers (heuristic, codex,
+                                         claude, openai, anthropic)
 ```
 
-- UI layers (`cli*`, `tui*`) never call ytmusicapi or spawn mpv directly;
-  they go through `ytm_client.py` and `playback.py`.
-- Modules stay under ~300 lines, functions under ~30, full type hints.
-- Errors are raised as `ConfigError` / `PlaybackError` / `YTMClientError`
-  with actionable messages.
-- Tests fake mpv at the `subprocess.Popen` / IPC seams and inject clocks;
-  the whole suite must stay under ~15 seconds.
+- The UI layers (`cli*`, `tui*`) never call ytmusicapi or spawn mpv; they use
+  `ytm_client.py` and `playback.py`.
+- Modules stay under about 300 lines and functions under about 30, with full
+  type hints.
+- Errors are `ConfigError`, `PlaybackError`, or `YTMClientError` with messages
+  that say what to do.
+- Tests fake mpv at the `subprocess.Popen` and IPC seams and inject clocks.
 
-See [Architecture](architecture.md) for the dual-deck engine design and its
-invariants, and [Manual Testing](manual-testing.md) for the credentialed,
-audio-producing checks that unit tests intentionally skip.
+[Architecture](architecture.md) explains the dual-deck engine and the stage;
+[Manual Testing](manual-testing.md) lists the checks that need audio or a
+login.
 
 ## Documentation
 
-This site is built with MkDocs Material:
+The site is built with MkDocs Material:
 
 ```bash
 uv sync --group docs
-uv run mkdocs serve    # live preview at http://127.0.0.1:8000
+uv run mkdocs serve    # preview at http://127.0.0.1:8000
 ```
 
-It deploys to GitHub Pages automatically on every push to `main`.
+Every push to `main` deploys it to GitHub Pages.
