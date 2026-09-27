@@ -4,7 +4,8 @@
 
 Launch with `bester-ytm`. Search and browse on the left, arrange the queue
 in the center, and use the workspace on the right for playlists, the builder,
-and DJ controls. The playback bar sits below the full-width visual stage.
+and crossfade settings. The stage fills the width below the panes, and the
+player sits under it. Each pane's border shows its name and its main keys.
 On narrow terminals, `F2` or **Tools** switches between the queue and workspace.
 The top bar opens Favorites, Playlists, Radio, and Help.
 
@@ -17,7 +18,8 @@ it and returns to the previous view.
 Pane-scoped keys act only while their pane has focus: `x`, `Shift+Space`,
 `a`, `A`, and `Enter`-on-results need the results pane; `j`/`k`, `c`, and
 `w` need the queue pane; `s`, `d`, `Space`-as-select, and `Enter`-on-queue
-work from either list pane. The footer always shows which keys are live.
+work from either list pane. The footer shows the main keys for the focused
+pane; the keyboard guide lists every key.
 
 ```text
 /          focus search
@@ -47,15 +49,15 @@ g          add 5 AI-suggested similar tracks to the queue; type digits
 i          build a playlist from the builder prompt (right pane)
 t          toggle transition style (cut / crossfade)
 [ / ]      shorten / lengthen the crossfade (1-15s)
-v          cycle the visualizer (Astra, Mythos, Oracle, Bars, Wave, Pulse, Scope)
-V          expand/restore the visual stage (Shift+v); Esc returns
+v          next stage scene (Astra, Pulsar, Bars, Scope)
+V          full-screen stage (Shift+v; clicking the stage does the same); Esc returns
 F2         open the workspace tools on a narrow terminal
 Left/Right seek -10s/+10s
 ,/.        seek -30s/+30s
 - / = / +  volume down / up (both = and + raise it)
 m          mute/unmute
 f          toggle the focused song's local favorite; otherwise the playing song
-           [fav] marks saved songs; radio favorites resolve the live song
+           ★ marks saved songs; radio favorites resolve the live song
 Ctrl+F     browse favorites (also the Favorites button)
 Ctrl+P     show playlists (local first, then your YouTube library)
 Ctrl+A     show auth status
@@ -126,29 +128,49 @@ rest.
 
 ### Playback and transitions
 
-The current track is marked `NOW`. When a track nears its end and the
-transition style is crossfade (the default, 6 seconds), the next queued
-track is prebuffered on a second silent mpv deck and blended in DJ-style
-with an equal-power fade; set the transition to cut for instant switches.
-The `DECK` line beside the transport shows the active deck and becomes a
-`MIX` meter while two tracks blend. The stage displays an audio-reactive
-scene. Astra draws an accretion disk, photon ring, aurora, and starfield in
-cyan, violet, and gold. It responds to loudness from mpv, not frequency bands.
-During silence, the visual energy fades. Pausing freezes the scene.
+The playing track carries `▶` in the queue, and tracks already played are
+dimmed. When a track nears its end and the transition style is crossfade
+(the default, 6 seconds), the next queued track is prebuffered on a second
+silent mpv deck and blended in DJ-style with an equal-power fade; set the
+transition to cut for instant switches. The crossfader in the player
+(`A ━━━━●━━━━ B`) shows the live deck, and its knob slides to the other
+deck while two tracks blend. A dotted rail means the transition is cut.
 
-Choose an effect from the stage dropdown or press `v`. Press `V` (Shift+v)
-for the immersive stage and `Esc` to return. Playback controls remain visible.
-Open the command palette with `Ctrl+Shift+P` to choose a theme. Clicking the progress bar seeks to that position.
-On slow or remote terminals, lower `ui.visual_fps` or set it to `0` for
-static frames.
+The seek bar draws how loud each stretch of the current track was when it
+played, so the played part shows the shape of the song. Stretches skipped
+by seeking stay flat. Click the bar to seek to that position. A web radio
+stream has no end, so the bar shows its recent loudness instead.
+
+The stage shows an audio-reactive scene in the colors of the active theme:
+
+- **Astra**: a black hole whose accretion disk heats up and spins faster
+  with the music; sudden onsets flare the photon ring.
+- **Pulsar**: a ridgeline plot of recent loudness, drawn like the pulsar
+  plot on the cover of Joy Division's *Unknown Pleasures*. The front ridge
+  moves live; older ridges recede.
+- **Bars**: a loudness skyline with the newest sample on the right.
+- **Scope**: a Lissajous figure on a phosphor screen that swells with
+  loudness and leaves fading trails.
+
+The scenes react to the loudness that mpv reports; they have no frequency
+data. Pausing freezes the scene; with nothing playing, the stage shows a dim
+still.
+
+Choose a scene from the stage dropdown or press `v`. Press `V` (Shift+v) or
+click the stage for full screen, and press `Esc` or click again to return.
+The player stays visible. Open the command palette with `Ctrl+Shift+P` to
+choose a theme; the stage takes its colors from it.
+On slow or remote terminals, lower `ui.visual_fps`, or set it to `0` for
+still frames. At `0` the seek bar shows progress without the loudness shape.
 
 ### Favorites
 
 Press `f` to toggle the highlighted song in results, an expanded album, or
-the queue. Outside those lists, it acts on the playing track. The
-**Favorite playing** button always acts on the current track.
+the queue. Outside those lists, it acts on the playing track. The star
+button in the player always acts on the current track.
 
-Saved tracks show `[fav]` in results, the queue, and Now Playing. Open
+Saved tracks show `★` in results, the queue, and album trees, and the
+player's star fills while a saved track plays. Open
 **Favorites** or press `Ctrl+F` to browse them. `Enter` plays or queues a
 song; `a` queues it; `f` removes it. Removal keeps the cursor on a remaining
 row. Edit the search to `favs:sepultura` to filter by text. `favorites:` and
@@ -210,24 +232,26 @@ absolute path).
 Local playlists are independent of YouTube playlists — useful for collecting
 tracks before creating a real YouTube playlist.
 
-The right-pane `Playlist / Queue` section manages the queue as a named
-playlist. It holds the playlist name field, the New / Save / Add / Remove
-buttons, and the Shuffle / Clear controls (the Mix and Fade- / Fade+
-transition controls are inside the DJ / Crossfade section):
+The workspace's **Playlist** section manages the queue as a named playlist.
+It holds the playlist name field, the **New playlist**, **Save queue**,
+**Add track**, and **Remove track** buttons, and **Shuffle** and
+**Clear queue**. The **Mix style** and **Fade −** / **Fade +** controls are
+in the **Crossfade** section.
 
-- `New` starts a fresh playlist: the queue is cleared (a playing track keeps
-  playing and stays as the first row), the loaded playlist is detached, and
-  the name field is emptied and focused so you can name the new one.
-- `Save` (also `w`) saves the queue exactly as a local playlist under the
-  typed name — falling back to the loaded playlist's title, then
-  `Saved Queue` — so removals and reordering done with `d`/`j`/`k` persist.
-- `Add` adds the selected track — the highlighted queue row, else the
-  highlighted search song, else the playing track — to the local playlist
-  named in the field; without a name it uses the loaded local playlist, or
-  creates `TUI Playlist`.
-- `Remove` removes the selected track (same resolution as `Add`) from the
-  loaded playlist: local playlists are edited on disk, YouTube playlists in
-  your account.
+- **New playlist** starts a fresh playlist: the queue is cleared (a playing
+  track keeps playing and stays as the first row), the loaded playlist is
+  detached, and the name field is emptied and focused so you can name the
+  new one.
+- **Save queue** (also `w`) saves the queue exactly as a local playlist
+  under the typed name, falling back to the loaded playlist's title, then
+  `Saved Queue`, so removals and reordering done with `d`/`j`/`k` persist.
+- **Add track** adds the selected track (the highlighted queue row, else
+  the highlighted search song, else the playing track) to the local
+  playlist named in the field; without a name it uses the loaded local
+  playlist, or creates `TUI Playlist`.
+- **Remove track** removes the selected track (chosen the same way as for
+  **Add track**) from the loaded playlist: local playlists are edited on
+  disk, YouTube playlists in your account.
 
 ## The CLI
 

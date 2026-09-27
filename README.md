@@ -13,19 +13,25 @@ YouTube Music account.
 
 ![bester-ytm TUI demo](docs/assets/demo.gif)
 
-- **Terminal player** — a Textual TUI with search, album browsing, an
+- **Terminal player**: a Textual TUI with search, album browsing, an
   editable queue, local playlists, favorites, local audio files, web
-  radio with live song names, searchable keyboard help, and the Astra visual
-  stage. Press `V` for the immersive view, `Ctrl+F` for favorites, or `F1` for help.
-- **DJ transitions** — the next track is prebuffered on a second silent
-  `mpv` deck and blended in with an equal-power crossfade.
-- **Playlist builder** — turn seed songs or a prose brief ("15 songs in the
+  radio with live song names, and searchable keyboard help. Press `Ctrl+F`
+  for favorites or `F1` for help.
+- **Audio-reactive stage**: a black hole, a pulsar plot in the style of Joy
+  Division's *Unknown Pleasures*, a loudness skyline, or an oscilloscope,
+  drawn at two pixels per character cell in the colors of your theme. Press
+  `V` for full screen.
+- **DJ transitions**: the next track is prebuffered on a second silent
+  `mpv` deck and blended in with an equal-power crossfade, shown on a
+  crossfader in the player. The seek bar draws how loud each part of the
+  track was as it played.
+- **Playlist builder**: turn seed songs or a prose brief ("15 songs in the
   style of Blind Guardian, save as powermetal-15") into a reviewed plan,
   then create the real playlist in your account.
-- **AI, your way** — briefs and similar-track suggestions run through the
+- **AI, your way**: briefs and similar-track suggestions run through the
   Codex CLI, the Claude Code CLI, any OpenAI-compatible endpoint (OpenRouter,
   Ollama, vLLM), the Anthropic API, or a fully offline heuristic.
-- **Local-first** — credentials, plans, playlists, and settings live under
+- **Local-first**: credentials, plans, playlists, and settings live under
   your home directory; nothing leaves your machine except requests to
   YouTube Music and the AI provider you configure.
 

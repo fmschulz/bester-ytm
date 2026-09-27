@@ -26,7 +26,9 @@ tests intentionally do not perform.
 ## Playback
 
 - [ ] `uv run bester-ytm play search "Beach House Myth" --seconds 20` starts `mpv`, plays audio, and exits cleanly.
-- [ ] `uv run bester-ytm` opens the player TUI; search, queue, play/pause, skip, favorite toggle (f, [fav] marker, Ctrl+F listing), auth status, and playlist builder views respond to the documented keys.
+- [ ] `uv run bester-ytm` opens the player TUI; search, queue, play/pause, skip, favorite toggle (f, ★ marker, Ctrl+F listing), auth status, and playlist builder views respond to the documented keys.
+- [ ] While a song plays, the seek bar fills with its loudness shape up to the
+      playhead; seeking ahead leaves a flat stretch; clicking the bar seeks.
 - [ ] After `./scripts/download-example-songs.sh`, searching
       `local:examples/music` lists the three example songs, `Enter` plays one
       audibly, and crossfade transitions work between local and YouTube
@@ -38,28 +40,30 @@ tests intentionally do not perform.
 
 - [ ] `F1` opens help while typing; filtering by `favorite` finds favorite keys;
       `F1` closes help and restores input focus.
-- [ ] `V` expands Astra while music plays; `Ctrl+Space` pauses it;
-      resizing preserves the scene; `Esc` restores the workspace.
+- [ ] `V` (or a click on the stage) shows it full screen while music plays;
+      `Ctrl+Space` pauses it; resizing redraws the scene; `Esc` restores the
+      workspace. `v` cycles Astra, Pulsar, Bars, and Scope, and a theme change
+      from `Ctrl+Shift+P` recolors the stage.
 - [ ] At 80x24, `F2` switches to tools; transport and help remain reachable.
 - [ ] Remove a row in Favorites with `f`; the row disappears and the cursor
-      stays in the list. Click Favorite playing and check that it saves the
+      stays in the list. Click the player's star and check that it saves the
       playing song, even when a different row is highlighted.
 
 ## DJ transitions
 
 - [ ] With two or more tracks queued and crossfade active, the second track
-      audibly blends in before the first ends (no silence gap), and the DECK
-      line becomes a `MIX A [######------] B` meter during the blend.
+      audibly blends in before the first ends (no silence gap), and the
+      crossfader knob slides from one deck to the other during the blend.
 - [ ] Pressing `n` during crossfade mode performs a quick audible mix instead
       of a hard cut.
 - [ ] Pressing `t` switches to cut; track changes become instant hard
-      switches and the DECK line shows `cut`.
+      switches and the crossfader shows a dotted rail and `cut`.
 - [ ] `[` and `]` change the fade length, the status line confirms it, and
       the new value appears in `~/.config/bester-ytm/config.toml` and in
       `uv run bester-ytm config show`.
 - [ ] `uv run bester-ytm play playlist <id> --transition crossfade --fade 8`
       blends between tracks from the CLI.
-- [ ] Quit the TUI mid-mix (`q` while the MIX meter is visible), then run
+- [ ] Quit the TUI mid-mix (`q` while the crossfader knob is between A and B), then run
       `pgrep -a mpv`: no orphaned mpv processes remain and no
       `bester-ytm-mpv-*.sock` files are left in the temp directory.
 - [ ] Pause during a mix snaps cleanly to the incoming track; resume plays at
