@@ -12,30 +12,27 @@ from .config import ConfigError
 from .config_options import save_ui_options
 from .tui_splitter import PaneSplitter
 from .tui_theme import ASTRA_THEME, EMBER_THEME
-from .tui_visuals import EFFECT_ORDER
+from .tui_visuals import EFFECT_LABELS, EFFECT_ORDER
 
 
 class UiOptionsActions:
     """Mixin for BesterYTMApp: persisted visualizer, theme, and pane options."""
 
     visualizer_effect: str
-    _last_visual_state: str | None
 
     def action_cycle_visualizer(self) -> None:
         names = list(EFFECT_ORDER)
         position = names.index(self.visualizer_effect) if self.visualizer_effect in names else 0
         self._apply_visualizer_effect(names[(position + 1) % len(names)])
-        select = self._query_optional("#effect-select", Select)
-        if select is not None:
-            select.value = self.visualizer_effect
 
     def _apply_visualizer_effect(self, effect: str) -> None:
         self.visualizer_effect = effect
-        self._last_visual_state = "effect-change"
-        self._animate_visual_panel()
-        self._refresh_playback()
+        select = self._query_optional("#effect-select", Select)
+        if select is not None:
+            select.value = effect
+        self._draw_stage(self._playback_state())
         self._save_ui_options()
-        self._set_status(f"Visualizer: {effect}.")
+        self._set_status(f"Scene: {EFFECT_LABELS[effect]}.")
 
     async def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id != "effect-select" or not isinstance(event.value, str):

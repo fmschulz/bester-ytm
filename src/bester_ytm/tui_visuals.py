@@ -1,57 +1,62 @@
-"""Audio-reactive visuals for the stage and fullscreen view.
+"""Audio-reactive stage scenes and the loudness signal that drives them.
 
-The classic effects paint a brightness *field* (``grid[y][x]`` in 0..1);
-a single shared renderer turns that field into glyphs with a per-cell ember glow
-and an optional bloom pass, so every effect lights up the same way. The app feeds
-in a sliding history of live RMS loudness (newest last) plus a motion ``phase`` it
-accumulates in proportion to loudness, so the visuals lock to the music: ``bars``
-and ``wave`` plot the loudness history directly, while ``mythos``/``oracle``/
-``pulse``/``scope`` move at a speed and brightness set by the audio. Astra uses
-its own multicolor renderer with the same audio history and dimensions.
+mpv measures RMS loudness as it plays (``deck.spawn_mpv``). ``AudioSignal`` turns
+those readings into a smoothed level, a history, an onset strength and a motion
+clock (``phase``) that runs faster when the music is loud, so every scene moves
+with the music rather than at a constant rate. Scenes paint light intensities onto
+a ``PixelCanvas``; the stage colours them with the active theme.
 """
 
 from __future__ import annotations
 
 import math
-import re
+import random
 from collections import deque
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, replace
+from functools import lru_cache
 
-from .tui_astra import render_astra
+from .tui_astra import draw_astra
+from .tui_canvas import PixelCanvas
 
-FULL = "█"
-# Glyph ramp from faint to incandescent; index = round(brightness * (len - 1)).
-RAMP = " ·∙•●◉▓█"
-STAR = "·"
-
-# Warm ember gradient, dim depths to white-hot crest.
-PALETTE = [
-    "#5b2f22", "#7c3f2e", "#a85638", "#c96442",
-    "#e07a5f", "#eda36c", "#f2cc8f", "#ffe6c0",
-]
 DEFAULT_LEVEL = 0.6
+# The level an idle stage is drawn at: shapes visible, barely lit.
+IDLE_LEVEL = 0.12
 # mpv's astats filter measures audio as it is filtered, which runs ahead of the
 # speakers by the output buffer (--audio-buffer 0.2s plus the device buffer).
 # Readings are held back this long so the visuals move with what is heard.
 MPV_AUDIO_LEAD_SECONDS = 0.25
+HISTORY_SAMPLES = 512
+# One pulsar ridge per this many samples: about 0.3 s at the default 20 fps.
+RIDGE_SAMPLES = 6
 
-EFFECT_ORDER = ("astra", "mythos", "oracle", "bars", "wave", "pulse", "scope")
-EFFECT_LABELS = {
-    "astra": "Astra",
-    "mythos": "Mythos",
-    "oracle": "Oracle",
-    "bars": "Bars",
-    "wave": "Wave",
-    "pulse": "Pulse",
-    "scope": "Scope",
-}
+EFFECT_ORDER = ("astra", "pulsar", "bars", "scope")
+EFFECT_LABELS = {"astra": "Astra", "pulsar": "Pulsar", "bars": "Bars", "scope": "Scope"}
 EFFECT_OPTIONS = [(EFFECT_LABELS[key], key) for key in EFFECT_ORDER]
 
-_TAG = re.compile(r"\[[^\]]*\]")
+
+@dataclass(frozen=True, slots=True)
+class AudioFrame:
+    """Everything a scene may react to on one frame.
+
+    Attributes:
+        level: Smoothed loudness of the newest sample, 0..1.
+        onset: How far that level jumps above the recent average, 0..1.
+        phase: Motion clock; it runs faster when the music is loud.
+        history: Recent levels, newest last.
+        samples: Samples taken since start; ties pulsar ridges to moments in time.
+    """
+
+    level: float
+    onset: float
+    phase: float
+    history: tuple[float, ...]
+    samples: int
 
 
-def strip_markup(panel: str) -> str:
-    """Drop Rich color tags, leaving the raw glyph grid (handy for tests)."""
-    return _TAG.sub("", panel)
+STILL_FRAME = AudioFrame(level=IDLE_LEVEL, onset=0.0, phase=0.0, history=(), samples=0)
+
+Scene = Callable[[PixelCanvas, AudioFrame], None]
 
 
 class AudioLevelMeter:
@@ -83,12 +88,12 @@ class AudioLevelMeter:
         # astats reports -inf for digital silence. Release after the audio delay,
         # without pulling the adaptive range down to an unusable noise floor.
         if rms_db < -90.0:
-            self.level *= 0.004 ** self.sample_interval
+            self.level *= 0.004**self.sample_interval
             return self.level
         # Relax the floor/ceiling toward the current reading (~1s window), so the
         # meter follows the melody and beat instead of locking onto the song's
         # lifetime min/max and going flat on loudness-normalized tracks.
-        adapt = 0.27 ** self.sample_interval
+        adapt = 0.27**self.sample_interval
         self.floor_db = min(rms_db, self.floor_db * adapt + rms_db * (1 - adapt))
         self.ceiling_db = max(rms_db, self.ceiling_db * adapt + rms_db * (1 - adapt))
         span = max(8.0, self.ceiling_db - self.floor_db)
@@ -96,256 +101,178 @@ class AudioLevelMeter:
         if instant >= self.level:
             self.level = instant
         else:
-            release = 0.004 ** self.sample_interval
+            release = 0.004**self.sample_interval
             self.level = self.level * release + instant * (1 - release)
         return self.level
 
 
-def render_visual_panel(
-    effect: str,
-    phase: float,
-    width: int,
-    height: int,
-    *,
-    running: bool,
-    levels: list[float] | None = None,
-) -> str:
-    if width < 8 or height < 3:
-        return ""
-    if not running:
-        return _render_idle(width, height)
-    history = levels or []
-    level = min(1.0, max(0.0, history[-1] if history else DEFAULT_LEVEL))
-    if effect == "astra":
-        return render_astra(phase, width, height, level, history)
-    field = _RENDERERS.get(effect, _mythos_field)(phase, width, height, level, history)
-    bloom = _BLOOM.get(effect)
-    if bloom:
-        field = _bloom(field, bloom)
-    return _render_field(field, level)
+class AudioSignal:
+    """Samples live loudness into the frames the scenes draw."""
+
+    def __init__(self, sample_interval: float) -> None:
+        self.meter = AudioLevelMeter(sample_interval)
+        self.history: deque[float] = deque(maxlen=HISTORY_SAMPLES)
+        self.phase = 0.0
+        self.samples = 0
+
+    def sample(self, rms_db: float | None) -> None:
+        """Take one loudness reading (None keeps the last level) and advance the clock."""
+        level = self.meter.update(rms_db)
+        previous = self.history[-1] if self.history else level
+        self.history.append(level)
+        self.samples += 1
+        # Near-still in lulls, flowing when loud, with an extra kick on each onset so
+        # the motion locks to the beat. Drift is per second, so the speed is the same
+        # at any fps; the onset kick is per beat and stays unscaled.
+        drift = (1.6 + 11.2 * level) * self.meter.sample_interval
+        self.phase += drift + 3.0 * max(0.0, level - previous)
+
+    def frame(self) -> AudioFrame:
+        """The live frame; the onset is measured against the last dozen samples."""
+        history = tuple(self.history)
+        level = history[-1] if history else self.meter.level
+        recent = history[-12:] or (level,)
+        onset = max(0.0, level - sum(recent) / len(recent))
+        return AudioFrame(level, onset, self.phase, history, self.samples)
+
+    def still(self) -> AudioFrame:
+        """A calm frame for an idle stage: the last shapes, barely lit."""
+        return replace(self.frame(), level=IDLE_LEVEL, onset=0.0)
 
 
-# --- shared rendering -------------------------------------------------------
+def draw_scene(name: str, canvas: PixelCanvas, frame: AudioFrame) -> None:
+    """Draw scene ``name`` (Astra when the name is unknown, e.g. a retired scene)."""
+    SCENES.get(name, draw_astra)(canvas, frame)
 
 
-def _render_field(grid: list[list[float]], level: float) -> str:
-    """Map a brightness field to glyphs tinted with a vertical ember glow."""
-    height = len(grid)
-    gain = 0.55 + 0.7 * level
-    return "\n".join(
-        _row_markup(row, (height - 1 - y) / max(1, height - 1), gain, level)
-        for y, row in enumerate(grid)
-    )
+def draw_pulsar(canvas: PixelCanvas, frame: AudioFrame) -> None:
+    """Joy Division's pulsar plot from the loudness history, newest ridge in front.
+
+    Each ridge shows the loudest moment of its slice of time and keeps its shape as
+    it recedes. The front ridge follows the live level, and all ridges glide up
+    continuously, so the plot scrolls smoothly instead of jumping a row at a time.
+    """
+    canvas.clear()
+    count = max(6, canvas.height // 3)
+    spacing = canvas.height / (count + 6)
+    clock = frame.samples / RIDGE_SAMPLES
+    newest = int(clock)
+    for age in range(count, -1, -1):
+        ridge = newest - age
+        slot = count - (clock - ridge)
+        level = frame.level if age == 0 else _ridge_level(frame, ridge)
+        _draw_ridge(
+            canvas,
+            base=spacing * (slot + 5.5),
+            lift=spacing * 5.0 * (0.1 + 0.9 * level),
+            profile=_ridge_profile(ridge, canvas.width),
+            glow=0.45 + 0.55 * max(0.0, slot) / count,
+        )
 
 
-def _row_markup(values: list[float], depth: float, gain: float, level: float) -> str:
-    """Run-length encode a row into ``[#hex]chars[/]`` spans, glow brightening with loudness."""
-    top = len(PALETTE) - 1
-    parts: list[str] = []
-    run: list[str] = []
-    run_color: str | None = None
-    for value in values:
-        bright = min(1.0, max(0.0, value * gain))
-        glyph = RAMP[round(bright * (len(RAMP) - 1))]
-        if glyph == " ":
-            color = None
-        else:
-            shade = round(bright * top * 0.78 + depth * top * 0.18 + level * 1.1)
-            color = PALETTE[min(top, shade)]
-        if color != run_color:
-            parts.append(_flush(run, run_color))
-            run, run_color = [], color
-        run.append(glyph)
-    parts.append(_flush(run, run_color))
-    return "".join(parts)
-
-
-def _flush(chars: list[str], color: str | None) -> str:
-    if not chars:
-        return ""
-    text = "".join(chars)
-    return f"[{color}]{text}[/]" if color else text
-
-
-def _bloom(grid: list[list[float]], strength: float) -> list[list[float]]:
-    """One additive 3x3 spread so bright cells halo into their neighbours."""
-    height, width = len(grid), len(grid[0])
-    out = [row[:] for row in grid]
-    for y in range(height):
-        for x in range(width):
-            seed = grid[y][x]
-            if seed <= 0.0:
-                continue
-            spill = seed * strength
-            for dy in (-1, 0, 1):
-                for dx in (-1, 0, 1):
-                    if dx or dy:
-                        ny, nx = y + dy, x + dx
-                        if 0 <= ny < height and 0 <= nx < width:
-                            out[ny][nx] = min(1.0, out[ny][nx] + spill)
-    return out
-
-
-def _render_idle(width: int, height: int) -> str:
-    rows = [" " * width for _ in range(height - 1)]
-    rows.append("▁" * width)
-    label = "awaiting signal"
-    pad = max(0, (width - len(label)) // 2)
-    rows[height // 2] = (" " * pad + label).ljust(width)[:width]
-    return "\n".join(f"[{PALETTE[1]}]{row}[/]" for row in rows)
-
-
-def _history_columns(levels: list[float], width: int) -> list[float]:
-    """Recent levels as one value per column, newest on the right, padded with silence."""
-    recent = levels[-width:]
-    pad = [0.0] * (width - len(recent))
-    return pad + [min(1.0, max(0.0, value)) for value in recent]
-
-
-def _blank(width: int, height: int) -> list[list[float]]:
-    return [[0.0] * width for _ in range(height)]
-
-
-# --- effect fields ----------------------------------------------------------
-
-
-def _bars_field(phase: float, width: int, height: int, level: float, levels: list[float]):
-    """A scrolling loudness spectrum: each column is a past RMS reading, newest on the right."""
-    grid = _blank(width, height)
-    for x, value in enumerate(_history_columns(levels, width)):
-        cells = value * height
-        full = int(cells)
-        for y in range(full):
-            grid[height - 1 - y][x] = 1.0
+def draw_bars(canvas: PixelCanvas, frame: AudioFrame) -> None:
+    """A loudness skyline: one column per recent sample, newest on the right."""
+    canvas.clear()
+    width, height, pixels = canvas.width, canvas.height, canvas.pixels
+    recent = frame.history[-width:]
+    for column, level in enumerate(recent, start=width - len(recent)):
+        filled = min(1.0, level) * height
+        full = int(filled)
+        for rise in range(full):
+            pixels[(height - 1 - rise) * width + column] = 0.3 + 0.7 * rise / height
         if full < height:
-            grid[height - 1 - full][x] = cells - full
-    return grid
+            pixels[(height - 1 - full) * width + column] = (filled - full) * (
+                0.3 + 0.7 * full / height
+            )
 
 
-def _wave_field(phase: float, width: int, height: int, level: float, levels: list[float]):
-    """A symmetric oscilloscope of the loudness history; the band swells on loud passages."""
-    grid = _blank(width, height)
-    mid = (height - 1) / 2
-    for x, value in enumerate(_history_columns(levels, width)):
-        amp = value * mid
-        top = max(0, round(mid - amp))
-        bottom = min(height - 1, round(mid + amp))
-        for y in range(top, bottom + 1):
-            grid[y][x] = 1.0 if y in (top, bottom) else 0.45
-    return grid
+def draw_scope(canvas: PixelCanvas, frame: AudioFrame) -> None:
+    """An oscilloscope in XY mode: a Lissajous knot that swells with loudness.
 
-
-def _pulse_field(phase: float, width: int, height: int, level: float, levels: list[float]):
-    """Concentric rings driven outward by the audio phase; thicker and brighter on loud beats."""
-    grid = _blank(width, height)
-    center_x = (width - 1) / 2
-    center_y = (height - 1) / 2
-    thickness = 0.4 + 1.6 * level
-    for y in range(height):
-        for x in range(width):
-            distance = abs(x - center_x) * 0.5 + abs(y - center_y)
-            ring = (distance - phase * 0.6) % 5.0
-            if ring < thickness:
-                grid[y][x] = 1.0 - 0.4 * ring / thickness
-            elif ring < thickness + 1.0:
-                grid[y][x] = 0.4 * (thickness + 1.0 - ring)
-    return grid
-
-
-def _scope_field(phase: float, width: int, height: int, level: float, levels: list[float]):
-    """A Lissajous figure that rotates with the audio phase and swells with loudness."""
-    grid = _blank(width, height)
-    center_x = (width - 1) / 2
-    center_y = (height - 1) / 2
-    radius = 0.3 + 0.65 * level
-    points = max(80, width * 3)
+    The screen keeps a fading copy of earlier frames, like a phosphor tube, so the
+    knot leaves trails as it turns.
+    """
+    canvas.fade(0.6)
+    center_x, center_y = (canvas.width - 1) / 2, (canvas.height - 1) / 2
+    radius_y = center_y * (0.45 + 0.5 * frame.level)
+    radius_x = min(center_x, 1.8 * radius_y)
+    turn = frame.phase * 0.11
+    brightness = min(1.0, 0.7 + 0.3 * frame.level + frame.onset)
+    points = max(240, round(24 * (radius_x + radius_y)))
     for step in range(points):
-        t = step / points * math.tau
-        x = center_x + math.sin(3 * t + phase * 0.11) * center_x * radius
-        y = center_y + math.sin(2 * t) * center_y * radius
-        grid[round(y)][round(x)] = 1.0
-    return grid
+        angle = step / points * math.tau
+        x = round(center_x + math.sin(3 * angle + turn) * radius_x)
+        y = round(center_y + math.sin(2 * angle) * radius_y)
+        canvas.plot(x, y, brightness)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            canvas.plot(x + dx, y + dy, 0.3 * brightness)
 
 
-def _oracle_field(phase: float, width: int, height: int, level: float, levels: list[float]):
-    """A mind's eye: rotating spokes crossed by thought-rings expanding from a white-hot core."""
-    grid = _blank(width, height)
-    center_x = (width - 1) / 2
-    center_y = (height - 1) / 2
-    eye = 1.2 + 1.8 * level
-    for y in range(height):
-        for x in range(width):
-            dx = (x - center_x) * 0.5
-            dy = y - center_y
-            distance = math.hypot(dx, dy)
-            angle = math.atan2(dy, dx)
-            ring = 0.5 + 0.5 * math.cos(distance * 1.15 - phase * 0.45)
-            spoke = 0.5 + 0.5 * math.cos(angle * 6 - phase * 0.12)
-            bright = (ring * spoke - 0.45) * 1.6
-            if distance < eye:
-                bright = max(bright, 1.0 - distance / eye)
-            grid[y][x] = min(1.0, max(0.0, bright))
-    return grid
-
-
-def _mythos_field(phase: float, width: int, height: int, level: float, levels: list[float]):
-    """A constellation around a luminous mind: nodes orbit, link, and flare with the music."""
-    grid = _blank(width, height)
-    seed = int(phase) // 9  # reseed the backdrop ~once/sec; per-tick reseeding reads as flicker
-    for y in range(height):
-        for x in range(width):
-            if (x * 73 + y * 151 + seed * 37) % 127 < 2:
-                grid[y][x] = 0.35
-    center_x = (width - 1) / 2
-    center_y = (height - 1) / 2
-    core = 1.4 + 2.6 * level
-    for y in range(height):
-        for x in range(width):
-            distance = math.hypot((x - center_x) * 0.5, y - center_y)
-            if distance < core:
-                grid[y][x] = max(grid[y][x], 1.0 - distance / core)
-    nodes = _mythos_nodes(phase, width, height)
-    reach = (width + height) * (0.10 + 0.22 * level)
-    for index, (x1, y1) in enumerate(nodes):
-        for x2, y2 in nodes[index + 1:]:
-            if abs(x1 - x2) + abs(y1 - y2) <= reach:
-                _draw_filament(grid, x1, y1, x2, y2)
-    for node_x, node_y in nodes:
-        grid[round(node_y)][round(node_x)] = 1.0
-    return grid
-
-
-def _mythos_nodes(phase: float, width: int, height: int) -> list[tuple[float, float]]:
-    # Phase advances ~0.2..2.4 per tick; the angle coefficients must stay small so a
-    # loud tick reads as a surge of motion, not a teleport to an uncorrelated position.
-    nodes = []
-    for index in range(9):
-        drift = 1.0 + index * 0.17
-        x = (0.5 + 0.46 * math.sin(phase * 0.041 * drift + index * 2.4)) * (width - 1)
-        y = (0.5 + 0.42 * math.sin(phase * 0.029 * drift + index * 1.7 + 1.3)) * (height - 1)
-        nodes.append((x, y))
-    return nodes
-
-
-def _draw_filament(grid, x1: float, y1: float, x2: float, y2: float) -> None:
-    steps = max(2, int(abs(x1 - x2) + abs(y1 - y2)))
-    for step in range(1, steps):
-        t = step / steps
-        x = round(x1 + (x2 - x1) * t)
-        y = round(y1 + (y2 - y1) * t)
-        if grid[y][x] < 0.55:
-            grid[y][x] = 0.55
-
-
-_RENDERERS = {
-    "mythos": _mythos_field,
-    "oracle": _oracle_field,
-    "bars": _bars_field,
-    "wave": _wave_field,
-    "pulse": _pulse_field,
-    "scope": _scope_field,
+SCENES: dict[str, Scene] = {
+    "astra": draw_astra,
+    "pulsar": draw_pulsar,
+    "bars": draw_bars,
+    "scope": draw_scope,
 }
 
-# Effects whose fields are sparse curves/points glow with an additive halo;
-# bars/wave stay crisp so a column height reads as an exact loudness.
-_BLOOM = {"mythos": 0.5, "oracle": 0.55, "pulse": 0.4, "scope": 0.5}
+
+def _ridge_level(frame: AudioFrame, ridge: int) -> float:
+    """The loudest sample in one ridge's slice of time; 0 once it left the history."""
+    first = frame.samples - len(frame.history)
+    start = max(0, ridge * RIDGE_SAMPLES - first)
+    stop = max(0, (ridge + 1) * RIDGE_SAMPLES - first)
+    return max(frame.history[start:stop], default=0.0)
+
+
+def _draw_ridge(
+    canvas: PixelCanvas, *, base: float, lift: float, profile: Sequence[float], glow: float
+) -> None:
+    """Hide everything behind one ridge, then trace its line at ``glow``."""
+    width, height, pixels = canvas.width, canvas.height, canvas.pixels
+    floor = min(height - 1, int(base) + 1)
+    previous: int | None = None
+    for column, shape in enumerate(profile):
+        y = max(0, min(height - 1, int(base - lift * shape)))
+        for row in range(y + 1, floor + 1):
+            pixels[row * width + column] = 0.0
+        top = y if previous is None else min(y, previous)
+        bottom = y if previous is None else max(y, previous)
+        for row in range(top, bottom + 1):
+            pixels[row * width + column] = glow
+        previous = y
+
+
+@lru_cache(maxsize=128)
+def _ridge_profile(ridge: int, width: int) -> tuple[float, ...]:
+    """A stable ridge shape peaking at 1: a few sharp peaks mid-canvas over low noise."""
+    rng = random.Random(ridge)
+    peaks = [
+        (0.5 + rng.uniform(-0.14, 0.14), rng.uniform(0.012, 0.042), rng.uniform(0.3, 1.0))
+        for _ in range(rng.randint(3, 5))
+    ]
+    knots = [rng.random() for _ in range(34)]
+    shape = [_ridge_height(column / max(1, width - 1), peaks, knots) for column in range(width)]
+    top = max(shape)
+    return tuple(value / top for value in shape)
+
+
+def _ridge_height(
+    position: float, peaks: Sequence[tuple[float, float, float]], knots: Sequence[float]
+) -> float:
+    """Ridge height at ``position`` (0..1 across the canvas) before normalising."""
+    window = math.exp(-(((position - 0.5) / 0.2) ** 2))
+    wobble = _smooth_noise(knots, position)
+    spike = sum(
+        height * math.exp(-(((position - center) / spread) ** 2))
+        for center, spread, height in peaks
+    )
+    return window * (0.25 * wobble + spike) + 0.03 * wobble
+
+
+def _smooth_noise(knots: Sequence[float], position: float) -> float:
+    """Value noise: smoothstep between evenly spaced random knots."""
+    scaled = position * (len(knots) - 1)
+    index = min(int(scaled), len(knots) - 2)
+    t = scaled - index
+    t = t * t * (3 - 2 * t)
+    return knots[index] * (1 - t) + knots[index + 1] * t

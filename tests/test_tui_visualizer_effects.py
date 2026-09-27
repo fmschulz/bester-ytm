@@ -38,12 +38,12 @@ def test_dropdown_changes_visualizer_effect(monkeypatch, tmp_path) -> None:
 
     async def run_flow() -> None:
         async with app.run_test(size=(110, 50)) as pilot:
-            app.query_one("#effect-select", Select).value = "pulse"
+            app.query_one("#effect-select", Select).value = "pulsar"
             await pilot.pause()
 
     asyncio.run(run_flow())
 
-    assert app.visualizer_effect == "pulse"
+    assert app.visualizer_effect == "pulsar"
 
 
 def test_cycle_visualizer_action_advances_and_syncs_dropdown(monkeypatch, tmp_path) -> None:

@@ -8,7 +8,11 @@ from textual.widgets import Input, ListView, Static
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.tui import BesterYTMApp
 from bester_ytm.tui_help import HelpScreen
-from bester_ytm.tui_visuals import strip_markup
+from bester_ytm.tui_stage import Stage
+
+
+def _stage_lines(stage: Stage) -> list[str]:
+    return [stage.render_line(y).text for y in range(stage.size.height)]
 
 
 def test_resize_stage_and_restore_focus(monkeypatch):
@@ -27,8 +31,10 @@ def test_resize_stage_and_restore_focus(monkeypatch):
             await pilot.pause()
             assert app.screen.has_class("compact")
             assert app.screen.has_class("short")
-            stage = app.query_one("#big-visual", Static)
-            assert len(strip_markup(str(stage.content)).splitlines()) == stage.size.height
+            stage = app.query_one(Stage)
+            lines = _stage_lines(stage)
+            assert any(line.strip() for line in lines)  # redrawn at the new size, not blank
+            assert all(len(line) == stage.size.width for line in lines)
             await pilot.press("escape")
             assert not app.screen.has_class("immersive")
             assert app.focused is queue
@@ -83,16 +89,17 @@ def test_zero_fps_updates_playback_state_without_animating(monkeypatch):
         current = [0]
         monkeypatch.setattr(app.playback, "status", lambda: states[current[0]])
         async with app.run_test(size=(110, 40)) as pilot:
-            phase = app.visual_phase
+            stage = app.query_one(Stage)
             current[0] = 1
             app._refresh_playback()
             await pilot.pause()
-            assert "LIVE" in str(app.query_one("#stage-title", Static).content)
-            frame = str(app.query_one("#big-visual", Static).content)
-            assert "awaiting signal" not in frame
+            assert not stage.has_class("idle-effect")
+            frame = _stage_lines(stage)
             app._refresh_playback()
-            assert str(app.query_one("#big-visual", Static).content) == frame
-            assert app.visual_phase == phase
+            await pilot.pause()
+            assert _stage_lines(stage) == frame
+            assert app.signal.samples == 0  # visuals off: audio is never sampled
+
     asyncio.run(run())
 
 

@@ -22,7 +22,7 @@ from .transitions import DEFAULT_APP_SETTINGS
 from .tui_album import AlbumActions
 from .tui_album_actions import AlbumQueueActions
 from .tui_builder import BuilderActions
-from .tui_effects import PlaybackRenderer, render_deck_status
+from .tui_effects import PlaybackRenderer, StageState, render_deck_status
 from .tui_events import EventHandlers
 from .tui_help import HelpScreen
 from .tui_layout import WorkspaceScreen, build_layout
@@ -36,7 +36,7 @@ from .tui_radio import RadioActions
 from .tui_selection import SelectionActions
 from .tui_similar import SimilarActions
 from .tui_styles import APP_CSS
-from .tui_visuals import EFFECT_ORDER, AudioLevelMeter
+from .tui_visuals import EFFECT_ORDER, AudioSignal
 from .ytm_client import YTMClient
 
 
@@ -79,8 +79,7 @@ class BesterYTMApp(
         Binding("ctrl+space", "toggle_playback", "Pause", priority=True, show=False),
         Binding("f1", "help", "Help", priority=True, show=False),
         Binding("f2", "toggle_tools", "Tools", priority=True, show=False),
-        Binding("ctrl+shift+p", "command_palette", "Themes / commands",
-                priority=True, show=False),
+        Binding("ctrl+shift+p", "command_palette", "Themes / commands", priority=True, show=False),
         Binding("V", "toggle_stage", "Expand", show=True),
         Binding("escape", "leave_stage", "Back", show=False),
         ("q", "quit", "Quit"),
@@ -88,7 +87,7 @@ class BesterYTMApp(
         Binding("shift+space", "range_select", "Range select", show=False),
         Binding("p", "previous_track", "Previous", show=False),
         Binding("b", "previous_track", "Previous", show=False),
-        Binding("v", "cycle_visualizer", "Visuals", show=False),
+        Binding("v", "cycle_visualizer", "Scene", show=False),
         Binding("left_square_bracket", "fade_shorter", "Fade-", key_display="[", show=False),
         Binding("right_square_bracket", "fade_longer", "Fade+", key_display="]", show=False),
         Binding("left", "seek_backward", "-10s", show=False),
@@ -153,7 +152,6 @@ class BesterYTMApp(
         self._queue_render_active = False
         self._queue_render_pending = False
         self._queue_render_focus: str | None = None
-        self._last_visual_state: str | None = "unset"
         self.visual_fps = self.app_options.visual_fps
         self.playback_was_active = False
         self.auto_advance_pending = False
@@ -167,12 +165,9 @@ class BesterYTMApp(
         self.selected_result_video_ids: set[str] = set()
         self.result_selection_anchor_video_id: str | None = None
         self.build_in_progress = False
-        self.visual_phase = 0.0
-        self.audio_levels: list[float] = []
         self.last_playback_status: PlaybackStatus | None = None
-        self.audio_meter = AudioLevelMeter(
-            1.0 / self.visual_fps if self.visual_fps else 1.0
-        )
+        self.signal = AudioSignal(1.0 / self.visual_fps if self.visual_fps else 1.0)
+        self._stage_state: StageState | None = None
 
     def get_default_screen(self) -> WorkspaceScreen:
         return WorkspaceScreen(id="_default")
@@ -280,11 +275,9 @@ class BesterYTMApp(
             self._stage_focus = self.focused
             self.set_focus(None)
         self.screen.set_class(immersive, "immersive")
-        self.query_one("#stage-button", Button).label = "V Return" if immersive else "V Expand"
+        self.query_one("#stage-button", Button).label = "Back" if immersive else "Full screen"
         if not immersive and self._stage_focus is not None:
             self.set_focus(self._stage_focus)
-        self._last_visual_state = "resize"
-        self.call_after_refresh(self._animate_visual_panel)
 
     def action_leave_stage(self) -> None:
         if not self.is_running:

@@ -33,15 +33,11 @@ Collapsible > Contents { padding: 0; }
 #playlist-actions, #queue-actions, #builder-actions, #transition-row { height: auto; }
 #playlist-actions Button { min-width: 3; margin-right: 1; }
 #builder { height: 4; }
-#stage { height: 38%; min-height: 8; border: round $primary-muted; padding: 0 1; }
-#stage-heading { height: 3; align-vertical: middle; }
-#stage-title {
-    width: 1fr; color: $accent; text-style: bold; content-align: left middle; height: 3;
-}
-#effect-select { width: 23; }
-#stage-button { margin-top: 1; }
-#big-visual { height: 1fr; overflow: hidden; }
-#stage-track { height: 1; text-align: center; color: $text-muted; }
+#stage { height: 40%; min-height: 7; background: $background; }
+#stage-heading { height: 1; padding: 0 1; }
+#effect-select { width: 14; }
+#stage-button { dock: right; }
+#big-visual { height: 1fr; background: $background; }
 #player { height: 4; padding: 0 1; background: $panel; }
 #now-playing { height: 1; }
 #player-title { width: 13; color: $accent; text-style: bold; }
@@ -71,9 +67,6 @@ Screen.compact #navigation Button { width: 1fr; }
 Screen.compact #visualizer { display: none; }
 Screen.short #library-empty { display: none; }
 Screen.compact #results-hint, Screen.compact #queue-hint { display: none; }
-Screen.short #stage { height: 8; }
-Screen.short #stage-heading, Screen.short #stage-title { height: 1; }
-Screen.short #effect-select { display: none; }
-Screen.short #stage-button { margin-top: 0; }
+Screen.short #stage { height: 7; }
 Screen.short.immersive #stage { height: 1fr; }
 """

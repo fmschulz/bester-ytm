@@ -1,116 +1,126 @@
+"""Stage scenes and the audio signal: scenes react to loudness; the app freezes stills."""
+
 from __future__ import annotations
 
 import math
-from types import SimpleNamespace
 
 import pytest
 
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.tui import BesterYTMApp
+from bester_ytm.tui_canvas import PixelCanvas
 from bester_ytm.tui_visuals import (
     EFFECT_ORDER,
+    IDLE_LEVEL,
+    RIDGE_SAMPLES,
+    AudioFrame,
     AudioLevelMeter,
-    _mythos_nodes,
-    render_visual_panel,
-    strip_markup,
+    AudioSignal,
+    draw_scene,
 )
 
-EFFECTS = EFFECT_ORDER
+
+def _history(count: int = 64) -> tuple[float, ...]:
+    """A varied loudness history so every scene draws something."""
+    return tuple(0.2 + 0.6 * (0.5 + 0.5 * math.sin(index * 0.4)) for index in range(count))
 
 
-def _plain_rows(panel: str) -> list[str]:
-    """Drop the per-cell ember-glow markup, leaving the raw glyph grid."""
-    return strip_markup(panel).splitlines()
+def _frame(level: float = 0.7, *, phase: float = 7.0, samples: int = 64) -> AudioFrame:
+    history = _history(samples)[:-1] + (level,)
+    return AudioFrame(level=level, onset=0.0, phase=phase, history=history, samples=samples)
 
 
-def _levels(count: int = 64) -> list[float]:
-    """A varied loudness history so every effect (bars/wave included) draws something."""
-    return [0.2 + 0.6 * (0.5 + 0.5 * math.sin(index * 0.4)) for index in range(count)]
+def _drawn(scene: str, frame: AudioFrame, size: tuple[int, int] = (40, 9)) -> PixelCanvas:
+    canvas = PixelCanvas(*size)
+    draw_scene(scene, canvas, frame)
+    return canvas
 
 
-@pytest.mark.parametrize("effect", EFFECTS)
-def test_panels_fill_the_requested_dimensions(effect: str) -> None:
-    levels = _levels(60)
-    panel = render_visual_panel(effect, 7.0, width=40, height=9, running=True, levels=levels)
+@pytest.mark.parametrize("scene", EFFECT_ORDER)
+def test_scenes_light_the_canvas_within_range(scene: str) -> None:
+    canvas = _drawn(scene, _frame())
 
-    rows = _plain_rows(panel)
-    assert len(rows) == 9
-    assert all(len(row) == 40 for row in rows)
-    assert panel == render_visual_panel(
-        effect, 7.0, width=40, height=9, running=True, levels=levels
-    )
+    assert max(canvas.pixels) > 0.3
+    assert min(canvas.pixels) >= 0.0
 
 
-@pytest.mark.parametrize("effect", EFFECTS)
-def test_panels_animate_with_audio(effect: str) -> None:
-    levels = _levels(60)
-    first = render_visual_panel(effect, 1.0, width=40, height=9, running=True, levels=levels)
-    # The next tick: a fresh loud sample scrolls in and the audio phase advances.
-    second = render_visual_panel(
-        effect, 3.4, width=40, height=9, running=True, levels=levels + [0.95]
-    )
-
-    assert first != second
-    assert "".join(_plain_rows(first)).strip()  # actually draws something
+@pytest.mark.parametrize("scene", EFFECT_ORDER)
+def test_scenes_are_repeatable_for_the_same_frame(scene: str) -> None:
+    assert _drawn(scene, _frame()).pixels == _drawn(scene, _frame()).pixels
 
 
-def test_effects_render_distinct_panels() -> None:
-    levels = _levels(60)
-    frames = {
-        effect: render_visual_panel(
-            effect, 5.0, width=40, height=9, running=True, levels=levels
-        )
-        for effect in EFFECTS
-    }
-    assert len(set(frames.values())) == len(EFFECTS)
+@pytest.mark.parametrize("scene", EFFECT_ORDER)
+def test_scenes_move_with_the_audio(scene: str) -> None:
+    first = _drawn(scene, _frame(0.4, phase=1.0, samples=60))
+    later = _drawn(scene, _frame(0.95, phase=3.4, samples=61))
+
+    assert first.pixels != later.pixels
 
 
-def test_louder_music_drives_bigger_bars() -> None:
-    quiet = render_visual_panel("bars", 9.0, width=40, height=9, running=True, levels=[0.1] * 40)
-    loud = render_visual_panel("bars", 9.0, width=40, height=9, running=True, levels=[1.0] * 40)
+def test_scenes_differ_from_each_other() -> None:
+    frames = {tuple(_drawn(scene, _frame()).pixels) for scene in EFFECT_ORDER}
 
-    assert "".join(_plain_rows(loud)).count("█") > "".join(_plain_rows(quiet)).count("█")
+    assert len(frames) == len(EFFECT_ORDER)
+
+
+def test_retired_scene_names_fall_back_to_astra() -> None:
+    assert _drawn("mythos", _frame()).pixels == _drawn("astra", _frame()).pixels
+
+
+@pytest.mark.parametrize("scene", ["astra", "bars", "scope"])
+def test_louder_music_lights_more_of_the_scene(scene: str) -> None:
+    quiet = _drawn(scene, AudioFrame(0.05, 0.0, 9.0, (0.05,) * 40, 40))
+    loud = _drawn(scene, AudioFrame(1.0, 0.0, 9.0, (1.0,) * 40, 40))
+
+    assert sum(loud.pixels) > sum(quiet.pixels)
 
 
 def test_bars_track_recent_loudness_per_column() -> None:
     """Rhythm proof: the right-most columns grow when the most recent audio is loud."""
-    width, height = 30, 9
-    quiet = _plain_rows(
-        render_visual_panel(
-            "bars", 0.0, width=width, height=height, running=True, levels=[0.05] * width
-        )
-    )
-    loud_now = _plain_rows(
-        render_visual_panel(
-            "bars", 0.0, width=width, height=height, running=True,
-            levels=[0.05] * (width - 5) + [0.95] * 5,
-        )
+    width = 30
+    quiet = _drawn("bars", AudioFrame(0.05, 0.0, 0.0, (0.05,) * width, width), (width, 9))
+    loud = _drawn(
+        "bars", AudioFrame(0.95, 0.0, 0.0, (0.05,) * (width - 5) + (0.95,) * 5, width), (width, 9)
     )
 
-    def filled(rows: list[str], column: int) -> int:
-        return sum(1 for row in rows if row[column] != " ")
+    def lit(canvas: PixelCanvas, column: int) -> int:
+        return sum(1 for row in range(canvas.height) if canvas.pixels[row * width + column] > 0)
 
-    assert all(filled(loud_now, x) > filled(quiet, x) for x in range(width - 5, width))
-
-
-def test_level_shifts_the_gradient_brighter() -> None:
-    quiet = render_visual_panel("pulse", 4.0, width=40, height=9, running=True, levels=[0.0])
-    loud = render_visual_panel("pulse", 4.0, width=40, height=9, running=True, levels=[1.0])
-
-    assert quiet != loud
+    assert all(lit(loud, column) > lit(quiet, column) for column in range(width - 5, width))
 
 
-def test_idle_panel_awaits_signal() -> None:
-    panel = render_visual_panel("mythos", 3.0, width=40, height=9, running=False)
+def _front_ridge_top(canvas: PixelCanvas) -> int:
+    """Highest row of the front ridge: its line is the lowest lit pixel of each column."""
+    width = canvas.width
+    return min(
+        max(row for row in range(canvas.height) if canvas.pixels[row * width + column])
+        for column in range(width)
+    )
 
-    rows = _plain_rows(panel)
-    assert any("awaiting signal" in row for row in rows)
-    assert rows[-1] == "▁" * 40
+
+def test_pulsar_front_ridge_rises_with_the_live_level() -> None:
+    history = (0.1,) * 60
+    quiet = _drawn("pulsar", AudioFrame(0.1, 0.0, 0.0, history, 60), (60, 20))
+    loud = _drawn("pulsar", AudioFrame(1.0, 0.0, 0.0, history, 60), (60, 20))
+
+    assert _front_ridge_top(loud) < _front_ridge_top(quiet)
 
 
-def test_tiny_areas_render_nothing() -> None:
-    assert render_visual_panel("bars", 1, width=4, height=9, running=True) == ""
-    assert render_visual_panel("bars", 1, width=40, height=2, running=True) == ""
+def test_pulsar_scrolls_a_ridge_back_every_few_samples() -> None:
+    start = _frame(samples=60)
+    later = AudioFrame(start.level, 0.0, start.phase, start.history, start.samples + RIDGE_SAMPLES)
+
+    assert _drawn("pulsar", start).pixels != _drawn("pulsar", later).pixels
+
+
+def test_scope_leaves_fading_trails() -> None:
+    canvas = PixelCanvas(40, 9)
+    draw_scene("scope", canvas, _frame(phase=1.0))
+    first_frame = [index for index, value in enumerate(canvas.pixels) if value >= 0.7]
+
+    draw_scene("scope", canvas, _frame(phase=30.0))
+
+    assert any(0.0 < canvas.pixels[index] < 0.7 for index in first_frame)
 
 
 def test_audio_level_meter_tracks_loudness() -> None:
@@ -166,17 +176,6 @@ def test_silence_decay_is_independent_of_sample_rate(interval: float) -> None:
     assert meter.level == pytest.approx(0.004)
 
 
-def test_mythos_nodes_glide_rather_than_teleport() -> None:
-    """One loud tick advances phase ~2.4; nodes must move a little, not jump across the panel."""
-    width, height = 40, 9
-    before = _mythos_nodes(50.0, width, height)
-    after = _mythos_nodes(52.4, width, height)
-
-    for (x1, y1), (x2, y2) in zip(before, after, strict=True):
-        assert abs(x1 - x2) <= width * 0.15
-        assert abs(y1 - y2) <= height * 0.2
-
-
 def test_audio_level_meter_reacts_to_narrow_band_dynamics() -> None:
     """Loudness-normalized music varies only a few dB; the meter must still visibly swing."""
     meter = AudioLevelMeter(sample_interval=0.05)
@@ -190,97 +189,108 @@ def test_audio_level_meter_reacts_to_narrow_band_dynamics() -> None:
     assert max(tail) - min(tail) > 0.15  # the visual genuinely moves with the beat
 
 
-class FakeVisualWidget:
-    def __init__(self, width: int = 40, height: int = 9) -> None:
-        self.size = SimpleNamespace(width=width, height=height)
-        self.value = ""
-        self.classes: set[str] = set()
-
-    def update(self, value: str) -> None:
-        self.value = value
-
-    def add_class(self, name: str) -> None:
-        self.classes.add(name)
-
-    def remove_class(self, name: str) -> None:
-        self.classes.discard(name)
-
-
-def _make_app(monkeypatch, tmp_path, widget) -> BesterYTMApp:
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    app = BesterYTMApp()
-    monkeypatch.setattr(
-        app, "_query_optional", lambda selector, widget_type=None: widget
-    )
-    return app
-
-
-def test_animation_advances_and_reads_audio_level(monkeypatch, tmp_path) -> None:
-    widget = FakeVisualWidget()
-    app = _make_app(monkeypatch, tmp_path, widget)
-    app.last_playback_status = PlaybackStatus(running=True, current_video_id="v1")
-    readings: list[float] = []
-    feed = iter([-40.0] * 6 + [-10.0] * 6)  # quiet intro, then a loud passage
-
-    def fake_read() -> float:
-        value = next(feed)
-        readings.append(value)
-        return value
-
-    monkeypatch.setattr(app.playback, "read_audio_level_db", fake_read)
-
-    app._animate_visual_panel()
-    first = widget.value
-    for _ in range(11):
-        app._animate_visual_panel()
-
-    assert app.visual_phase > 0.0  # phase advances with the audio
-    assert len(app.audio_levels) == 12  # each running tick pushes one loudness sample
-    assert len(readings) == 12
-    assert widget.value != first
-    assert "idle-effect" not in widget.classes
-
-
-def test_visual_phase_surges_with_loudness_and_onsets(monkeypatch, tmp_path) -> None:
+def test_signal_phase_surges_with_loudness_and_onsets() -> None:
     """Loud audio advances the phase faster than quiet, and a sudden onset adds a kick."""
-    app = _make_app(monkeypatch, tmp_path, FakeVisualWidget())
-    app.last_playback_status = PlaybackStatus(running=True, current_video_id="v1")
-    monkeypatch.setattr(app.playback, "read_audio_level_db", lambda: None)
+    signal = AudioSignal(0.05)
 
-    app.audio_meter.level = 0.05
-    app._animate_visual_panel()
-    quiet_step = app.visual_phase
+    signal.meter.level = 0.05
+    signal.sample(None)
+    quiet_step = signal.phase
 
-    app.audio_meter.level = 0.9  # jump: same-level steady state would advance less
-    before = app.visual_phase
-    app._animate_visual_panel()
-    onset_step = app.visual_phase - before
+    signal.meter.level = 0.9  # a jump: the steady state would advance less
+    before = signal.phase
+    signal.sample(None)
+    onset_step = signal.phase - before
 
-    before = app.visual_phase  # second loud tick: no onset, pure loudness speed
-    app._animate_visual_panel()
-    loud_step = app.visual_phase - before
+    before = signal.phase  # second loud sample: no onset, pure loudness speed
+    signal.sample(None)
+    loud_step = signal.phase - before
 
     assert loud_step > 3 * quiet_step
     assert onset_step > loud_step
 
 
-def test_animation_freezes_when_paused_and_idles_when_stopped(
-    monkeypatch, tmp_path
-) -> None:
-    widget = FakeVisualWidget()
-    app = _make_app(monkeypatch, tmp_path, widget)
+def test_signal_frame_measures_onset_against_recent_samples() -> None:
+    signal = AudioSignal(0.05)
+    for _ in range(12):
+        signal.meter.level = 0.2
+        signal.sample(None)
+    signal.meter.level = 0.9
+    signal.sample(None)
+
+    frame = signal.frame()
+
+    assert frame.level == 0.9
+    assert frame.onset > 0.5
+    assert frame.samples == 13
+    assert len(frame.history) == 13
+
+
+def test_still_frame_keeps_the_shapes_but_dims_them() -> None:
+    signal = AudioSignal(0.05)
+    signal.sample(-12.0)
+
+    still = signal.still()
+
+    assert still.level == IDLE_LEVEL
+    assert still.onset == 0.0
+    assert still.history == signal.frame().history
+
+
+class FakeStage:
+    def __init__(self) -> None:
+        self.frames: list[tuple[str, AudioFrame]] = []
+        self.classes: set[str] = set()
+
+    def show(self, scene: str, frame: AudioFrame) -> None:
+        self.frames.append((scene, frame))
+
+    def set_class(self, enabled: bool, name: str) -> None:
+        if enabled:
+            self.classes.add(name)
+        else:
+            self.classes.discard(name)
+
+
+def _make_app(monkeypatch, tmp_path, stage: FakeStage) -> BesterYTMApp:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    app = BesterYTMApp()
+    monkeypatch.setattr(app, "_query_optional", lambda selector, widget_type=None: stage)
+    return app
+
+
+def test_animation_samples_audio_and_draws_every_live_frame(monkeypatch, tmp_path) -> None:
+    stage = FakeStage()
+    app = _make_app(monkeypatch, tmp_path, stage)
+    app.last_playback_status = PlaybackStatus(running=True, current_video_id="v1")
+    feed = iter([-40.0] * 6 + [-10.0] * 6)  # quiet intro, then a loud passage
+    monkeypatch.setattr(app.playback, "read_audio_level_db", lambda: next(feed))
+
+    for _ in range(12):
+        app._animate_visual_panel()
+
+    assert app.signal.samples == 12
+    assert app.signal.phase > 0.0
+    assert len(stage.frames) == 12
+    assert stage.frames[0][1] != stage.frames[-1][1]
+    assert not stage.classes
+
+
+def test_animation_freezes_when_paused_and_dims_when_stopped(monkeypatch, tmp_path) -> None:
+    stage = FakeStage()
+    app = _make_app(monkeypatch, tmp_path, stage)
     app.last_playback_status = PlaybackStatus(running=True, paused=True)
 
     app._animate_visual_panel()
-    frozen = widget.value
     app._animate_visual_panel()
 
-    assert app.visual_phase == 0.0  # paused: the audio phase does not advance
-    assert widget.value == frozen
-    assert "paused-effect" in widget.classes
+    assert app.signal.samples == 0  # paused: nothing is sampled
+    assert len(stage.frames) == 1  # drawn once on entering the state, then frozen
+    assert "paused-effect" in stage.classes
 
     app.last_playback_status = PlaybackStatus(running=False)
     app._animate_visual_panel()
 
-    assert "awaiting signal" in widget.value
-    assert "idle-effect" in widget.classes
+    assert len(stage.frames) == 2
+    assert stage.frames[-1][1].level == IDLE_LEVEL
+    assert stage.classes == {"idle-effect"}

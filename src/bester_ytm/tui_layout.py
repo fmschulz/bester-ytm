@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
-
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -24,10 +22,8 @@ from textual.widgets import (
 from .playlist_plan import parse_seed_text
 from .tui_album import AlbumTree
 from .tui_splitter import PaneSplitter
+from .tui_stage import Stage
 from .tui_visuals import EFFECT_OPTIONS
-
-if TYPE_CHECKING:
-    from .tui import BesterYTMApp
 
 
 class BuilderTextArea(TextArea):
@@ -55,18 +51,6 @@ class WorkspaceScreen(Screen):
     def on_screen_resume(self) -> None:
         self.set_class(self.app.size.width < 110, "compact")
         self.set_class(self.app.size.height < 35, "short")
-        app = cast("BesterYTMApp", self.app)
-        app._last_visual_state = "resume"
-        self.call_after_refresh(app._animate_visual_panel)
-
-
-class VisualStage(Static):
-    """Redraw frozen scenes when a terminal or workspace resize changes the canvas."""
-
-    def on_resize(self, event: events.Resize) -> None:
-        app = cast("BesterYTMApp", self.app)
-        app._last_visual_state = "resize"
-        self.call_after_refresh(app._animate_visual_panel)
 
 
 def build_layout(visualizer_text: str, effect: str = "astra") -> ComposeResult:
@@ -103,11 +87,16 @@ def build_layout(visualizer_text: str, effect: str = "astra") -> ComposeResult:
             yield from _build_tools()
     with Vertical(id="stage"):
         with Horizontal(id="stage-heading"):
-            yield Label("ASTRA / SIGNAL FIELD", id="stage-title")
-            yield Select(EFFECT_OPTIONS, value=effect, allow_blank=False, id="effect-select")
-            yield Button("V Expand", id="stage-button", compact=True)
-        yield VisualStage("", id="big-visual")
-        yield Static("Search for a track to begin", id="stage-track", markup=False)
+            yield Select(
+                EFFECT_OPTIONS,
+                value=effect,
+                allow_blank=False,
+                compact=True,
+                id="effect-select",
+                tooltip="Scene (v cycles)",
+            )
+            yield Button("Full screen", id="stage-button", compact=True, tooltip="Full screen (V)")
+        yield Stage(effect, id="big-visual")
     with Vertical(id="player"):
         with Horizontal(id="now-playing"):
             yield Label("NOW PLAYING", id="player-title")

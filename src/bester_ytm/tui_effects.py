@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from textual.widgets import Button, Label, ListItem, ListView, ProgressBar, Static
 
 from .playback import PlaybackError, PlaybackStatus
 from .playlist_plan import SongCandidate
 from .stores import FAVORITE_SUFFIX
-from .tui_visuals import AudioLevelMeter, render_visual_panel
+from .tui_stage import Stage
+from .tui_visuals import AudioSignal
 
 METER_SLOTS = 12
-MAX_LEVEL_HISTORY = 256
+
+StageState = Literal["live", "paused", "idle"]
 
 
 def format_time(seconds: float | None) -> str:
@@ -55,12 +59,10 @@ class PlaybackRenderer:
     auto_advance_pending: bool
     playback_was_active: bool
     visualizer_effect: str
-    visual_phase: float
-    audio_levels: list[float]
+    signal: AudioSignal
     last_playback_status: PlaybackStatus | None
     current_candidate: SongCandidate | None
-    audio_meter: AudioLevelMeter
-    _last_visual_state: str | None
+    _stage_state: StageState | None
     _rendered_now_playing_id: str | None
     _synced_current_video_id: str | None
     selected_queue_video_id: str | None
@@ -177,61 +179,34 @@ class PlaybackRenderer:
         visualizer.update(render_deck_status(status))
 
     def _animate_visual_panel(self) -> None:
-        """Render the stage from live loudness, freezing it while idle or paused."""
-        status = getattr(self, "last_playback_status", None)
-        running = bool(status and status.running)
-        paused = bool(status and status.running and status.paused)
-        # When idle or paused the frame is frozen; redraw it once on entry, then skip the
-        # per-tick re-render of the stage until playback actually moves again.
-        static_state = None if (running and not paused) else ("idle" if not running else "paused")
-        if self.visual_fps == 0:
-            static_state = f"still:{running}:{paused}"
-        if static_state is not None and static_state == self._last_visual_state:
-            return
-        self._last_visual_state = static_state
-        if running and not paused and self.visual_fps > 0:
-            self._advance_audio_visual()
-        effect = getattr(self, "visualizer_effect", "mythos")
-        title = self._query_optional("#stage-title", Label)
-        if title is not None:
-            state = "PAUSED" if paused else "LIVE" if running else "READY"
-            title.update(f"{effect.upper()} / {state}")
-        widget = self._query_optional("#big-visual", Static)
-        if widget is None:
-            return
-        self._toggle_widget_class(widget, "idle-effect", not running)
-        self._toggle_widget_class(widget, "paused-effect", paused)
-        size = getattr(widget, "content_size", getattr(widget, "size", None))
-        if size is None or size.width <= 0 or size.height <= 0:
-            return
-        widget.update(
-            render_visual_panel(
-                effect,
-                self.visual_phase,
-                size.width,
-                size.height,
-                running=running,
-                levels=self.audio_levels,
-            )
-        )
+        """Sample and draw the stage while music plays; draw once per state change."""
+        state = self._playback_state()
+        if state == "live" and self.visual_fps > 0:
+            self.signal.sample(self._read_audio_level())
+        elif state == self._stage_state:
+            return  # paused or idle: the last frame stays on screen
+        self._stage_state = state
+        self._draw_stage(state)
 
-    def _advance_audio_visual(self) -> None:
-        """Sample live loudness, push it onto the history, and advance the audio-driven phase."""
-        read_level = getattr(self.playback, "read_audio_level_db", None)
-        if read_level is not None:
-            self.audio_meter.update(read_level())
-        level = self.audio_meter.level
-        previous = self.audio_levels[-1] if self.audio_levels else level
-        onset = max(0.0, level - previous)
-        self.audio_levels.append(level)
-        if len(self.audio_levels) > MAX_LEVEL_HISTORY:
-            del self.audio_levels[:-MAX_LEVEL_HISTORY]
-        # Near-still in lulls, flowing when loud, with an extra kick on each loudness
-        # onset so the motion locks to the beat instead of drifting at a constant rate.
-        # Drift rates are per second so the on-screen speed is the same at any fps;
-        # the onset kick is per beat and stays unscaled.
-        dt = self.audio_meter.sample_interval
-        self.visual_phase += (1.6 + 11.2 * level) * dt + 3.0 * onset
+    def _draw_stage(self, state: StageState) -> None:
+        stage = self._query_optional("#big-visual", Stage)
+        if stage is None:
+            return
+        stage.set_class(state == "paused", "paused-effect")
+        stage.set_class(state == "idle", "idle-effect")
+        frame = self.signal.still() if state == "idle" else self.signal.frame()
+        stage.show(self.visualizer_effect, frame)
+
+    def _playback_state(self) -> StageState:
+        status = self.last_playback_status
+        if status is None or not status.running:
+            return "idle"
+        return "paused" if status.paused else "live"
+
+    def _read_audio_level(self) -> float | None:
+        # Test doubles of the playback controller may not measure loudness.
+        read = getattr(self.playback, "read_audio_level_db", None)
+        return read() if read is not None else None
 
     def _toggle_widget_class(self, widget, class_name: str, enabled: bool) -> None:
         if widget is None:
@@ -262,9 +237,6 @@ class PlaybackRenderer:
         track = self._query_optional("#track", Static)
         if track:
             track.update(label)
-        stage_track = self._query_optional("#stage-track", Static)
-        if stage_track:
-            stage_track.update(label)
 
     def _update_queue_title(self, count: int) -> None:
         title = self._query_optional("#queue-title", Label)
