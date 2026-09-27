@@ -327,12 +327,58 @@ def test_every_scene_shows_something_before_any_music(scene: str) -> None:
     assert max(canvas.pixels) > 0.0
 
 
-def test_a_new_track_starts_a_fresh_seek_bar_picture(monkeypatch, tmp_path) -> None:
+def _heard(app: BesterYTMApp) -> int:
+    return sum(level is not None for level in app.envelope.levels)
+
+
+def _playing(video_id: str, deck: str = "A") -> PlaybackStatus:
+    return PlaybackStatus(
+        running=True,
+        current_video_id=video_id,
+        position_seconds=80,
+        duration_seconds=100,
+        active_deck=deck,
+    )
+
+
+def test_seek_bar_picture_starts_afresh_after_a_detour_to_radio(monkeypatch, tmp_path) -> None:
     app = _make_app(monkeypatch, tmp_path, FakeStage())
+    app._follow_playback_instance(_playing("v1"))
     app.envelope.record("v1", 0.8, 0.9)
 
-    app._sync_current_track("radio:bytefm")
-    app._sync_current_track("v1")
+    app._follow_playback_instance(_playing("radio:bytefm"))
+    app._follow_playback_instance(_playing("v1"))
 
     assert app.envelope.video_id == "v1"
-    assert not any(app.envelope.levels)
+    assert _heard(app) == 0
+
+
+def test_a_crossfade_into_the_same_song_starts_a_fresh_picture(monkeypatch, tmp_path) -> None:
+    app = _make_app(monkeypatch, tmp_path, FakeStage())
+    app._follow_playback_instance(_playing("v1", deck="A"))
+    app.envelope.record("v1", 0.8, 0.9)
+
+    app._follow_playback_instance(_playing("v1", deck="B"))
+
+    assert _heard(app) == 0
+
+
+def test_resyncing_the_playing_track_keeps_its_picture(monkeypatch, tmp_path) -> None:
+    """Starting a new playlist re-syncs the playing track; its picture must survive."""
+    app = _make_app(monkeypatch, tmp_path, FakeStage())
+    app._follow_playback_instance(_playing("v1"))
+    app.envelope.record("v1", 0.8, 0.9)
+
+    app._sync_current_track("v1")
+    app._follow_playback_instance(_playing("v1"))
+
+    assert _heard(app) == 1
+
+
+def test_bars_keep_their_baseline_through_silence() -> None:
+    canvas = PixelCanvas(40, 9)
+
+    draw_scene("bars", canvas, AudioFrame(0.0, 0.0, 0.0, (0.0,) * 100, 100))
+
+    bottom = canvas.pixels[(canvas.height - 1) * canvas.width :]
+    assert min(bottom) > 0.0

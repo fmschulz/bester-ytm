@@ -174,8 +174,6 @@ def draw_bars(canvas: PixelCanvas, frame: AudioFrame) -> None:
     """A loudness skyline over a faint baseline: one column per recent sample."""
     canvas.clear()
     width, height, pixels = canvas.width, canvas.height, canvas.pixels
-    baseline = (height - 1) * width
-    pixels[baseline : baseline + width] = [0.25] * width
     recent = frame.history[-width:]
     for column, level in enumerate(recent, start=width - len(recent)):
         filled = min(1.0, level) * height
@@ -186,6 +184,10 @@ def draw_bars(canvas: PixelCanvas, frame: AudioFrame) -> None:
             pixels[(height - 1 - full) * width + column] = (filled - full) * (
                 0.3 + 0.7 * full / height
             )
+    baseline = (height - 1) * width
+    pixels[baseline : baseline + width] = [
+        max(0.25, value) for value in pixels[baseline : baseline + width]
+    ]
 
 
 def draw_scope(canvas: PixelCanvas, frame: AudioFrame) -> None:

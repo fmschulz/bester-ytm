@@ -2,12 +2,15 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from rich.cells import cell_len
+from textual.widgets import ListView
 
 from bester_ytm import tui, tui_playlists
 from bester_ytm.playback import PlaybackError, PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.search_query import SearchItem
 from bester_ytm.stores import FavoritesStore, LocalPlaylistStore
+from bester_ytm.tui_rows import LibraryPlaylistRow
 from bester_ytm.ytm_client import PlaylistSnapshot, YTMClientError
 
 
@@ -1235,3 +1238,27 @@ def test_tui_local_playlist_add_uses_search_song_after_new_search(
     playlist = LocalPlaylistStore().load("search-picks")
     assert playlist.video_ids == ["search-v1"]
     assert status.value == "Added to Search Picks."
+
+
+def test_library_playlists_list_as_rows_that_load_with_the_login() -> None:
+    title = "A library playlist with a title far too long for the pane " * 2
+
+    async def run() -> None:
+        app = tui.BesterYTMApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            snapshot = PlaylistSnapshot(playlist_id="PL9", title=title, track_count=24)
+            await app._append_youtube_playlists([], [snapshot], app._results_load_id)
+            await pilot.pause()
+
+            row = app.query_one("#results", ListView).children[0]
+            line = str(row.render())
+
+            assert isinstance(row, LibraryPlaylistRow)
+            # Without a search item, Enter loads through the authenticated client.
+            assert getattr(row, "search_item", None) is None
+            assert row.playlist_id == "PL9"
+            assert line.endswith("youtube")
+            assert "…" in line
+            assert cell_len(line) == row.content_size.width
+
+    asyncio.run(run())

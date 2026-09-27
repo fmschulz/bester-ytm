@@ -46,6 +46,7 @@ class PlaybackRenderer:
     last_playback_status: PlaybackStatus | None
     current_candidate: SongCandidate | None
     _status_clock: float
+    _playback_instance: tuple[str | None, str]
     _stage_state: StageState | None
     _rendered_now_playing_id: str | None
     _synced_current_video_id: str | None
@@ -61,6 +62,7 @@ class PlaybackRenderer:
             return
         self.last_playback_status = status
         self._status_clock = time.monotonic()
+        self._follow_playback_instance(status)
         self._announce_transition(status)
         if self._handle_auto_advance(status):
             return
@@ -73,6 +75,17 @@ class PlaybackRenderer:
         self._update_transport_widgets(status)
         if self.visual_fps == 0:
             self._animate_visual_panel()
+
+    def _follow_playback_instance(self, status: PlaybackStatus) -> None:
+        """Start a fresh seek bar picture whenever a track starts playing.
+
+        A crossfade always switches decks, so the (track, deck) pair changes even
+        when the same song follows itself; a stop clears the track.
+        """
+        instance = (status.current_video_id, status.active_deck)
+        if instance != self._playback_instance:
+            self._playback_instance = instance
+            self.envelope.start(status.current_video_id)
 
     def _refresh_now_playing_marker(self, current_video_id: str | None) -> None:
         """Re-render the queue only when the playing track changed (no per-tick flicker)."""
@@ -213,7 +226,6 @@ class PlaybackRenderer:
 
     def _sync_current_track(self, video_id: str | None) -> None:
         self._synced_current_video_id = video_id
-        self.envelope.start(video_id)
         candidate = self.candidates_by_video_id.get(video_id) if video_id else None
         self.current_candidate = candidate
         if not video_id:
