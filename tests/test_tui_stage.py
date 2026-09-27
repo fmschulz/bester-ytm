@@ -78,3 +78,22 @@ def test_stage_renders_when_colour_is_disabled(monkeypatch: pytest.MonkeyPatch) 
             assert any(line.strip() for line in _lines(app.query_one(Stage)))
 
     asyncio.run(run())
+
+
+def test_switching_scene_while_idle_leaves_no_trace_of_the_old_one() -> None:
+    async def run() -> None:
+        app = BesterYTMApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            app._apply_visualizer_effect("bars")
+            app._apply_visualizer_effect("scope")
+            await pilot.pause()
+            switched = _lines(app.query_one(Stage))
+
+        fresh = BesterYTMApp()
+        async with fresh.run_test(size=(120, 40)) as pilot:
+            fresh._apply_visualizer_effect("scope")
+            await pilot.pause()
+
+            assert _lines(fresh.query_one(Stage)) == switched
+
+    asyncio.run(run())

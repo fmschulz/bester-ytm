@@ -77,6 +77,8 @@ class ResultRow(Row):
         details = item.subtitle
         if item.year and item.year not in details:
             details = f"{details} ({item.year})" if details else item.year
+        if item.item_type in {"playlist", "local_playlist"}:
+            details = "  ".join(part for part in (details, _track_count(item.track_count)) if part)
         return Content.assemble(
             marker, " ", (item.title, "bold"), ("  " + details, "dim") if details else ""
         )
@@ -106,6 +108,30 @@ class ResultRow(Row):
             event.prevent_default()
             return
         super()._on_click(event)
+
+
+class LibraryPlaylistRow(Row):
+    """A playlist in the signed-in YouTube library; it loads and deletes with the login.
+
+    It carries no search item on purpose: search playlists load without the login.
+    """
+
+    def __init__(self, playlist_id: str, title: str, track_count: int | None) -> None:
+        super().__init__()
+        self.playlist_id = playlist_id
+        self.playlist_title = title
+        self.track_count = track_count
+
+    @property
+    def label(self) -> Content:
+        count = _track_count(self.track_count)
+        return Content.assemble(
+            "  ", (self.playlist_title, "bold"), ("  " + count, "dim") if count else ""
+        )
+
+    @property
+    def tail(self) -> Content:
+        return Content.assemble("  ", ("youtube", "dim"))
 
 
 class QueueRow(Row):
@@ -163,6 +189,12 @@ def _song_parts(candidate: SongCandidate, *, album: bool = True) -> list[str | t
     if album and candidate.album:
         parts.append(("  " + candidate.album, "dim"))
     return parts
+
+
+def _track_count(count: int | None) -> str:
+    if count is None:
+        return ""
+    return "1 track" if count == 1 else f"{count} tracks"
 
 
 def _star(is_favorite: bool) -> tuple[str, str]:

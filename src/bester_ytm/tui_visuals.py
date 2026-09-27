@@ -171,9 +171,11 @@ def draw_pulsar(canvas: PixelCanvas, frame: AudioFrame) -> None:
 
 
 def draw_bars(canvas: PixelCanvas, frame: AudioFrame) -> None:
-    """A loudness skyline: one column per recent sample, newest on the right."""
+    """A loudness skyline over a faint baseline: one column per recent sample."""
     canvas.clear()
     width, height, pixels = canvas.width, canvas.height, canvas.pixels
+    baseline = (height - 1) * width
+    pixels[baseline : baseline + width] = [0.25] * width
     recent = frame.history[-width:]
     for column, level in enumerate(recent, start=width - len(recent)):
         filled = min(1.0, level) * height

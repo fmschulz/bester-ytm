@@ -213,6 +213,7 @@ class PlaybackRenderer:
 
     def _sync_current_track(self, video_id: str | None) -> None:
         self._synced_current_video_id = video_id
+        self.envelope.start(video_id)
         candidate = self.candidates_by_video_id.get(video_id) if video_id else None
         self.current_candidate = candidate
         if not video_id:

@@ -37,6 +37,8 @@ class UiOptionsActions:
     async def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id != "effect-select" or not isinstance(event.value, str):
             return
+        if event.value != event.select.value:
+            return  # superseded by a later change; applying it would bounce the scene back
         if event.value != self.visualizer_effect:
             self._apply_visualizer_effect(event.value)
 

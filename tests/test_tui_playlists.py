@@ -1125,7 +1125,7 @@ def test_tui_playlist_query_lists_and_loads_local_playlists(monkeypatch, tmp_pat
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
 
     asyncio.run(app._search("playlist:"))
-    assert _item_label(results.items[0]) == "  Local Metal"
+    assert _item_label(results.items[0]) == "  Local Metal  1 track"
     assert str(results.items[0].tail).strip() == "local"
 
     asyncio.run(app.action_play_selected())

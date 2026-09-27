@@ -32,6 +32,8 @@ class Stage(Widget):
 
     def show(self, scene: str, frame: AudioFrame) -> None:
         """Draw ``frame`` of ``scene`` and keep it until the next call."""
+        if scene != self.scene and self._canvas is not None:
+            self._canvas.clear()  # Scope keeps trails; they must not be another scene's
         self.scene = scene
         self._frame = frame
         self._paint()

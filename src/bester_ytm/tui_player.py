@@ -55,19 +55,23 @@ def loudness(rms_db: float) -> float:
 class TrackEnvelope:
     """The loudness heard at each stretch of one track; stretches never heard stay None.
 
-    A new track starts afresh. Hearing part of the same track again keeps the
-    louder reading, so the picture only fills in.
+    Each time a track starts playing the picture starts afresh. Seeking back
+    within one play keeps the louder reading, so the picture only fills in.
     """
 
     def __init__(self, buckets: int = ENVELOPE_BUCKETS) -> None:
         self.video_id: str | None = None
         self.levels: list[float | None] = [None] * buckets
 
+    def start(self, video_id: str | None) -> None:
+        """Forget what was heard and follow ``video_id`` (None: nothing plays)."""
+        self.video_id = video_id
+        self.levels = [None] * len(self.levels)
+
     def record(self, video_id: str, fraction: float, level: float) -> None:
         """Note ``level`` heard at ``fraction`` (0..1) of track ``video_id``."""
         if video_id != self.video_id:
-            self.video_id = video_id
-            self.levels = [None] * len(self.levels)
+            self.start(video_id)
         index = min(len(self.levels) - 1, max(0, int(fraction * len(self.levels))))
         heard = self.levels[index]
         self.levels[index] = level if heard is None else max(heard, level)

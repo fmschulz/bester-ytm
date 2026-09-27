@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from functools import partial
 
-from textual.widgets import Input, Label, ListItem, ListView
+from textual.widgets import Input, ListView
 
 from .config import ConfigError
 from .playback import PlaybackError
 from .search_query import SearchItem
 from .stores import LocalPlaylistStore
+from .tui_rows import LibraryPlaylistRow
 from .ytm_client import PlaylistSnapshot, YTMClient, YTMClientError
 
 
@@ -93,10 +94,8 @@ class PlaylistLoadActions:
         results = self.query_one("#results", ListView)
         for playlist in playlists:
             title = playlist.title or playlist.playlist_id
-            item = ListItem(Label(f"{title} ({playlist.track_count})", markup=False))
-            item.playlist_id = playlist.playlist_id  # type: ignore[attr-defined]
-            item.playlist_title = title  # type: ignore[attr-defined]
-            await results.append(item)
+            row = LibraryPlaylistRow(playlist.playlist_id, title, playlist.track_count)
+            await results.append(row)
         self._focus_first_result(results, bool(local_items or playlists))
         self._set_status(
             f"{len(local_items)} local + {len(playlists)} YouTube playlist(s)."

@@ -186,3 +186,13 @@ def test_volume_wedge_mutes_on_click_and_turns_with_the_wheel() -> None:
 )
 def test_loudness_uses_a_fixed_scale(rms_db: float, expected: float) -> None:
     assert loudness(rms_db) == pytest.approx(expected)
+
+
+def test_envelope_start_forgets_the_previous_play() -> None:
+    envelope = TrackEnvelope(buckets=4)
+    envelope.record("v1", 0.9, 0.8)
+
+    envelope.start("v1")
+
+    assert envelope.video_id == "v1"
+    assert envelope.levels == [None, None, None, None]

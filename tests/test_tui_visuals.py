@@ -14,6 +14,7 @@ from bester_ytm.tui_visuals import (
     EFFECT_ORDER,
     IDLE_LEVEL,
     RIDGE_SAMPLES,
+    STILL_FRAME,
     AudioFrame,
     AudioLevelMeter,
     AudioSignal,
@@ -315,3 +316,23 @@ def test_live_frames_record_loudness_at_the_playhead(monkeypatch, tmp_path) -> N
     assert app.envelope.video_id == "v1"
     assert app.envelope.levels[len(app.envelope.levels) // 2] is not None
     assert sum(level is not None for level in app.envelope.levels) == 1
+
+
+@pytest.mark.parametrize("scene", EFFECT_ORDER)
+def test_every_scene_shows_something_before_any_music(scene: str) -> None:
+    canvas = PixelCanvas(40, 9)
+
+    draw_scene(scene, canvas, STILL_FRAME)
+
+    assert max(canvas.pixels) > 0.0
+
+
+def test_a_new_track_starts_a_fresh_seek_bar_picture(monkeypatch, tmp_path) -> None:
+    app = _make_app(monkeypatch, tmp_path, FakeStage())
+    app.envelope.record("v1", 0.8, 0.9)
+
+    app._sync_current_track("radio:bytefm")
+    app._sync_current_track("v1")
+
+    assert app.envelope.video_id == "v1"
+    assert not any(app.envelope.levels)
