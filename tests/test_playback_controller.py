@@ -407,3 +407,40 @@ def test_status_tolerates_ipc_failure_mid_teardown(
     assert status.running is True
     assert status.position_seconds is None
     assert status.current_video_id == "v1"
+
+
+def test_status_reports_a_new_process_id_for_every_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The seek bar keys its picture on this id, so a replay must change it."""
+    started: list[RunningProcess] = []
+
+    def spawn(*args: object, **kwargs: object) -> RunningProcess:
+        process = RunningProcess()
+        process.pid = 5000 + len(started)
+        started.append(process)
+        return process
+
+    controller = PlaybackController()
+    monkeypatch.setattr(controller, "_mpv_path", lambda: "mpv")
+    monkeypatch.setattr(controller, "_require_stream_resolver", lambda: None)
+    monkeypatch.setattr(playback_module, "spawn_mpv", spawn)
+    monkeypatch.setattr("bester_ytm.playback.time.sleep", lambda seconds: None)
+    monkeypatch.setattr(controller, "_live_client", QuietClient)
+
+    first = controller.play_video("v1").process_id
+    replay = controller.play_video("v1").process_id
+    controller.stop()
+
+    assert (first, replay) == (5000, 5001)
+    assert controller.status().process_id is None
+
+
+class QuietClient:
+    """An mpv IPC client that answers every query with nothing."""
+
+    def get_float(self, name: str, deadline_seconds: float = 2.0) -> None:
+        return None
+
+    def get_property(self, name: str, deadline_seconds: float = 2.0) -> bool:
+        return False
