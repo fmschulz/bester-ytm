@@ -122,12 +122,20 @@ def spawn_mpv(
     volume: float,
 ) -> subprocess.Popen[str]:
     """Launch a detached audio-only mpv playing one YouTube Music track."""
+    stream_options = []
+    if not is_local_video_id(video_id) and not is_radio_video_id(video_id):
+        # Prefer segmented streams: direct audio URLs can fail with HTTP 403.
+        # Use the smallest muxed stream when HLS has no audio-only variant.
+        stream_options = [
+            "--ytdl-format=bestaudio[protocol^=m3u8]/worst[protocol^=m3u8]/bestaudio",
+            '--ytdl-raw-options=extractor-args="youtube:player_client=default,web_embedded"',
+        ]
     cmd = [
         mpv_path,
         "--no-terminal",
         "--input-terminal=no",
         "--no-video",
-        "--ytdl-format=bestaudio",
+        *stream_options,
         # Exposes live loudness via the af-metadata/astats property for visuals.
         # asetnsamples widens each measurement to ~43ms so the visual-fps poll
         # hears nearly all of the audio; bare reset=1 reports one ~20ms decoder

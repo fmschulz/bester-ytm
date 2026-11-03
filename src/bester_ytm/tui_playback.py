@@ -176,29 +176,19 @@ class PlaybackActions:
             self.auto_advance_pending = False
 
     async def _advance_to_next_playable(self) -> None:
-        last_error: PlaybackError | None = None
-        for _ in range(len(self.playback.queue) + 1):
-            try:
-                status = self.playback.next()
-            except PlaybackError as exc:
-                last_error = exc
-                if not self.playback.queue:
-                    break
-                skipped = self.playback.queue.pop(0)
-                name = self._track_display_name(skipped)
-                label = f"track {name}" if name else "track"
-                self._set_status(f"Skipping unplayable {label}: {exc}")
-                continue
-            self.playback_was_active = status.running
-            await self._show_playback_status(
-                status, "Playing next." if status.running else "Queue finished."
-            )
+        try:
+            status = self.playback.next()
+        except PlaybackError as exc:
+            self.playback_was_active = False
+            await self._report_playback_error(exc)
             return
-        self.playback_was_active = False
-        if last_error is not None:
-            await self._report_playback_error(last_error)
+        self.playback_was_active = status.running
+        await self._show_playback_status(
+            status, "Playing next." if status.running else "Queue finished."
+        )
 
     async def _report_playback_error(self, exc: PlaybackError) -> None:
+        self.playback_was_active = False
         self._sync_current_track(self.playback.status().current_video_id)
         await self._render_queue()
         self._set_status(str(exc))

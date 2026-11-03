@@ -109,6 +109,11 @@ second mpv deck and blended in with an equal-power fade; in cut mode, tracks
 switch instantly. The player's crossfader (`A ━━━━●━━━━ B`) marks the live
 deck, its knob slides across during a blend, and a dotted rail means cut mode.
 
+If the player reports a failure or timing shows that a stream ended early,
+playback stops with an error message. The remaining queue is kept. Retry the
+track or use `n` to choose the next one; a stream failure does not automatically
+skip the queue.
+
 The seek bar draws how loud each stretch of the track was when it played;
 stretches skipped by seeking stay flat. Click it to seek. For web radio, it
 shows the recent loudness.

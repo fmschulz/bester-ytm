@@ -676,7 +676,8 @@ def test_spawn_prebuffer_deck_command_and_socket(monkeypatch) -> None:
     assert "--pause=yes" in cmd
     assert "--volume=0" in cmd
     assert "--no-video" in cmd
-    assert "--ytdl-format=bestaudio" in cmd
+    assert "--ytdl-format=bestaudio[protocol^=m3u8]/worst[protocol^=m3u8]/bestaudio" in cmd
+    assert '--ytdl-raw-options=extractor-args="youtube:player_client=default,web_embedded"' in cmd
     assert cmd[-1] == "https://music.youtube.com/watch?v=vid123"
     assert any(
         arg.startswith("--input-ipc-server=") and "deck-b" in arg for arg in cmd

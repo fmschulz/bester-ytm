@@ -70,6 +70,19 @@ def test_require_stream_resolver_errors_when_missing(
         PlaybackController()._require_stream_resolver()
 
 
+def test_stream_resolver_rejects_youtube_dl_without_yt_dlp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        playback_module.shutil,
+        "which",
+        lambda name: "/usr/bin/youtube-dl" if name == "youtube-dl" else None,
+    )
+
+    with pytest.raises(PlaybackError, match="yt-dlp is not installed"):
+        PlaybackController()._require_stream_resolver()
+
+
 def test_play_video_cleans_up_when_mpv_exits_early(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -364,7 +377,7 @@ def test_status_reads_live_properties_over_ipc(
 ) -> None:
     class FakeLiveClient:
         def get_float(self, name: str, deadline_seconds: float = 2.0) -> float:
-            return {"time-pos": 12.0, "duration": 60.0, "volume": 80.0}[name]
+            return {"time-pos": 12.0, "duration": 60.0, "volume": 80.0, "speed": 1.0}[name]
 
         def get_property(self, name: str, deadline_seconds: float = 2.0) -> bool:
             return {"mute": False, "pause": True}[name]

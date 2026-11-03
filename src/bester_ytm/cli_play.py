@@ -42,10 +42,7 @@ def _play_and_wait(controller: PlaybackController, seconds: int | None) -> None:
     if seconds:
         return
     try:
-        if controller.transition.style is TransitionStyle.CUT:
-            _wait_until_queue_done(controller)
-        else:
-            _tick_until_done(controller)
+        _tick_until_done(controller)
     except KeyboardInterrupt:
         raise typer.Exit(130) from None
     finally:
@@ -53,24 +50,13 @@ def _play_and_wait(controller: PlaybackController, seconds: int | None) -> None:
         controller.stop()
 
 
-def _wait_until_queue_done(controller: PlaybackController) -> None:
-    while controller.process:
-        controller.process.wait()
-        if controller.queue:
-            controller.next()
-        else:
-            break
-
-
 def _tick_until_done(controller: PlaybackController) -> None:
     while True:
-        controller.tick()
+        status = controller.status()
+        if status.playback_error:
+            raise PlaybackError(status.playback_error)
         _report_transition_error(controller)
-        process = controller.process
-        if process is None:
-            return
-        if process.poll() is not None:
-            # Dead live deck: cut fallback; the engine never advances on death.
+        if not status.running:
             if controller.queue:
                 controller.next()
             else:

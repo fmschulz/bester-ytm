@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import shutil
 import signal
@@ -38,6 +39,13 @@ class PlaybackController:
     master_volume: float = 100.0
     active_deck: str = "A"
     last_transition_error: str | None = None
+    playback_error: str | None = None
+    _failed_queue_head: str | None = field(default=None, init=False, repr=False)
+    _timing_process: subprocess.Popen[str] | None = field(default=None, init=False, repr=False)
+    _timing_sample: tuple[float, float, float, float] | None = field(
+        default=None, init=False, repr=False
+    )
+    _seeked_process: subprocess.Popen[str] | None = field(default=None, init=False, repr=False)
     _engine: TransitionEngine | None = field(default=None, init=False, repr=False)
     _paused_via_signal: bool = field(default=False, init=False, repr=False)
 
@@ -48,7 +56,7 @@ class PlaybackController:
         return mpv
 
     def _require_stream_resolver(self) -> None:
-        if not shutil.which("yt-dlp") and not shutil.which("youtube-dl"):
+        if not shutil.which("yt-dlp"):
             raise PlaybackError(
                 "yt-dlp is not installed or not on PATH; mpv cannot resolve "
                 "music.youtube.com streams reliably"
@@ -56,6 +64,8 @@ class PlaybackController:
 
     def play_video(self, video_id: str, seconds: int | None = None) -> PlaybackStatus:
         self.stop()
+        self.playback_error = None
+        self._failed_queue_head = None
         if not is_local_video_id(video_id) and not is_radio_video_id(video_id):
             self._require_stream_resolver()
         self.current_video_id = None
@@ -85,18 +95,27 @@ class PlaybackController:
         self.ipc_socket = ipc_socket
         self.paused = False
         self.active_deck = "A"
+        status = self.status()
+        if status.playback_error:
+            raise PlaybackError(status.playback_error)
         if seconds:
             try:
                 time.sleep(seconds)
+                status = self.status()
+                if status.playback_error:
+                    raise PlaybackError(status.playback_error)
             finally:
                 self.stop()
-        return self.status()
+            return self.status()
+        return status
 
     def enqueue(self, video_ids: list[str]) -> None:
         self.queue.extend(video_ids)
 
     def replace_queue(self, video_ids: list[str]) -> None:
         self.stop()
+        self.playback_error = None
+        self._failed_queue_head = None
         self.current_video_id = None
         self.queue = list(video_ids)
         self.history.clear()
@@ -107,13 +126,26 @@ class PlaybackController:
             raise PlaybackError("queue is empty")
         next_video = self.queue[0]
         previous_video = self.current_video_id
-        status = self.play_video(next_video)
+        try:
+            status = self.play_video(next_video)
+        except PlaybackError as exc:
+            self._failed_queue_head = next_video
+            self.playback_error = str(exc)
+            raise
+        self._failed_queue_head = None
+        self.playback_error = None
         self.queue.pop(0)
         if previous_video:
             self.history.append(previous_video)
         return status
 
     def next(self) -> PlaybackStatus:
+        if self.queue and self._failed_queue_head == self.queue[0]:
+            self.queue.pop(0)
+            self._failed_queue_head = None
+            self.playback_error = None
+            if not self.queue:
+                return self.status()
         if (
             self.queue
             and self._engine is not None
@@ -166,12 +198,16 @@ class PlaybackController:
     def seek_relative(self, seconds: float) -> PlaybackStatus:
         if self._transport_ipc_unavailable():
             return self.status()
+        self._seeked_process = self.process
+        self._timing_sample = None
         self._send_ipc({"command": ["seek", seconds, "relative"]})
         return self.status()
 
     def seek_absolute(self, seconds: float) -> PlaybackStatus:
         if self._transport_ipc_unavailable():
             return self.status()
+        self._seeked_process = self.process
+        self._timing_sample = None
         self._send_ipc({"command": ["seek", max(0.0, seconds), "absolute"]})
         return self.status()
 
@@ -232,6 +268,9 @@ class PlaybackController:
         if self.process is not None:
             terminate_process(self.process)
         self.process = None
+        self._timing_process = None
+        self._timing_sample = None
+        self._seeked_process = None
         if self.ipc_socket is not None:
             remove_socket_file(self.ipc_socket)
         self.paused = False
@@ -239,6 +278,7 @@ class PlaybackController:
 
     def status(self) -> PlaybackStatus:
         self.tick()
+        self._check_playback_failure()
         running = bool(self.process and self.process.poll() is None)
         position = None
         duration = None
@@ -250,8 +290,10 @@ class PlaybackController:
         if running and self.ipc_socket and not self._paused_via_signal:
             client = self._live_client()
             try:
+                sampled_at = time.monotonic()
                 position = client.get_float("time-pos")
                 duration = client.get_float("duration")
+                self._cache_timing(position, duration, client.get_float("speed"), sampled_at)
                 volume = client.get_float("volume")
                 muted = bool(client.get_property("mute"))
                 paused = bool(client.get_property("pause"))
@@ -276,6 +318,7 @@ class PlaybackController:
             mix_progress=eng.mix_progress if (eng := self._engine) and eng.is_mixing else None,
             active_deck=self.active_deck,
             transition_error=self.last_transition_error,
+            playback_error=self.playback_error,
             process_id=self.process.pid if running and self.process else None,
         )
 
@@ -298,7 +341,45 @@ class PlaybackController:
         self.last_transition_error = None
         return error
 
+    def _cache_timing(
+        self, position: float | None, duration: float | None, speed: float | None, sampled_at: float
+    ) -> None:
+        if self.process is self._seeked_process:
+            return
+        if any(value is None or not math.isfinite(value) for value in (position, duration, speed)):
+            return
+        assert position is not None and duration is not None and speed is not None
+        if position < 0 or duration <= 0 or speed <= 0:
+            return
+        self._timing_process = self.process
+        self._timing_sample = (position, duration, speed, sampled_at)
+
+    def _check_playback_failure(self) -> bool:
+        if self.playback_error:
+            return True
+        if self.process is None:
+            return False
+        exit_code = self.process.poll()
+        if exit_code is None:
+            return False
+        reason = f"mpv exited with exit code {exit_code}" if exit_code else None
+        if exit_code == 0 and self.process is self._timing_process and self._timing_sample:
+            position, duration, speed, sampled_at = self._timing_sample
+            elapsed = time.monotonic() - sampled_at
+            # Old samples cannot distinguish a complete track from a lost stream.
+            # Allow twice the sampled speed plus five seconds for timing jitter.
+            if 0 <= elapsed <= 10 and duration - position > elapsed * speed * 2 + 5:
+                reason = "the audio stream ended early"
+        if reason is None:
+            return False
+        self.playback_error = f"Playback failed: {reason}. Retry or choose next."
+        self.stop()
+        self._engine = None
+        return True
+
     def tick(self) -> None:
+        if self._check_playback_failure():
+            return
         if self._paused_via_signal:
             # A stopped mpv cannot answer the engine's timing reads, and
             # pause_resume() snapped any active fade before signalling.

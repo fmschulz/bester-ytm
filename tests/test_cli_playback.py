@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 from bester_ytm import cli_play
 from bester_ytm.cli import app
 from bester_ytm.cli_play import _effective_transition_settings, _play_and_wait
+from bester_ytm.playback_status import PlaybackStatus
 from bester_ytm.transitions import (
     DEFAULT_APP_SETTINGS,
     TransitionSettings,
@@ -30,6 +31,13 @@ class FakeController:
         self.next_calls = 0
         self.stop_calls = 0
 
+    def status(self) -> PlaybackStatus:
+        self.waits += 1
+        return PlaybackStatus(running=False)
+
+    def consume_transition_error(self) -> None:
+        return None
+
     def next(self) -> None:
         self.next_calls += 1
         self.queue.pop(0)
@@ -40,7 +48,8 @@ class FakeController:
         self.process = None
 
 
-def test_play_and_wait_advances_playlist_queue_and_stops_controller() -> None:
+def test_play_and_wait_advances_playlist_queue_and_stops_controller(monkeypatch) -> None:
+    monkeypatch.setattr(cli_play.time, "sleep", lambda seconds: None)
     controller = FakeController()
 
     _play_and_wait(controller, seconds=None)  # type: ignore[arg-type]
@@ -70,8 +79,9 @@ class CrossfadeController:
         self.stop_calls = 0
         self.transition_errors: list[str | None] = []
 
-    def tick(self) -> None:
+    def status(self) -> PlaybackStatus:
         self.tick_calls += 1
+        return PlaybackStatus(running=self.process is not None and self.process.poll() is None)
 
     def consume_transition_error(self) -> str | None:
         return self.transition_errors.pop(0) if self.transition_errors else None
@@ -154,9 +164,19 @@ def test_play_playlist_constructs_controller_with_transition_flags(
         def play_queue(self) -> None:
             self.queue.pop(0)
 
+        def next(self) -> None:
+            self.queue.pop(0)
+
+        def status(self) -> PlaybackStatus:
+            return PlaybackStatus(running=False)
+
+        def consume_transition_error(self) -> None:
+            return None
+
         def stop(self) -> None:
             self.process = None
 
+    monkeypatch.setattr(cli_play.time, "sleep", lambda seconds: None)
     monkeypatch.setattr(cli_play, "YTMClient", FakeClient)
     monkeypatch.setattr(cli_play, "PlaybackController", FakePlaybackController)
 

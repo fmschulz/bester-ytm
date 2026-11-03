@@ -112,6 +112,10 @@ class PlaybackRenderer:
             self.playback.consume_transition_error()
 
     def _handle_auto_advance(self, status) -> bool:
+        if status.playback_error:
+            self.playback_was_active = False
+            self._set_status(status.playback_error)
+            return False
         if status.running:
             self.playback_was_active = True
             return False

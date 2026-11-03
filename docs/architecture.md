@@ -21,8 +21,12 @@ only other module that uses ytmusicapi is `auth.py`, for login setup.
 
 ## Playback: the dual-deck transition engine
 
-Playback runs mpv with `--no-video --ytdl-format=bestaudio`, controlled over a
-JSON IPC Unix socket (`mpv_ipc.py`). Transitions run up to two mpv processes at
+Playback runs mpv with video output disabled, controlled over a JSON IPC Unix
+socket (`mpv_ipc.py`). YouTube tracks prefer HLS audio, then the smallest HLS
+video stream with audio; ordinary audio streams remain the final fallback.
+The extractor uses its default clients plus the embedded web client, which
+provides segmented streams when direct audio requests fail. Both live and
+prebuffer decks use this path. Transitions run up to two mpv processes at
 once, like two decks on a DJ mixer:
 
 - **Deck** (`deck.py`): one mpv process and its IPC socket. Its lifecycle:
@@ -44,8 +48,11 @@ once, like two decks on a DJ mixer:
 
 ### Invariants
 
-1. **No double advance.** For cut mode, the TUI calls `next()` when the live
-   mpv process dies with tracks still queued. The engine therefore keeps
+1. **No double advance.** For cut mode, the TUI calls `next()` after a normal
+   track end with tracks still queued. A failed or observably truncated stream
+   stops with an error and preserves the remaining queue. Early-end detection
+   needs recent position, duration and speed from the same process; unknown
+   timing or a user seek makes that inference inconclusive. The engine keeps
    `status().running` true through a crossfade (the live process switches
    inside `tick()`), and it never advances when the live process is dead:
    `tick()` returns before reading timing. Dead processes are the frontends'

@@ -6,7 +6,11 @@ Install `mpv`, open a new terminal, and retry.
 
 **`yt-dlp is not installed or not on PATH`**
 
-Install `yt-dlp`; `mpv` uses it to open YouTube Music streams.
+Install a current `yt-dlp`; `mpv` uses it to open YouTube Music streams:
+
+```bash
+uv tool install --upgrade 'yt-dlp[default]'
+```
 
 **`auth status` fails but search works**
 
@@ -40,6 +44,16 @@ test user on the OAuth consent screen, or publish the app.
 
 A manual `next` blends only when the next track is already prebuffered, which
 happens in the last fade length plus 12 seconds of a track. Earlier, `n` cuts.
+
+**A song fails to load or stops early**
+
+Detected playback failures appear in the status line and keep the remaining
+queue. Early-end detection needs recent timing and is disabled after a seek.
+Retry the song, or use `n` to move on. A successful song search verifies its
+catalog entry; it does not guarantee that YouTube will serve its audio stream.
+Update yt-dlp with the command above and restart the app if YouTube returns
+HTTP 403. The player prefers segmented streams to avoid rejected direct
+audio downloads.
 
 **AI builds fail with `codex exec failed`**
 

@@ -652,7 +652,7 @@ def test_tui_auto_advances_when_playing_track_finishes(monkeypatch) -> None:
     assert status.value == "Playing next."
 
 
-def test_tui_auto_advance_skips_unplayable_track(monkeypatch) -> None:
+def test_tui_auto_advance_keeps_queue_on_startup_failure(monkeypatch) -> None:
     class FakeListView:
         def __init__(self) -> None:
             self.items = []
@@ -709,11 +709,11 @@ def test_tui_auto_advance_skips_unplayable_track(monkeypatch) -> None:
 
     asyncio.run(app._auto_advance())
 
-    assert app.playback.current_video_id == "v3"
-    assert app.playback.queue == []
-    assert app.playback_was_active is True
+    assert app.playback.current_video_id is None
+    assert app.playback.queue == ["bad", "v3"]
+    assert app.playback_was_active is False
     assert app.auto_advance_pending is False
-    assert status.value == "Playing next."
+    assert "mpv exited before playback started" in status.value
 
 
 def test_tui_auto_advance_reports_error_when_no_track_is_playable(monkeypatch) -> None:
@@ -760,7 +760,7 @@ def test_tui_auto_advance_reports_error_when_no_track_is_playable(monkeypatch) -
 
     asyncio.run(app._auto_advance())
 
-    assert app.playback.queue == []
+    assert app.playback.queue == ["bad1", "bad2"]
     assert app.playback_was_active is False
     assert app.auto_advance_pending is False
     assert "mpv is not installed" in widgets["#status"].value
@@ -1262,3 +1262,39 @@ def test_library_playlists_list_as_rows_that_load_with_the_login() -> None:
             assert cell_len(line) == row.content_size.width
 
     asyncio.run(run())
+
+
+def test_tui_repeated_failure_refresh_does_not_schedule_advance(monkeypatch) -> None:
+    app = tui.BesterYTMApp()
+    app.playback.queue = ["next", "last"]
+    app.playback_was_active = True
+    messages = []
+    monkeypatch.setattr(app, "_set_status", messages.append)
+    monkeypatch.setattr(app, "run_worker", lambda *args, **kwargs: pytest.fail("must not advance"))
+    status = PlaybackStatus(running=False, playback_error="Playback failed. Retry or choose next.")
+
+    assert app._handle_auto_advance(status) is False
+    assert app._handle_auto_advance(status) is False
+    assert app.playback.queue == ["next", "last"]
+    assert app.playback_was_active is False
+    assert messages[-1] == status.playback_error
+
+
+def test_manual_start_error_deactivates_auto_advance(monkeypatch) -> None:
+    app = tui.BesterYTMApp()
+    app.playback.queue = ["bad", "next"]
+    app.playback_was_active = True
+
+    async def render_queue() -> None:
+        pass
+
+    monkeypatch.setattr(app, "_render_queue", render_queue)
+    monkeypatch.setattr(app, "_sync_current_track", lambda video_id: None)
+    monkeypatch.setattr(app, "_set_status", lambda message: None)
+    monkeypatch.setattr(app, "run_worker", lambda *args, **kwargs: pytest.fail("must not retry"))
+
+    asyncio.run(app._report_playback_error(PlaybackError("cannot start")))
+
+    assert app.playback_was_active is False
+    assert app._handle_auto_advance(app.playback.status()) is False
+    assert app.playback.queue == ["bad", "next"]

@@ -4,7 +4,7 @@
 
 - Linux or macOS
 - Python 3.11 or later and [`uv`](https://docs.astral.sh/uv/)
-- `mpv` and `yt-dlp` on `PATH` (`youtube-dl` also works)
+- `mpv` and a current `yt-dlp` on `PATH` (tested with yt-dlp 2026.10.26)
 
 ```bash
 # macOS (Homebrew)
@@ -16,6 +16,12 @@ sudo apt-get install -y mpv yt-dlp
 
 # Arch Linux
 sudo pacman -S --needed uv mpv yt-dlp
+```
+
+If your system package provides an older yt-dlp, install the current helper:
+
+```bash
+uv tool install --upgrade 'yt-dlp[default]'
 ```
 
 ## Install
