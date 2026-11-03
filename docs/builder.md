@@ -7,7 +7,8 @@ plan, then creates the playlist in your YouTube Music account.
 
 1. **Seeds**: `Artist - Title` lines from a file, pasted text, or your
    imported favorites. Numbered lists and `Artist | Title` also work. A prose
-   brief replaces seeds.
+   brief describes the playlist. Mention favorites to use your saved favorites
+   as reference songs.
 2. **Plan**: the builder keeps your seeds and fills the remaining slots with
    related tracks, recording a reason for each.
 3. **Resolve**: each planned track is matched to a YouTube Music video ID.
@@ -31,6 +32,17 @@ or describe what you want; for a prose brief, `Enter` starts the build:
 create a playlist with 15 songs in style similar to blind guardian
 and include at least 3 blind guardian songs, save it as powermetal-15
 ```
+
+For a playlist based on the songs saved in **Favorites**, enter:
+
+```text
+Generate a 30 song playlist based on my favorites
+```
+
+The builder passes your saved favorites to the AI as reference songs. With
+the heuristic provider, it uses them as seeds for related tracks. Save at least
+one favorite before making this request; an empty Favorites list stops the build
+with a message. Briefs that do not mention favorites use the description alone.
 
 A brief that starts with `add`, `queue`, or `append` extends the current queue
 instead: `Add 5 songs similar to Four Tet` appends five matching tracks, like

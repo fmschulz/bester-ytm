@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import Mock
+
 import pytest
 
 from bester_ytm import playlist_builder as builder_module
@@ -16,6 +18,7 @@ from bester_ytm.playlist_builder import (
     name_from_brief,
 )
 from bester_ytm.playlist_plan import PlaylistPlan, SeedTrack, SongCandidate
+from bester_ytm.stores import FavoritesStore
 
 
 class FakeClient:
@@ -111,6 +114,44 @@ def test_brief_with_heuristic_provider_searches_the_subject(monkeypatch) -> None
     seeds = builder.captured["seeds"]  # type: ignore[attr-defined]
     assert isinstance(seeds[0], SeedTrack)
     assert seeds[0].artist == "Sepultura"
+
+
+def test_heuristic_favorites_brief_uses_saved_tracks(monkeypatch) -> None:
+    FavoritesStore().toggle(_candidate("fav-1", "Myth", "Beach House"))
+    client = FakeClient()
+    builder = _patched_builder(monkeypatch, client)
+
+    builder.build_from_brief(
+        "30 songs based on my favorites",
+        name="Neighbors",
+        count=30,
+        settings=IntelligenceSettings(provider="heuristic"),
+    )
+
+    assert client.queries == []
+    assert builder.captured["seeds"] == [
+        SeedTrack(artist="Beach House", title="Myth", source="favorites")
+    ]
+
+
+@pytest.mark.parametrize("provider", ["codex", "heuristic"])
+def test_favorites_brief_without_saved_tracks_stops_before_suggestions(
+    monkeypatch, provider
+) -> None:
+    ai = Mock(return_value=SuggestedTracks(tracks=[]))
+    monkeypatch.setattr(builder_module, "suggest_playlist", ai)
+    client = FakeClient()
+
+    with pytest.raises(PlaylistBuildError, match="No saved favorites.*Save at least one"):
+        PlaylistBuilder(client=client).build_from_brief(
+            "30 songs based on my favorites",
+            name="Neighbors",
+            count=30,
+            settings=IntelligenceSettings(provider=provider),
+        )
+
+    ai.assert_not_called()
+    assert client.queries == []
 
 
 def test_count_from_brief_honors_explicit_track_counts() -> None:

@@ -21,6 +21,7 @@ from .playlist_plan import (
     parse_seed_text,
 )
 from .resolver import Resolver, variant_term
+from .stores import FavoritesStore
 from .ytm_client import YTMClient, YTMClientError
 
 
@@ -32,6 +33,7 @@ BRIEF_SUBJECT_PATTERN = re.compile(
     r"(?:similar to|like|inspired by)\s+(.{2,80})", re.IGNORECASE
 )
 BRIEF_COUNT_PATTERN = re.compile(r"\b(\d{1,3})\s*(?:songs?|tracks?)\b", re.IGNORECASE)
+BRIEF_FAVORITES_PATTERN = re.compile(r"\bfavou?rites\b", re.IGNORECASE)
 BRIEF_EXPLICIT_NAME_PATTERN = re.compile(
     r"\b(?:save|name|call)\s+(?:(?:it|this|that|the\s+playlist|playlist)\s+)?as\s+"
     r"[\"']?([A-Za-z0-9][\w /&+.'-]*)"
@@ -147,19 +149,30 @@ class PlaylistBuilder:
         count: int,
         settings: IntelligenceSettings | None = None,
     ) -> PlaylistPlan:
-        """Build a plan from a free-form brief alone, via the configured AI provider."""
+        """Build from a brief and any saved favorites it requests."""
         if count < 1:
             raise PlaylistBuildError("count must be at least 1")
         cleaned = brief.strip()
         if not cleaned:
             raise PlaylistBuildError("The playlist brief is empty.")
+        favorites: list[SongCandidate] = []
+        if BRIEF_FAVORITES_PATTERN.search(cleaned):
+            favorites = FavoritesStore().list()
+            if not favorites:
+                raise PlaylistBuildError(
+                    "No saved favorites. Save at least one song in Favorites first."
+                )
         settings = settings or load_intelligence_settings()
         try:
             provider = resolve_provider(settings)
             if provider == "heuristic":
-                seeds = self._seeds_from_brief(cleaned)
+                seeds = [
+                    SeedTrack(artist=track.artist_text, title=track.title, source="favorites")
+                    for track in favorites
+                ] or self._seeds_from_brief(cleaned)
             else:
-                suggestion = suggest_playlist(settings, [], count, cleaned)
+                context = [track.display_name for track in favorites]
+                suggestion = suggest_playlist(settings, context, count, cleaned)
                 seeds = [
                     SeedTrack(artist=track.artist, title=track.title, source=f"ai:{provider}")
                     for track in suggestion.tracks
