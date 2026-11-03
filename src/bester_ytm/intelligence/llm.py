@@ -17,6 +17,12 @@ CLAUDE_TIMEOUT_SECONDS = 180.0
 HTTP_TIMEOUT_SECONDS = 90.0
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
 KNOWN_PROVIDERS = ("auto", "heuristic", "codex", "claude", "openai", "anthropic")
+CODEX_MUSIC_INSTRUCTIONS = (
+    "This is a one-shot request for a music player, not a coding task. "
+    "Return only the JSON requested in the prompt. Do not inspect local files, "
+    "run shell commands, invoke skills, or perform agent/session setup or reporting. "
+    "Use web search only when needed to find a radio station's current stream URL."
+)
 
 
 class IntelligenceError(RuntimeError):
@@ -125,7 +131,21 @@ def _codex_text(settings: IntelligenceSettings, prompt: str) -> str:
     codex = shutil.which("codex")
     if not codex:
         raise IntelligenceError("codex CLI is not installed or not on PATH")
-    cmd = [codex, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never"]
+    cmd = [
+        codex,
+        "exec",
+        "--skip-git-repo-check",
+        "--sandbox",
+        "read-only",
+        "--color",
+        "never",
+        "-c",
+        'model_reasoning_effort="medium"',
+        "-c",
+        "skills.include_instructions=false",
+        "-c",
+        f"developer_instructions={json.dumps(CODEX_MUSIC_INSTRUCTIONS)}",
+    ]
     if settings.model:
         cmd += ["-m", settings.model]
     cmd.append(prompt)

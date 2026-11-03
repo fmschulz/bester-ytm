@@ -82,7 +82,10 @@ provider = "auto"   # auto | heuristic | codex | claude | openai | anthropic
   the offline heuristic (YouTube Music related tracks).
 - `codex`: runs [Codex CLI](https://developers.openai.com/codex)
   (`codex exec`, read-only sandbox) with your existing codex login. Set
-  `model = "..."` to choose the model.
+  `model = "..."` to choose the model. Music requests use medium reasoning
+  and task-specific instructions to return JSON without project or session
+  work. These settings apply to the app's calls and do not change your Codex
+  configuration. The app waits up to 180 seconds for a response.
 - `claude`: runs [Claude Code](https://claude.com/claude-code) (`claude -p`)
   with your existing claude login; no API key needed. Set `model = "..."`
   (for example `sonnet`) to choose the model.

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import subprocess
+import tomllib
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import anthropic
 import pytest
@@ -90,6 +92,29 @@ def test_codex_provider_parses_named_playlist_object(monkeypatch) -> None:
 
     assert playlist.name == "powermetal-10"
     assert [track.title for track in playlist.tracks] == ["Valhalla"]
+
+
+@pytest.mark.parametrize("model", ["", "chosen-model"])
+def test_codex_music_call_limits_reasoning_and_skips_project_work(monkeypatch, model) -> None:
+    run = Mock(return_value=SimpleNamespace(returncode=0, stdout=TRACKS_JSON, stderr=""))
+    monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
+    monkeypatch.setattr(llm.subprocess, "run", run)
+
+    tracks = suggest_tracks(IntelligenceSettings(provider="codex", model=model), ["A - B"], 2)
+
+    cmd = run.call_args.args[0]
+    overrides = [cmd[index + 1] for index, arg in enumerate(cmd) if arg == "-c"]
+    config = tomllib.loads("\n".join(overrides))
+    assert config["model_reasoning_effort"] == "medium"
+    assert config["skills"]["include_instructions"] is False
+    assert "not a coding task" in config["developer_instructions"]
+    assert "Do not inspect local files" in config["developer_instructions"]
+    assert "radio station" in config["developer_instructions"]
+    assert cmd[cmd.index("--sandbox") + 1] == "read-only"
+    assert ("-m" in cmd) is bool(model)
+    assert cmd[-1] == build_prompt(["A - B"], 2, "")
+    assert run.call_args.kwargs["timeout"] == 180.0
+    assert [track.artist for track in tracks] == ["Machine Head", "Prong"]
 
 
 def test_codex_provider_reports_failure_and_timeout(monkeypatch) -> None:

@@ -46,3 +46,11 @@ happens in the last fade length plus 12 seconds of a track. Earlier, `n` cuts.
 The status line shows codex's last error. Usually the codex login expired
 (`codex logout && codex login`) or the CLI is not installed; in that case set
 another provider in [`config.toml`](builder.md#ai-providers).
+
+**AI builds fail with `codex did not answer within 180s`**
+
+The app stopped waiting for Codex after three minutes. Music requests use
+medium reasoning and direct JSON instructions, independent of the reasoning
+effort in your normal coding sessions. Retry the request; if Codex continues
+to time out, set `[intelligence] provider = "heuristic"` to build from saved
+favorites using YouTube Music related tracks.
