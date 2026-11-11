@@ -1,5 +1,10 @@
-import subprocess
+from __future__ import annotations
 
+import subprocess
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import anthropic
 import pytest
 
 from bester_ytm.intelligence import llm
@@ -82,3 +87,75 @@ def test_find_station_via_claude_parses_json(monkeypatch: pytest.MonkeyPatch) ->
     station = find_station(IntelligenceSettings(provider="claude"), "WFMU")
 
     assert station.key == "wfmu"
+
+
+@pytest.mark.parametrize("model", ["", "sonnet"])
+def test_claude_station_lookup_allows_only_web_tools(
+    monkeypatch: pytest.MonkeyPatch, model: str
+) -> None:
+    run = Mock(return_value=SimpleNamespace(returncode=0, stdout=STATION_JSON, stderr=""))
+    monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
+    monkeypatch.setattr(llm.subprocess, "run", run)
+
+    find_station(IntelligenceSettings(provider="claude", model=model), "WFMU")
+
+    expected = [
+        "/usr/bin/claude",
+        "-p",
+        "--output-format",
+        "text",
+        "--setting-sources",
+        "",
+        "--tools",
+        "WebSearch,WebFetch",
+        "--allowedTools",
+        "WebSearch,WebFetch",
+        "--disable-slash-commands",
+        "--strict-mcp-config",
+    ]
+    if model:
+        expected += ["--model", model]
+    assert run.call_args.args[0] == [*expected, station_prompt("WFMU")]
+
+
+@pytest.mark.parametrize("model", ["", "chosen-model"])
+def test_anthropic_station_request_uses_structured_output(
+    monkeypatch: pytest.MonkeyPatch, model: str
+) -> None:
+    station = SuggestedStation.model_validate_json(STATION_JSON)
+    parse = Mock(return_value=SimpleNamespace(stop_reason="end_turn", parsed_output=station))
+    monkeypatch.setattr(
+        anthropic, "Anthropic", lambda: SimpleNamespace(messages=SimpleNamespace(parse=parse))
+    )
+
+    assert find_station(IntelligenceSettings(provider="anthropic", model=model), "WFMU") == station
+    assert parse.call_args.kwargs == {
+        "model": model or "claude-opus-5-5",
+        "max_tokens": 16000,
+        "output_config": {"effort": "low"},
+        "messages": [{"role": "user", "content": station_prompt("WFMU")}],
+        "output_format": SuggestedStation,
+    }
+
+
+@pytest.mark.parametrize("station_request", [False, True])
+def test_anthropic_refusal_is_reported_before_parsing(
+    monkeypatch: pytest.MonkeyPatch, station_request: bool
+) -> None:
+    class Refusal:
+        stop_reason = "refusal"
+
+        @property
+        def parsed_output(self) -> None:
+            pytest.fail("Refusal must be checked before reading parsed_output")
+
+    parse = Mock(return_value=Refusal())
+    monkeypatch.setattr(
+        anthropic, "Anthropic", lambda: SimpleNamespace(messages=SimpleNamespace(parse=parse))
+    )
+    settings = IntelligenceSettings(provider="anthropic")
+    with pytest.raises(IntelligenceError, match="^the Anthropic API declined this request$"):
+        if station_request:
+            find_station(settings, "WFMU")
+        else:
+            llm.suggest_playlist(settings, [], 1)

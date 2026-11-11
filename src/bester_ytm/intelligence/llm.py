@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 CODEX_TIMEOUT_SECONDS = 180.0
 CLAUDE_TIMEOUT_SECONDS = 180.0
 HTTP_TIMEOUT_SECONDS = 90.0
-DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5"
 KNOWN_PROVIDERS = ("auto", "heuristic", "codex", "claude", "openai", "anthropic")
 CODEX_MUSIC_INSTRUCTIONS = (
     "This is a one-shot request for a music player, not a coding task. "
@@ -167,16 +167,20 @@ def _codex_text(settings: IntelligenceSettings, prompt: str) -> str:
     return result.stdout
 
 
-def _claude_text(settings: IntelligenceSettings, prompt: str) -> str:
+def _claude_text(settings: IntelligenceSettings, prompt: str, *, web_access: bool = False) -> str:
     """Raw claude -p output for a prompt; raises IntelligenceError.
 
     Uses the Claude Code CLI print mode, riding the user's existing claude
-    login (no API key) — the alternative to codex for suggestion prompts.
+    login without user settings or tools beyond the requested web access.
     """
     claude = shutil.which("claude")
     if not claude:
         raise IntelligenceError("claude CLI is not installed or not on PATH")
-    cmd = [claude, "-p", "--output-format", "text"]
+    cmd = [claude, "-p", "--output-format", "text", "--setting-sources", "", "--tools"]
+    cmd.append("WebSearch,WebFetch" if web_access else "")
+    if web_access:
+        cmd += ["--allowedTools", "WebSearch,WebFetch"]
+    cmd += ["--disable-slash-commands", "--strict-mcp-config"]
     if settings.model:
         cmd += ["--model", settings.model]
     cmd.append(prompt)
@@ -254,7 +258,8 @@ def _suggest_via_anthropic(settings: IntelligenceSettings, prompt: str) -> Sugge
         client = anthropic.Anthropic()
         response = client.messages.parse(
             model=settings.model or DEFAULT_ANTHROPIC_MODEL,
-            max_tokens=4096,
+            max_tokens=16000,
+            output_config={"effort": "low"},
             messages=[{"role": "user", "content": prompt}],
             output_format=SuggestedTracks,
         )
@@ -263,6 +268,8 @@ def _suggest_via_anthropic(settings: IntelligenceSettings, prompt: str) -> Sugge
             f"Anthropic API request failed: {exc}. Set ANTHROPIC_API_KEY to use "
             "the anthropic provider."
         ) from exc
+    if response.stop_reason == "refusal":
+        raise IntelligenceError("the Anthropic API declined this request")
     parsed = response.parsed_output
     if parsed is None or not parsed.tracks:
         raise IntelligenceError("the Anthropic API returned no track suggestions")

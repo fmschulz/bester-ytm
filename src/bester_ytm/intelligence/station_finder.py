@@ -52,7 +52,7 @@ def find_station(settings: IntelligenceSettings, request: str) -> SuggestedStati
     if provider == "codex":
         return _parse_station(_codex_text(settings, prompt), source="codex")
     if provider == "claude":
-        return _parse_station(_claude_text(settings, prompt), source="claude")
+        return _parse_station(_claude_text(settings, prompt, web_access=True), source="claude")
     if provider == "openai":
         return _parse_station(_openai_text(settings, prompt), source=settings.model)
     if provider == "anthropic":
@@ -72,12 +72,15 @@ def _find_via_anthropic(settings: IntelligenceSettings, prompt: str) -> Suggeste
         client = anthropic.Anthropic()
         response = client.messages.parse(
             model=settings.model or DEFAULT_ANTHROPIC_MODEL,
-            max_tokens=1024,
+            max_tokens=16000,
+            output_config={"effort": "low"},
             messages=[{"role": "user", "content": prompt}],
             output_format=SuggestedStation,
         )
     except anthropic.AnthropicError as exc:
         raise IntelligenceError(f"Anthropic API request failed: {exc}") from exc
+    if response.stop_reason == "refusal":
+        raise IntelligenceError("the Anthropic API declined this request")
     if response.parsed_output is None:
         raise IntelligenceError("the Anthropic API returned no station suggestion")
     return response.parsed_output

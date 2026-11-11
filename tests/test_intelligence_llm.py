@@ -198,9 +198,10 @@ def test_anthropic_provider_uses_structured_output(monkeypatch) -> None:
         def parse(self, **kwargs):
             captured.update(kwargs)
             return SimpleNamespace(
+                stop_reason="end_turn",
                 parsed_output=SuggestedTracks(
                     tracks=[SuggestedTrack(artist="Soulfly", title="Eye for an Eye")]
-                )
+                ),
             )
 
     monkeypatch.setattr(anthropic, "Anthropic", lambda: SimpleNamespace(messages=FakeMessages()))
@@ -208,8 +209,11 @@ def test_anthropic_provider_uses_structured_output(monkeypatch) -> None:
     tracks = suggest_tracks(IntelligenceSettings(provider="anthropic"), ["A - B"], 1)
 
     assert tracks[0].artist == "Soulfly"
-    assert captured["model"] == "claude-opus-4-8"
+    assert captured["model"] == "claude-opus-5-5"
     assert captured["output_format"] is SuggestedTracks
+    assert captured["max_tokens"] == 16000
+    assert captured["output_config"] == {"effort": "low"}
+    assert set(captured) == {"model", "max_tokens", "messages", "output_format", "output_config"}
 
 
 def test_anthropic_provider_wraps_api_errors(monkeypatch) -> None:
@@ -272,3 +276,30 @@ def test_claude_provider_reports_failure(monkeypatch) -> None:
 
     with pytest.raises(llm.IntelligenceError, match="claude -p failed"):
         llm.suggest_playlist(llm.IntelligenceSettings(provider="claude"), [], 1, "dub")
+
+
+@pytest.mark.parametrize("model", ["", "sonnet"])
+def test_claude_suggestions_use_only_the_music_prompt(
+    monkeypatch: pytest.MonkeyPatch, model: str
+) -> None:
+    run = Mock(return_value=SimpleNamespace(returncode=0, stdout=TRACKS_JSON, stderr=""))
+    monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
+    monkeypatch.setattr(llm.subprocess, "run", run)
+
+    suggest_tracks(IntelligenceSettings(provider="claude", model=model), [], 2)
+
+    expected = [
+        "/usr/bin/claude",
+        "-p",
+        "--output-format",
+        "text",
+        "--setting-sources",
+        "",
+        "--tools",
+        "",
+        "--disable-slash-commands",
+        "--strict-mcp-config",
+    ]
+    if model:
+        expected += ["--model", model]
+    assert run.call_args.args[0] == [*expected, build_prompt([], 2, "")]
