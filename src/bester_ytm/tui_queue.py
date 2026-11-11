@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import random
+
 from textual.widgets import Input, ListView
 
+from .playback import PlaybackError
 from .playlist_plan import PlaylistPlan, SongCandidate, slugify
 from .stores import LocalPlaylist, LocalPlaylistStore
 
@@ -18,6 +21,57 @@ class QueueEditActions:
     active_local_playlist_id: str | None
     active_youtube_playlist_id: str | None
     build_in_progress: bool
+
+    def _upcoming_queue_start(self, order: list[str]) -> int | None:
+        """Return the upcoming suffix boundary when both lists are in step."""
+        start = len(order) - len(self.playback.queue)
+        if start >= 0 and order[start:] == self.playback.queue:
+            return start
+        return None
+
+    def _playing_queue_index(self, current_video_id: str | None) -> int | None:
+        """Find the current occurrence by the upcoming suffix, with an ID fallback."""
+        if current_video_id is None:
+            return None
+        order = self.playlist_video_ids or self.playback.queue
+        upcoming_start = self._upcoming_queue_start(order)
+        if upcoming_start is not None and upcoming_start > 0:
+            index = upcoming_start - 1
+            if order[index] == current_video_id:
+                return index
+        return order.index(current_video_id) if current_video_id in order else None
+
+    async def action_shuffle_queue(self) -> None:
+        try:
+            status = self.playback.status()
+        except PlaybackError as exc:
+            self._set_status(str(exc))
+            return
+
+        current = status.current_video_id if status.running else None
+        visible = list(self.playlist_video_ids or self.playback.queue)
+        if current:
+            playing_index = self._playing_queue_index(current)
+            prefix = visible[: playing_index + 1] if playing_index is not None else [current]
+            visible = list(self.playback.queue)
+            if not visible:
+                self._set_status("Nothing else to shuffle.")
+                return
+            random.shuffle(visible)
+            self.playlist_video_ids = [*prefix, *visible]
+            self.playback.queue = list(visible)
+        else:
+            visible = list(visible)
+            if len(visible) < 2:
+                self._set_status("Nothing to shuffle.")
+                return
+            random.shuffle(visible)
+            self.playlist_video_ids = visible
+            self.playback.replace_queue(visible)
+            self.playback_was_active = False
+
+        await self._render_queue()
+        self._set_status(f"Shuffled {len(visible)} upcoming track(s).")
 
     def _finish_playlist_build(self, plan: PlaylistPlan, message: str) -> None:
         self.build_in_progress = False
@@ -68,7 +122,7 @@ class QueueEditActions:
         self.active_youtube_playlist_id = None
         # Retarget the track context to the kept playing track (or nothing), so a
         # later Add/Remove does not act on a row that just left the queue.
-        self.selected_queue_video_id = kept
+        self.selected_queue_index = 0 if kept else None
         self._sync_current_track(kept)
         name_input = self._query_optional("#playlist-name", Input)
         if name_input:
@@ -99,34 +153,35 @@ class QueueEditActions:
         if self._focus_context() == "results":
             await self._delete_highlighted_playlist()
             return
-        video_id = self._highlighted_queue_video_id()
-        if not video_id:
+        index = self._highlighted_queue_index()
+        order = list(self.playlist_video_ids or self.playback.queue)
+        if index is None:
             self._set_status("Highlight a queue track first; d removes it.")
             return
-        if video_id == self.playback.current_video_id:
-            self._set_status("Cannot remove the playing track; press n to skip it.")
-            return
-        if video_id not in self.playlist_video_ids:
+        if not 0 <= index < len(order):
             self._set_status("That track is no longer in the queue.")
             return
-        removed_index = self.playlist_video_ids.index(video_id)
-        self.playlist_video_ids = [v for v in self.playlist_video_ids if v != video_id]
-        self.playback.queue = [v for v in self.playback.queue if v != video_id]
-        focus = self._neighbor_after_removal(removed_index)
-        await self._render_queue(focus_video_id=focus)
+        status = self.playback.status()
+        current = status.current_video_id if status.running else None
+        playing_index = self._playing_queue_index(current)
+        if index == playing_index:
+            self._set_status("Cannot remove the playing track; press n to skip it.")
+            return
+        self._supersede_queue_load()
+        upcoming_start = self._upcoming_queue_start(order)
+        video_id = order.pop(index)
+        if upcoming_start is not None:
+            if index >= upcoming_start:
+                self.playback.queue.pop(index - upcoming_start)
+        elif video_id in self.playback.queue:
+            self.playback.queue.remove(video_id)
+        self.playlist_video_ids = order
+        focus = min(index, len(order) - 1) if order else None
+        await self._render_queue(focus_index=focus)
         name = self._track_display_name(video_id)
         self._set_status(
             f"Removed {name} from the queue." if name else "Removed track from the queue."
         )
-
-    def _neighbor_after_removal(self, removed_index: int) -> str | None:
-        """The track now occupying the removed slot, else the previous one."""
-        order = self.playlist_video_ids
-        if not order:
-            return None
-        if removed_index < len(order):
-            return order[removed_index]
-        return order[-1]
 
     async def action_move_queue_track_up(self) -> None:
         await self._move_queue_track(-1)
@@ -135,23 +190,43 @@ class QueueEditActions:
         await self._move_queue_track(1)
 
     async def _move_queue_track(self, delta: int) -> None:
-        video_id = self._highlighted_queue_video_id()
+        index = self._highlighted_queue_index()
         order = list(self.playlist_video_ids or self.playback.queue)
-        if not video_id or video_id not in order:
+        if index is None or not 0 <= index < len(order):
             self._set_status("Highlight a queue track first; j/k move it.")
             return
-        index = order.index(video_id)
+        video_id = order[index]
         target = index + delta
         if not 0 <= target < len(order):
             return
+        self._supersede_queue_load()
+        status = self.playback.status()
+        current = status.current_video_id if status.running else None
+        upcoming_start = self._upcoming_queue_start(order)
+        playing_index = self._playing_queue_index(current)
+        other_video_id = order[target]
         order[index], order[target] = order[target], order[index]
+        if upcoming_start is not None:
+            if playing_index == index:
+                upcoming_start = target + 1
+            elif playing_index == target:
+                upcoming_start = index + 1
+            self.playback.queue = order[upcoming_start:]
+        else:
+            self._swap_upcoming_ids(video_id, other_video_id)
         self.playlist_video_ids = order
-        upcoming = set(self.playback.queue)
-        self.playback.queue = [v for v in order if v in upcoming]
-        await self._render_queue(focus_video_id=video_id)
+        await self._render_queue(focus_index=target)
         name = self._track_display_name(video_id)
         direction = "up" if delta < 0 else "down"
         self._set_status(f"Moved {name} {direction}." if name else f"Moved track {direction}.")
+
+    def _swap_upcoming_ids(self, video_id: str, other_video_id: str) -> None:
+        """Swap one copy of each ID when the displayed order is out of step."""
+        upcoming = self.playback.queue
+        if video_id in upcoming and other_video_id in upcoming:
+            index = upcoming.index(video_id)
+            target = upcoming.index(other_video_id)
+            upcoming[index], upcoming[target] = upcoming[target], upcoming[index]
 
     def action_save_queue_playlist(self) -> None:
         candidates = self._queue_candidates()

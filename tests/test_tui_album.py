@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 
 from fakes import FakePlayback
 
@@ -64,6 +65,8 @@ def _inline_workers(app, monkeypatch) -> None:
     """Seam for run_test flows: thread workers run inline, coroutines as tasks."""
 
     def run_worker(work, **kwargs):
+        if inspect.iscoroutinefunction(work):
+            work = work()
         if asyncio.iscoroutine(work):
             return asyncio.get_running_loop().create_task(work)
         return work()
@@ -77,6 +80,8 @@ def _captured_workers(app, monkeypatch) -> list:
     parked: list = []
 
     def run_worker(work, **kwargs):
+        if inspect.iscoroutinefunction(work):
+            work = work()
         if asyncio.iscoroutine(work):
             return asyncio.get_running_loop().create_task(work)
         parked.append(work)

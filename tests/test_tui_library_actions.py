@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+from functools import partial
+from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from fakes import FakeInput, FakeListView, FakePlayback, FakeStatic
 
 from bester_ytm import tui, tui_builder
+from bester_ytm.config_options import AppOptions
 from bester_ytm.playback import PlaybackError, PlaybackStatus
 from bester_ytm.playlist_builder import PlaylistBuildError
 from bester_ytm.playlist_plan import PlaylistPlan, SongCandidate
@@ -30,7 +34,9 @@ def _capture_workers(app, monkeypatch) -> list:
     """Synchronous seam: collect scheduled workers instead of running threads."""
     workers: list = []
     monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: workers.append(work))
-    monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
+    monkeypatch.setattr(
+        app, "call_from_thread", lambda fn, *args: workers.append(partial(fn, *args))
+    )
     return workers
 
 
@@ -41,21 +47,21 @@ def _drain_workers(workers: list) -> None:
     """
     while workers:
         work = workers.pop(0)
-        if asyncio.iscoroutine(work):
-            asyncio.run(work)
-        else:
-            work()
+        result = work() if callable(work) else work
+        if asyncio.iscoroutine(result):
+            asyncio.run(result)
 
 
 def test_search_with_blank_query_only_clears_results(monkeypatch, tmp_path) -> None:
     app, widgets, statuses = _make_app(monkeypatch, tmp_path)
     widgets["#results"].items.append(object())
-    app.selected_queue_video_id = "v1"
+    app.playlist_video_ids = ["v1"]
+    app.selected_queue_index = 0
 
     asyncio.run(app._search("   "))
 
     assert widgets["#results"].items == []
-    assert app.selected_queue_video_id is None
+    assert app.selected_queue_index is None
     assert statuses == []
 
 
@@ -288,7 +294,8 @@ def test_add_uses_active_playlist_name_when_input_empty(monkeypatch, tmp_path) -
     app.active_local_playlist_id = existing.id
     candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
     app.candidates_by_video_id["v1"] = candidate
-    app.selected_queue_video_id = "v1"
+    app.playlist_video_ids = ["v1"]
+    app.selected_queue_index = 0
 
     app.action_add_to_local_playlist()
 
@@ -307,7 +314,8 @@ def test_add_falls_back_when_active_playlist_is_missing(monkeypatch, tmp_path) -
     app.active_local_playlist_id = "ghost"
     candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
     app.candidates_by_video_id["v1"] = candidate
-    app.selected_queue_video_id = "v1"
+    app.playlist_video_ids = ["v1"]
+    app.selected_queue_index = 0
 
     app.action_add_to_local_playlist()
 
@@ -320,7 +328,8 @@ def test_remove_from_playlist_guards(monkeypatch, tmp_path) -> None:
     asyncio.run(app.action_remove_from_playlist())
     assert statuses[-1] == "No current track to remove."
 
-    app.selected_queue_video_id = "v1"
+    app.playlist_video_ids = ["v1"]
+    app.selected_queue_index = 0
     asyncio.run(app.action_remove_from_playlist())
     assert statuses[-1] == ("Load a playlist first (Ctrl+P); Remove drops the highlighted track.")
 
@@ -332,7 +341,8 @@ def test_remove_reports_missing_playlist_file(monkeypatch, tmp_path) -> None:
         "#playlist-name": FakeInput("Ghost List"),
     }
     app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
-    app.selected_queue_video_id = "v1"
+    app.playlist_video_ids = ["v1"]
+    app.selected_queue_index = 0
 
     asyncio.run(app.action_remove_from_playlist())
 
@@ -358,14 +368,16 @@ def test_remove_targets_active_youtube_playlist(monkeypatch, tmp_path) -> None:
         "#playlist-name": FakeInput("ByteFM Inspired 30"),
     }
     app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
+    workers = _capture_workers(app, monkeypatch)
     monkeypatch.setattr(app, "_render_queue", _noop_render(app))
     app.active_youtube_playlist_id = "PL1"
     app.playlist_title = "ByteFM Inspired 30"
     app.playlist_video_ids = ["v1", "v2"]
     app.playback.queue = ["v2"]
-    app.selected_queue_video_id = "v2"
+    app.selected_queue_index = 1
 
     asyncio.run(app.action_remove_from_playlist())
+    _drain_workers(workers)
 
     assert FakeRemovalClient.removed == [("PL1", "v2")]
     assert app.playlist_video_ids == ["v1"]
@@ -383,11 +395,14 @@ def test_remove_reports_track_missing_from_youtube_playlist(monkeypatch, tmp_pat
 
     monkeypatch.setattr("bester_ytm.tui_metadata.YTMClient", EmptyRemovalClient)
     app, _, statuses = _make_app(monkeypatch, tmp_path)
+    workers = _capture_workers(app, monkeypatch)
     app.active_youtube_playlist_id = "PL1"
     app.playlist_title = "Mix"
-    app.selected_queue_video_id = "v9"
+    app.playlist_video_ids = ["v9"]
+    app.selected_queue_index = 0
 
     asyncio.run(app.action_remove_from_playlist())
+    _drain_workers(workers)
 
     assert statuses[-1] == "Track is not in YouTube playlist 'Mix'."
 
@@ -437,7 +452,8 @@ def test_toggle_favorite_targets_the_highlighted_result(monkeypatch, tmp_path) -
     widgets["#results"].highlighted_child = SimpleNamespace(candidate=highlighted)
     app.current_candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
     # A loaded queue remembers a selection; it must NOT hijack f in the results pane.
-    app.selected_queue_video_id = "v1"
+    app.playlist_video_ids = ["v1"]
+    app.selected_queue_index = 0
 
     app.action_toggle_favorite()
     _drain_workers(workers)
@@ -453,7 +469,8 @@ def test_toggle_favorite_ignores_remembered_queue_row_when_unfocused(monkeypatch
     workers = _capture_workers(app, monkeypatch)
     monkeypatch.setattr(app, "_focus_context", lambda: "other")
     app.candidates_by_video_id["v9"] = SongCandidate(video_id="v9", title="Nine")
-    app.selected_queue_video_id = "v9"  # remembered from an earlier queue highlight
+    app.playlist_video_ids = ["v9"]
+    app.selected_queue_index = 0  # remembered from an earlier queue highlight
     app.current_candidate = SongCandidate(video_id="v1", title="One", artists=["A"])
 
     app.action_toggle_favorite()
@@ -595,21 +612,21 @@ def test_build_playlist_from_pasted_text(monkeypatch, tmp_path) -> None:
     assert statuses[-1] == ("plan saved: plan-1.json (0/30 resolved). No resolved tracks to queue.")
 
 
-def test_build_playlist_imports_favorites_when_builder_empty(monkeypatch, tmp_path) -> None:
+def test_build_playlist_uses_configured_seeds_when_builder_empty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     favs = tmp_path / "favs.md"
     favs.write_text("- Beach House - Myth\n", encoding="utf-8")
     widgets = _builder_widgets("")
     app, _, statuses = _make_app(monkeypatch, tmp_path, widgets)
+    app.app_options = AppOptions(favorites_file=favs)
     monkeypatch.setattr(tui_builder, "PlaylistBuilder", FakeBuilder)
     monkeypatch.setattr(tui_builder, "resolve_existing_input", lambda path: favs)
 
     _run_build(app, monkeypatch)
 
     assert FakeBuilder.last["source"] == favs
-    assert statuses[-1] == (
-        "Imported 1 favorites; plan saved: plan-1.json (0/30 resolved). "
-        "No resolved tracks to queue."
-    )
+    assert statuses[-1] == ("plan saved: plan-1.json (0/30 resolved). No resolved tracks to queue.")
 
 
 def test_build_playlist_reports_build_errors(monkeypatch, tmp_path) -> None:
@@ -652,6 +669,7 @@ def test_build_playlist_from_brief_runs_in_background_with_feedback(monkeypatch,
 
 def test_highlighted_queue_video_id_prefers_focused_queue(monkeypatch, tmp_path) -> None:
     app, widgets, _ = _make_app(monkeypatch, tmp_path)
+    app.playlist_video_ids = ["v9"]
     widgets["#queue"].highlighted_child = SimpleNamespace(video_id="v9")
     monkeypatch.setattr(tui.BesterYTMApp, "focused", SimpleNamespace(id="queue"), raising=False)
 

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An unknown UI theme starts with Astra and reports the fallback at startup.
+
+- Login checks and YouTube playlist removal and deletion run off the UI
+  thread. Playlist edits report their outcome after the view changes. Track
+  removal updates the queue while the same YouTube playlist is loaded.
+
+- Repeated songs in the queue have separate play marks and cursor positions.
+  Remove, move, and play act on the selected row. Remove and move keep the
+  upcoming queue empty after the playlist ends and keep its boundary when stopped.
+
+- Claude CLI music calls skip user settings and tools. Station lookups allow
+  only web search and fetch.
+
+- Shuffle keeps played rows in place and changes only the upcoming queue.
+
 - Web radio shows `live` and the recent-loudness seek bar again. mpv reports
   the buffered part of a live stream as a growing track length, which the
   player showed as a normal track.
@@ -37,11 +52,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `config show` prints all effective settings as TOML, including configured
+  radio stations and the API key variable name, without the key. Empty tables
+  are omitted.
+
+- Builds from the seeds file are named `Favorites Inspired 30`.
+
+- The Anthropic provider defaults to `claude-opus-5-5` with low effort and a
+  16,000-token budget for songs and stations. Refusals have a clear error.
+
 - Queue and library lists mount all rows in one batch for faster rebuilds.
 - The code is formatted with `ruff format`; CI checks the format and installs
   from the lock file.
 
 ### Removed
+
+- The `favorites import-tuiradio` command and the builder's sibling
+  `../tuiradio/favs.md` fallback. Empty builds use only `[builder] favorites_file`.
 
 - Unused code: the YouTube like call (favorites are local since 1.4.0), the
   provider `rank_candidates` hook, `Deck.stop`, `PlanStore.list`, and three

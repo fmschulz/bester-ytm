@@ -124,7 +124,8 @@ class EventHandlers:
     async def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         if event.control.id != "queue":
             return
-        self.selected_queue_video_id = getattr(event.item, "video_id", None)
+        if event.item is not None:
+            self.selected_queue_index = event.control.index
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         action_name = self.BUTTON_ACTIONS.get(event.button.id or "")

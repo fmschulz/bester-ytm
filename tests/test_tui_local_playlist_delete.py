@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from types import SimpleNamespace
+from functools import partial
 
 import pytest
-from fakes import FakeStatic
+from fakes import FakeListView, FakeStatic
 
 from bester_ytm import tui
 from bester_ytm.playlist_plan import SongCandidate
@@ -51,9 +51,9 @@ class FakeResultItem:
         self.removed = True
 
 
-def _make_app(monkeypatch, item) -> tuple[tui.BesterYTMApp, FakeStatic]:
+def _make_app(monkeypatch: pytest.MonkeyPatch, item) -> tuple[tui.BesterYTMApp, FakeStatic, list]:
     status = FakeStatic()
-    results = SimpleNamespace(highlighted_child=item)
+    results = FakeListView([item])
     widgets = {"#results": results, "#status": status}
     app = tui.BesterYTMApp()
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
@@ -61,7 +61,12 @@ def _make_app(monkeypatch, item) -> tuple[tui.BesterYTMApp, FakeStatic]:
         app, "_query_optional", lambda selector, widget_type=None: widgets.get(selector)
     )
     monkeypatch.setattr(app, "_focus_context", lambda: "results")
-    return app, status
+    workers: list = []
+    monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: workers.append(work))
+    monkeypatch.setattr(
+        app, "call_from_thread", lambda fn, *args: workers.append(partial(fn, *args))
+    )
+    return app, status, workers
 
 
 def _local_playlist_item(playlist_id: str = "yahoo", title: str = "Yahoo") -> FakeResultItem:
@@ -79,16 +84,18 @@ def test_d_deletes_local_playlist_only_after_second_press(
     monkeypatch, store: LocalPlaylistStore
 ) -> None:
     item = _local_playlist_item()
-    app, status = _make_app(monkeypatch, item)
+    app, status, workers = _make_app(monkeypatch, item)
     app.active_local_playlist_id = "yahoo"
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert "Press d again" in status.value and "'Yahoo'" in status.value
     assert store.path_for_id("yahoo").exists()
     assert item.removed is False
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert not store.path_for_id("yahoo").exists()
     assert item.removed is True
@@ -100,9 +107,10 @@ def test_any_other_action_rearms_the_local_delete_confirmation(
     monkeypatch, store: LocalPlaylistStore
 ) -> None:
     item = _local_playlist_item()
-    app, status = _make_app(monkeypatch, item)
+    app, status, workers = _make_app(monkeypatch, item)
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
     assert app._pending_playlist_delete == "yahoo"
 
     # Any action other than d (via key binding or button) disarms the confirm.
@@ -110,12 +118,14 @@ def test_any_other_action_rearms_the_local_delete_confirmation(
     assert app._pending_playlist_delete is None
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert store.path_for_id("yahoo").exists()
     assert item.removed is False
     assert "Press d again" in status.value
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert not store.path_for_id("yahoo").exists()
     assert item.removed is True
@@ -123,9 +133,10 @@ def test_any_other_action_rearms_the_local_delete_confirmation(
 
 def test_d_on_song_result_only_hints(monkeypatch, store: LocalPlaylistStore) -> None:
     search_item = SearchItem(item_type="song", title="A Song")
-    app, status = _make_app(monkeypatch, FakeResultItem(search_item=search_item))
+    app, status, workers = _make_app(monkeypatch, FakeResultItem(search_item=search_item))
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert store.path_for_id("yahoo").exists()
     assert "d deletes the highlighted playlist" in status.value
@@ -156,15 +167,17 @@ def test_d_on_youtube_playlist_deletes_only_after_second_press(
     monkeypatch, store: LocalPlaylistStore, fake_client: type[FakeYTMClient]
 ) -> None:
     item = FakeResultItem(playlist_id="PL1", playlist_title="Road Trip")
-    app, status = _make_app(monkeypatch, item)
+    app, status, workers = _make_app(monkeypatch, item)
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert "Press d again" in status.value and "'Road Trip'" in status.value
     assert fake_client.deleted == []
     assert item.removed is False
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert fake_client.deleted == ["PL1"]
     assert item.removed is True
@@ -175,15 +188,17 @@ def test_moving_to_another_playlist_rearms_the_confirmation(
     monkeypatch, store: LocalPlaylistStore, fake_client: type[FakeYTMClient]
 ) -> None:
     first = FakeResultItem(playlist_id="PL1", playlist_title="One")
-    app, status = _make_app(monkeypatch, first)
+    app, status, workers = _make_app(monkeypatch, first)
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
     assert "Press d again" in status.value
 
     second = FakeResultItem(playlist_id="PL2", playlist_title="Two")
     app._query_optional("#results").highlighted_child = second
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert fake_client.deleted == []
     assert "Press d again" in status.value and "'Two'" in status.value
@@ -195,11 +210,13 @@ def test_youtube_delete_failure_surfaces_and_disarms(
     from bester_ytm.ytm_client import YTMClientError
 
     item = FakeResultItem(playlist_id="PL1", playlist_title="One")
-    app, status = _make_app(monkeypatch, item)
+    app, status, workers = _make_app(monkeypatch, item)
     fake_client.error = YTMClientError("YouTube Data API returned 403 Forbidden")
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert "403 Forbidden" in status.value
     assert item.removed is False
@@ -210,12 +227,22 @@ def test_d_on_missing_playlist_reports_friendly_error(
     monkeypatch, store: LocalPlaylistStore
 ) -> None:
     item = _local_playlist_item(playlist_id="gone", title="Gone")
-    app, status = _make_app(monkeypatch, item)
+    app, status, workers = _make_app(monkeypatch, item)
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
     assert "Press d again" in status.value
 
     asyncio.run(app.action_remove_from_queue())
+    _drain_workers(workers)
 
     assert "No local playlist named 'gone'" in status.value
     assert item.removed is False
+
+
+def _drain_workers(workers: list) -> None:
+    while workers:
+        work = workers.pop(0)
+        result = work() if callable(work) else work
+        if asyncio.iscoroutine(result):
+            asyncio.run(result)

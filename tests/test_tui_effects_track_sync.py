@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fakes import FakePlayback, FakeStatic
 
 from bester_ytm import tui
@@ -37,7 +39,11 @@ def _make_app(monkeypatch, tmp_path, playback) -> tuple[tui.BesterYTMApp, dict, 
         app, "_query_optional", lambda selector, widget_type=None: widgets.get(selector)
     )
     monkeypatch.setattr(app, "_set_status", statuses.append)
-    monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: work.close())
+    monkeypatch.setattr(
+        app,
+        "run_worker",
+        lambda work, **kwargs: work.close() if asyncio.iscoroutine(work) else None,
+    )
     return app, widgets, statuses
 
 

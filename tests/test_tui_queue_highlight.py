@@ -79,7 +79,7 @@ def test_cursor_stays_put_when_playback_advances(monkeypatch) -> None:
 
     playback.current_video_id = "v2"  # playback advances to track 2
     app._refresh_playback()
-    asyncio.run(workers[0])
+    asyncio.run(workers[0]())
 
     labels = [_item_label(item) for item in queue.items]
     assert labels[1].startswith("▶")  # marker moved to the new playing track
@@ -103,7 +103,7 @@ def test_refresh_playback_reschedules_render_when_track_changes(monkeypatch) -> 
     app._refresh_playback()
 
     assert len(workers) == 1
-    asyncio.run(workers[0])
+    asyncio.run(workers[0]())
 
     labels = [_item_label(item) for item in queue.items]
     assert labels[1].startswith("▶")
@@ -160,7 +160,7 @@ def test_pending_render_uses_latest_rows_and_requested_cursor(monkeypatch) -> No
         first = asyncio.create_task(app._render_queue())
         await mounted.wait()
         app.playlist_video_ids = ["v1", "v3"]
-        await app._render_queue(focus_video_id="v3")
+        await app._render_queue(focus_index=1)
         assert app._queue_render_active
         assert app._queue_render_pending
         resume.set()
@@ -180,7 +180,7 @@ def test_move_queue_track_keeps_cursor_on_moved_track(monkeypatch) -> None:
     playback = FakePlayback("v1", ["v2", "v3"])
     app, _ = _make_app(monkeypatch, playback, queue)
     app.playlist_video_ids = ["v1", "v2", "v3"]
-    app.selected_queue_video_id = "v3"
+    app.selected_queue_index = app.playlist_video_ids.index("v3")
 
     asyncio.run(app.action_move_queue_track_up())
 
@@ -194,7 +194,7 @@ def test_remove_from_queue_keeps_cursor_at_edited_position(monkeypatch) -> None:
     playback = FakePlayback("v1", ["v2", "v3"])
     app, _ = _make_app(monkeypatch, playback, queue)
     app.playlist_video_ids = ["v1", "v2", "v3"]
-    app.selected_queue_video_id = "v2"
+    app.selected_queue_index = app.playlist_video_ids.index("v2")
 
     asyncio.run(app.action_remove_from_queue())
 

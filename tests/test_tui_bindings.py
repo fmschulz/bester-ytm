@@ -181,7 +181,11 @@ def test_transport_reflects_playing_paused_and_idle(monkeypatch) -> None:
     app = BesterYTMApp()
     app.playback = playback  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
-    monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: work.close())
+    monkeypatch.setattr(
+        app,
+        "run_worker",
+        lambda work, **kwargs: work.close() if asyncio.iscoroutine(work) else None,
+    )
 
     app._refresh_playback()
 

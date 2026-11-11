@@ -143,18 +143,24 @@ class PlaybackActions:
             return
 
         current = self.playback.status().current_video_id
-        if video_id == current:
+        video_ids = list(self.playlist_video_ids or self.playback.queue)
+        position = getattr(item, "position", None)
+        if isinstance(position, int) and 1 <= position <= len(video_ids):
+            start = position - 1
+        elif video_id in video_ids:
+            start = video_ids.index(video_id)
+        else:
+            if video_id == current:
+                self._set_status("Already playing this track.")
+                return
+            video_ids = [video_id]
+            start = 0
+        if start == self._playing_queue_index(current) and video_ids[start] == current:
             self._set_status("Already playing this track.")
             return
 
         self._supersede_queue_load()
-        video_ids = list(self.playlist_video_ids or self.playback.queue)
-        try:
-            start = video_ids.index(video_id)
-        except ValueError:
-            video_ids = [video_id]
-            start = 0
-
+        self.playlist_video_ids = video_ids
         try:
             self.playback.replace_queue(video_ids[start:])
             status = self.playback.play_queue()

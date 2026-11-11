@@ -18,7 +18,7 @@ class AlbumQueueActions:
     playlist_title: str
     active_local_playlist_id: str | None
     active_youtube_playlist_id: str | None
-    selected_queue_video_id: str | None
+    selected_queue_index: int | None
     result_selection_anchor_video_id: str | None
 
     # --- selection (x) ----------------------------------------------------
@@ -120,7 +120,7 @@ class AlbumQueueActions:
             return
         self.active_local_playlist_id = None
         self.active_youtube_playlist_id = None
-        self.selected_queue_video_id = video_ids[0]
+        self.selected_queue_index = 0
         self._reset_album_tree_markers()
         self._clear_selection_markers()
         self._sync_current_track(status.current_video_id)

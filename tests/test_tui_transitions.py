@@ -149,7 +149,11 @@ def test_crossfader_slides_during_a_mix_and_announces_it_once(monkeypatch, tmp_p
         "v2": SongCandidate(video_id="v2", title="Two", artists=["Band"]),
     }
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
-    monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: work.close())
+    monkeypatch.setattr(
+        app,
+        "run_worker",
+        lambda work, **kwargs: work.close() if asyncio.iscoroutine(work) else None,
+    )
 
     playback.current = PlaybackStatus(
         running=True,
@@ -192,7 +196,11 @@ def test_refresh_reports_transition_error_once(monkeypatch, tmp_path) -> None:
     playback = FakeTransitionPlayback(style=TransitionStyle.CROSSFADE)
     app, statuses = _make_app(monkeypatch, tmp_path, playback)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
-    monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: work.close())
+    monkeypatch.setattr(
+        app,
+        "run_worker",
+        lambda work, **kwargs: work.close() if asyncio.iscoroutine(work) else None,
+    )
 
     playback.current = PlaybackStatus(
         running=True,

@@ -75,7 +75,8 @@ def test_favorite_button_uses_playing_track_while_f_uses_result(monkeypatch, tmp
 def test_track_actions_use_focused_result_over_remembered_queue(monkeypatch):
     app = BesterYTMApp()
     candidate = SongCandidate(video_id="result", title="Result")
-    app.selected_queue_video_id = "old-queue-cursor"
+    app.playlist_video_ids = ["old-queue-cursor"]
+    app.selected_queue_index = 0
     monkeypatch.setattr(app, "_focus_context", lambda: "results")
     monkeypatch.setattr(app, "_highlighted_result_candidate", lambda: candidate)
     assert app._current_video_id() == "result"

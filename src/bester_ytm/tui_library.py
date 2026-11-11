@@ -22,7 +22,7 @@ from .ytm_client import PlaylistSnapshot, YTMClientError
 class LibraryActions:
     """Mixin with search, result loading, and current-track lookup helpers."""
 
-    selected_queue_video_id: str | None
+    selected_queue_index: int | None
     result_selection_anchor_video_id: str | None
     candidates_by_video_id: dict[str, SongCandidate]
     current_candidate: SongCandidate | None
@@ -52,7 +52,7 @@ class LibraryActions:
     async def _search(self, query: str) -> None:
         results = self.query_one("#results", ListView)
         await results.clear()
-        self.selected_queue_video_id = None
+        self.selected_queue_index = None
         self._clear_result_selection()
         # A newer search or playlist listing supersedes any in-flight one.
         self._results_load_id += 1
@@ -263,7 +263,7 @@ class LibraryActions:
         self.playlist_title = title
         self.active_local_playlist_id = local_playlist_id
         self.active_youtube_playlist_id = youtube_playlist_id
-        self.selected_queue_video_id = snapshot.video_ids[0] if snapshot.video_ids else None
+        self.selected_queue_index = 0 if snapshot.video_ids else None
         name_input = self._query_optional("#playlist-name", Input)
         if name_input:
             # Pre-fill the save name so w writes straight back to this playlist.
@@ -392,18 +392,20 @@ class LibraryActions:
         baseline_widget, baseline_value = self._results_focus_snapshot
         return focused is not baseline_widget or value != baseline_value
 
-    def _highlighted_queue_video_id(self) -> str | None:
+    def _highlighted_queue_index(self) -> int | None:
         try:
             focused = self.focused
         except Exception:
             focused = None
         queue = self._query_optional("#queue", ListView)
         if queue and getattr(focused, "id", None) == "queue":
-            item = getattr(queue, "highlighted_child", None)
-            video_id = getattr(item, "video_id", None) if item else None
-            if video_id:
-                return video_id
-        return self.selected_queue_video_id
+            return queue.index
+        return self.selected_queue_index
+
+    def _highlighted_queue_video_id(self) -> str | None:
+        index = self._highlighted_queue_index()
+        order = self.playlist_video_ids or self.playback.queue
+        return order[index] if index is not None and 0 <= index < len(order) else None
 
     def _highlighted_result_candidate(self):
         if self._album_tree_active():

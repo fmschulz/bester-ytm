@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+import random
 from types import SimpleNamespace
 
 import pytest
@@ -36,16 +38,17 @@ def _drain_workers(workers: list) -> None:
     """
     while workers:
         work = workers.pop(0)
-        if asyncio.iscoroutine(work):
-            asyncio.run(work)
-        else:
-            work()
+        result = work() if callable(work) else work
+        if asyncio.iscoroutine(result):
+            asyncio.run(result)
 
 
 def _inline_workers(app, monkeypatch) -> None:
     """Seam for run_test flows: thread workers run inline, coroutines as tasks."""
 
     def run_worker(work, **kwargs):
+        if inspect.iscoroutinefunction(work):
+            work = work()
         if asyncio.iscoroutine(work):
             return asyncio.get_running_loop().create_task(work)
         return work()
@@ -504,7 +507,7 @@ def test_tui_shuffle_keeps_current_track_and_shuffles_upcoming(monkeypatch) -> N
     }
 
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
-    monkeypatch.setattr(tui.random, "shuffle", lambda items: items.reverse())
+    monkeypatch.setattr(random, "shuffle", lambda items: items.reverse())
 
     asyncio.run(app.action_shuffle_queue())
 
@@ -677,7 +680,7 @@ def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) ->
 
     assert app.playback.queue == ["v1", "v2"]
     assert app.playlist_title == "Against"
-    assert app.selected_queue_video_id == "v1"
+    assert app.selected_queue_index == 0
     assert [_item_label(item) for item in queue.items] == [
         "   1  Against  Sepultura",
         "   2  Choke  Sepultura",
@@ -758,7 +761,7 @@ def test_tui_favorite_and_local_playlist_controls_target_highlighted_queue_song(
 
     asyncio.run(app._render_queue())
     queue.index = 1
-    app.selected_queue_video_id = "v2"
+    app.selected_queue_index = app.playlist_video_ids.index("v2")
     monkeypatch.setattr(app, "_focus_context", lambda: "queue")
 
     app.action_toggle_favorite()
@@ -815,7 +818,7 @@ def test_tui_local_playlist_add_uses_search_song_after_new_search(
         "old-v1": SongCandidate(video_id="old-v1", title="Old", artists=["Artist"]),
         "search-v1": result_candidate,
     }
-    app.selected_queue_video_id = None
+    app.selected_queue_index = None
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
 
     app.action_add_to_local_playlist()

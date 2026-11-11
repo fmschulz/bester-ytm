@@ -57,7 +57,7 @@ def _tracks() -> list[SongCandidate]:
 
 def test_queue_mounts_rows_together_with_markers_and_cursor(app: BesterYTMApp) -> None:
     app.playlist_video_ids = [track.video_id for track in _tracks()]
-    app.selected_queue_video_id = "v3"
+    app.selected_queue_index = app.playlist_video_ids.index("v3")
     FavoritesStore().toggle(_tracks()[1])
 
     asyncio.run(app._render_queue())

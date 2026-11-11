@@ -61,6 +61,8 @@ src/bester_ytm/
   Keep test-specific failures and scheduling behavior in local subclasses.
 - List rebuilds mount rows with one awaited `ListView.extend` call. Queue
   rebuilds stay serialized; deferred results check their load ID before mounting.
+- Queue-marker workers receive the async function so a canceled worker leaves
+  no unawaited render coroutine.
 
 [Architecture](architecture.md) explains the dual-deck engine and the stage;
 [Manual Testing](manual-testing.md) lists the checks that need audio or a

@@ -15,6 +15,7 @@ class UiOptionsActions:
     """Mixin for BesterYTMApp: persisted visualizer, theme, and pane options."""
 
     visualizer_effect: str
+    _theme_warning: str | None
 
     def action_cycle_visualizer(self) -> None:
         names = list(EFFECT_ORDER)
@@ -66,6 +67,9 @@ class UiOptionsActions:
         self.register_theme(ASTRA_THEME)
         if self.app_options.theme in self.available_themes:
             self.theme = self.app_options.theme
+        else:
+            self.theme = "astra"
+            self._theme_warning = f"Unknown ui.theme {self.app_options.theme!r}; using Astra."
         self.theme_changed_signal.subscribe(self, self._on_theme_changed)
 
     def _on_theme_changed(self, _theme: object) -> None:

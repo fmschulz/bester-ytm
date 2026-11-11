@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import pytest
+
 from bester_ytm.config import get_paths
 from bester_ytm.config_options import load_app_options
 from bester_ytm.tui import BesterYTMApp
@@ -23,6 +25,25 @@ def test_astra_theme_default_and_ember_still_available(tmp_path, monkeypatch) ->
             assert app.theme == "astra"
 
     asyncio.run(run())
+
+
+def test_unknown_theme_uses_astra_and_reports_it_at_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _sandbox(tmp_path, monkeypatch)
+    path.parent.mkdir(parents=True)
+    path.write_text('[ui]\ntheme = "missing-theme"\n', encoding="utf-8")
+    app = BesterYTMApp()
+    statuses: list[str] = []
+    monkeypatch.setattr(app, "_set_status", statuses.append)
+
+    async def run() -> None:
+        async with app.run_test(size=(110, 50)):
+            assert app.theme == "astra"
+
+    asyncio.run(run())
+    assert any("missing-theme" in status and "Astra" in status for status in statuses)
+    assert any("Not logged in" in status for status in statuses)
 
 
 def test_theme_change_is_persisted(tmp_path, monkeypatch) -> None:

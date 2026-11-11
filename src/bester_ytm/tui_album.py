@@ -79,7 +79,7 @@ class AlbumActions:
     playlist_title: str
     active_local_playlist_id: str | None
     active_youtube_playlist_id: str | None
-    selected_queue_video_id: str | None
+    selected_queue_index: int | None
     result_selection_anchor_video_id: str | None
     _queue_load_id: int
     _results_load_id: int

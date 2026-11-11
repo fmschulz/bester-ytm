@@ -57,6 +57,11 @@ F1 / ?     keyboard guide
 q          quit
 ```
 
+Login checks and changes to YouTube playlists run in the background. Their
+status appears when the request ends, even if you opened another view. A
+removed track leaves the queue if the same YouTube playlist is still loaded.
+A deleted playlist leaves the results only if the same listing is still open.
+
 ### Search syntax
 
 ```text
@@ -206,6 +211,14 @@ workspace's **Playlist** section treats the queue as a named playlist:
 - **Remove track** removes that track from the loaded playlist: a local
   playlist on disk, or a YouTube playlist in your account.
 
+Each queue row is a separate entry, even when a song appears more than once.
+Only the current row has the play mark. Remove and move act on the highlighted
+row, and Enter starts playback from that row. The cursor follows a moved row.
+Remove and move keep the boundary of the upcoming queue when playback stops.
+Editing a finished playlist leaves no tracks queued to play.
+
+**Shuffle** keeps played rows and the playing row in place and shuffles only
+the rows still to play. With playback stopped, it shuffles the whole queue.
 **Shuffle** and **Clear queue** sit in the same section. The **Crossfade**
 section holds **Mix style** (cut or crossfade) and **Fade −** / **Fade +**.
 
@@ -222,8 +235,6 @@ bester-ytm playlist build --from seeds.md --name "My Mix" --count 30 \
     --brief "high-energy openers" --allow-variants
 bester-ytm playlist create PLAN_ID --privacy PRIVATE
 bester-ytm playlist export PLAN_ID --format md
-
-bester-ytm favorites import-tuiradio path/to/favs.md
 
 bester-ytm auth login [--browser NAME | --paste | --cookies-file PATH | --oauth [--no-browser]]
 bester-ytm auth status

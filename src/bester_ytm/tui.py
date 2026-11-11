@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import random
+from functools import partial
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -17,7 +17,7 @@ from .config import (
 )
 from .config_options import AppOptions, load_app_options
 from .intelligence.llm import IntelligenceSettings
-from .playback import PlaybackController, PlaybackError, PlaybackStatus
+from .playback import PlaybackController, PlaybackStatus
 from .transitions import DEFAULT_APP_SETTINGS
 from .tui_album import AlbumActions
 from .tui_album_actions import AlbumQueueActions
@@ -38,7 +38,7 @@ from .tui_selection import SelectionActions
 from .tui_similar import SimilarActions
 from .tui_styles import APP_CSS
 from .tui_visuals import EFFECT_ORDER, AudioSignal
-from .ytm_client import YTMClient
+from .ytm_client import YTMClient, YTMClientError
 
 
 class BesterYTMApp(
@@ -117,6 +117,7 @@ class BesterYTMApp(
         super().__init__()
         self.client = YTMClient(authenticated=False)
         self._config_error: str | None = None
+        self._theme_warning: str | None = None
         try:
             self.transition_settings = load_transition_settings()
         except ConfigError as exc:
@@ -144,15 +145,17 @@ class BesterYTMApp(
         self.active_youtube_playlist_id: str | None = None
         self._pending_playlist_delete: str | None = None
         self._results_load_id = 0
+        self._auth_status_request_id = 0
         self._results_focus_snapshot: tuple[object | None, str | None] = (None, None)
         self._queue_load_id = 0
         self._play_queue_after_load = False
-        self.selected_queue_video_id: str | None = None
+        self.selected_queue_index: int | None = None
         self._rendered_now_playing_id: str | None = None
+        self._rendered_playing_index: int | None = None
         self._synced_current_video_id: str | None = None
         self._queue_render_active = False
         self._queue_render_pending = False
-        self._queue_render_focus: str | None = None
+        self._queue_render_focus: int | None = None
         self.visual_fps = self.app_options.visual_fps
         self.playback_was_active = False
         self.auto_advance_pending = False
@@ -199,14 +202,17 @@ class BesterYTMApp(
 
     def _startup_status(self) -> str:
         if self._config_error:
-            return self._config_error
-        paths = get_paths()
-        if paths.oauth_token.exists() or paths.browser_auth.exists():
-            return "Logged in to YouTube Music."
-        return (
-            "Not logged in: search and playback work now; "
-            "run 'bester-ytm auth login' for library and playlist features."
-        )
+            status = self._config_error
+        else:
+            paths = get_paths()
+            if paths.oauth_token.exists() or paths.browser_auth.exists():
+                status = "Logged in to YouTube Music."
+            else:
+                status = (
+                    "Not logged in: search and playback work now; "
+                    "run 'bester-ytm auth login' for library and playlist features."
+                )
+        return f"{self._theme_warning} {status}" if self._theme_warning else status
 
     def _set_status(self, message: str) -> None:
         self.query_one("#status", Static).update(message)
@@ -222,36 +228,6 @@ class BesterYTMApp(
     async def action_focus_search(self) -> None:
         self.action_leave_stage()
         self.query_one("#search", Input).focus()
-
-    async def action_shuffle_queue(self) -> None:
-        try:
-            status = self.playback.status()
-        except PlaybackError as exc:
-            self._set_status(str(exc))
-            return
-
-        current = status.current_video_id
-        visible = list(self.playlist_video_ids or self.playback.queue)
-        if current:
-            visible = [video_id for video_id in visible if video_id != current]
-            if not visible:
-                self._set_status("Nothing else to shuffle.")
-                return
-            random.shuffle(visible)
-            self.playlist_video_ids = [current, *visible]
-            self.playback.queue = list(visible)
-        else:
-            visible = list(visible)
-            if len(visible) < 2:
-                self._set_status("Nothing to shuffle.")
-                return
-            random.shuffle(visible)
-            self.playlist_video_ids = visible
-            self.playback.replace_queue(visible)
-            self.playback_was_active = False
-
-        await self._render_queue()
-        self._set_status(f"Shuffled {len(visible)} upcoming track(s).")
 
     def action_help(self) -> None:
         if isinstance(self.screen, HelpScreen):
@@ -299,15 +275,30 @@ class BesterYTMApp(
         self.exit()
 
     async def action_auth_status(self) -> None:
+        self._set_status("Checking YouTube login...")
+        self._auth_status_request_id += 1
+        self.run_worker(
+            partial(self._auth_status_worker, self._auth_status_request_id),
+            name="auth-status",
+            group="auth-status",
+            thread=True,
+        )
+
+    def _auth_status_worker(self, request_id: int) -> None:
         try:
             status = YTMClient(authenticated=True).auth_status()
-        except ConfigError as exc:
-            self._set_status(str(exc))
+        except (ConfigError, YTMClientError) as exc:
+            self.call_from_thread(self._finish_auth_status, str(exc), request_id)
             return
-        self._set_status(
+        message = (
             f"Auth {status.authenticated} via {status.backend}; "
             f"library playlists seen {status.library_playlists_seen}."
         )
+        self.call_from_thread(self._finish_auth_status, message, request_id)
+
+    def _finish_auth_status(self, message: str, request_id: int) -> None:
+        if request_id == self._auth_status_request_id:
+            self._set_status(message)
 
 
 def run_tui() -> None:

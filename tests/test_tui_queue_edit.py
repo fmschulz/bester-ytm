@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import pytest
 from fakes import FakeListView, FakePlayback, FakeStatic
@@ -12,6 +13,48 @@ from bester_ytm.tui import BesterYTMApp
 
 def _candidate(video_id: str) -> SongCandidate:
     return SongCandidate(video_id=video_id, title=video_id.upper(), artists=["Band"])
+
+
+def test_shuffle_does_not_requeue_played_rows(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("random.shuffle", lambda items: items.reverse())
+    playback = FakePlayback(current="b", queue=["c", "d"])
+    app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
+    app.playlist_video_ids = ["a", "b", "c", "d"]
+
+    asyncio.run(app.action_shuffle_queue())
+
+    assert app.playlist_video_ids == ["a", "b", "d", "c"]
+    assert playback.queue == ["d", "c"]
+    assert statuses[-1] == "Shuffled 2 upcoming track(s)."
+
+
+def test_shuffle_idle_queue_shuffles_every_row(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("random.shuffle", lambda items: items.reverse())
+    playback = FakePlayback(queue=["a", "b", "c"])
+    app, _, _ = _make_app(monkeypatch, tmp_path, playback)
+    app.playlist_video_ids = ["a", "b", "c"]
+
+    asyncio.run(app.action_shuffle_queue())
+
+    assert app.playlist_video_ids == playback.queue == ["c", "b", "a"]
+
+
+def test_shuffle_stopped_player_shuffles_all_rows(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("random.shuffle", lambda items: items.reverse())
+    playback = FakePlayback(current="b", queue=["c"], running=False)
+    app, _, _ = _make_app(monkeypatch, tmp_path, playback)
+    app.playlist_video_ids = ["a", "b", "c"]
+
+    asyncio.run(app.action_shuffle_queue())
+
+    assert app.playlist_video_ids == playback.queue == ["c", "b", "a"]
+    assert playback.current_video_id is None
 
 
 def _resolved_plan(video_ids: list[str]) -> PlaylistPlan:
@@ -145,7 +188,7 @@ def test_new_playlist_resets_the_working_area(monkeypatch, tmp_path) -> None:
     app.playlist_video_ids = ["v1", "v2"]
     app.playlist_title = "Old Mix"
     app.active_local_playlist_id = "old-mix"
-    app.selected_queue_video_id = "v1"
+    app.selected_queue_index = app.playlist_video_ids.index("v1")
 
     asyncio.run(app.action_new_playlist())
 
@@ -155,7 +198,7 @@ def test_new_playlist_resets_the_working_area(monkeypatch, tmp_path) -> None:
     assert app.playlist_title == "New Playlist"
     assert name_input.value == ""
     # The stale selection must not survive, or Rate/Add would target a dropped row.
-    assert app.selected_queue_video_id is None
+    assert app.selected_queue_index is None
     assert "New playlist started." in statuses[-1]
 
 
@@ -164,13 +207,13 @@ def test_new_playlist_keeps_the_playing_track(monkeypatch, tmp_path) -> None:
     app, widgets, statuses = _make_app(monkeypatch, tmp_path, playback)
     widgets["#playlist-name"] = FakeStatic()
     app.playlist_video_ids = ["now", "v1"]
-    app.selected_queue_video_id = "v1"
+    app.selected_queue_index = app.playlist_video_ids.index("v1")
 
     asyncio.run(app.action_new_playlist())
 
     assert app.playlist_video_ids == ["now"]
     # Selection retargets to the kept playing track, not the dropped upcoming one.
-    assert app.selected_queue_video_id == "now"
+    assert app.selected_queue_index == 0
     assert "keeps playing" in statuses[-1]
 
 
@@ -179,7 +222,7 @@ def test_remove_from_queue_updates_playlist_and_playback(monkeypatch, tmp_path) 
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
     app.candidates_by_video_id["v1"] = _candidate("v1")
     app.playlist_video_ids = ["now", "v1", "v2"]
-    app.selected_queue_video_id = "v1"
+    app.selected_queue_index = app.playlist_video_ids.index("v1")
 
     asyncio.run(app.action_remove_from_queue())
 
@@ -192,7 +235,7 @@ def test_remove_from_queue_without_display_name_stays_generic(monkeypatch, tmp_p
     playback = FakePlayback(current="now", queue=["v1"])
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
     app.playlist_video_ids = ["now", "v1"]
-    app.selected_queue_video_id = "v1"
+    app.selected_queue_index = app.playlist_video_ids.index("v1")
 
     asyncio.run(app.action_remove_from_queue())
 
@@ -204,7 +247,7 @@ def test_remove_from_queue_with_stale_selection_is_graceful(monkeypatch, tmp_pat
     playback = FakePlayback(current="now", queue=["v1"])
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
     app.playlist_video_ids = ["now", "v1"]
-    app.selected_queue_video_id = "gone"
+    app.selected_queue_index = len(app.playlist_video_ids) + 1
 
     asyncio.run(app.action_remove_from_queue())
 
@@ -217,7 +260,7 @@ def test_cannot_remove_the_playing_track(monkeypatch, tmp_path) -> None:
     playback = FakePlayback(current="now", queue=["v1"])
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
     app.playlist_video_ids = ["now", "v1"]
-    app.selected_queue_video_id = "now"
+    app.selected_queue_index = app.playlist_video_ids.index("now")
 
     asyncio.run(app.action_remove_from_queue())
 
@@ -229,7 +272,7 @@ def test_move_queue_track_up_keeps_playback_order_in_sync(monkeypatch, tmp_path)
     playback = FakePlayback(current="now", queue=["v1", "v2", "v3"])
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
     app.playlist_video_ids = ["now", "v1", "v2", "v3"]
-    app.selected_queue_video_id = "v3"
+    app.selected_queue_index = app.playlist_video_ids.index("v3")
 
     asyncio.run(app.action_move_queue_track_up())
 
@@ -242,7 +285,7 @@ def test_move_queue_track_down_at_end_is_a_noop(monkeypatch, tmp_path) -> None:
     playback = FakePlayback(current=None, queue=["v1", "v2"])
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
     app.playlist_video_ids = ["v1", "v2"]
-    app.selected_queue_video_id = "v2"
+    app.selected_queue_index = app.playlist_video_ids.index("v2")
 
     asyncio.run(app.action_move_queue_track_down())
 
@@ -276,7 +319,7 @@ def test_removing_a_track_and_saving_persists_the_removal(monkeypatch, tmp_path)
     }
     app.action_save_queue_playlist()
 
-    app.selected_queue_video_id = "v2"
+    app.selected_queue_index = app.playlist_video_ids.index("v2")
     asyncio.run(app.action_remove_from_queue())
     app.action_save_queue_playlist()
 

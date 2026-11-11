@@ -49,11 +49,12 @@ class PlaybackRenderer:
     _playback_instance: tuple[str | None, int | None]
     _stage_state: StageState | None
     _rendered_now_playing_id: str | None
+    _rendered_playing_index: int | None
     _synced_current_video_id: str | None
-    selected_queue_video_id: str | None
+    selected_queue_index: int | None
     _queue_render_active: bool
     _queue_render_pending: bool
-    _queue_render_focus: str | None
+    _queue_render_focus: int | None
 
     def _refresh_playback(self, status=None) -> None:
         try:
@@ -89,9 +90,12 @@ class PlaybackRenderer:
 
     def _refresh_now_playing_marker(self, current_video_id: str | None) -> None:
         """Re-render the queue only when the playing track changed (no per-tick flicker)."""
-        if current_video_id == self._rendered_now_playing_id:
+        if (
+            current_video_id == self._rendered_now_playing_id
+            and self._playing_queue_index(current_video_id) == self._rendered_playing_index
+        ):
             return
-        self.run_worker(self._render_queue(), exclusive=True, group="queue-render")
+        self.run_worker(self._render_queue, exclusive=True, group="queue-render")
 
     def _track_display_name(self, video_id: str | None) -> str | None:
         """The human-readable name of a known track, or None when unresolvable."""
@@ -259,9 +263,9 @@ class PlaybackRenderer:
         if empty is not None:
             empty.display = not video_ids
 
-    async def _render_queue(self, focus_video_id: str | None = None) -> None:
+    async def _render_queue(self, focus_index: int | None = None) -> None:
         """Serialize rebuilds so a direct render and a tick render cannot interleave into dupes."""
-        self._queue_render_focus = focus_video_id
+        self._queue_render_focus = focus_index
         self._queue_render_pending = True
         if self._queue_render_active:
             return
@@ -273,39 +277,38 @@ class PlaybackRenderer:
         finally:
             self._queue_render_active = False
 
-    async def _draw_queue(self, focus_video_id: str | None) -> None:
+    async def _draw_queue(self, focus_index: int | None) -> None:
         queue = self.query_one("#queue", ListView)
-        held_cursor_id = getattr(getattr(queue, "highlighted_child", None), "video_id", None)
+        held_cursor_index = queue.index if queue.children else self.selected_queue_index
         try:
             current = self.playback.status().current_video_id
         except AttributeError:
             current = getattr(self.playback, "current_video_id", None)
         # Set before the first await so a tick firing mid-rebuild sees no change and skips a render.
         self._rendered_now_playing_id = current
+        playing_index = self._playing_queue_index(current)
+        self._rendered_playing_index = playing_index
         await queue.clear()
         video_ids = list(self.playlist_video_ids or self.playback.queue)
         self._update_queue_title(video_ids)
         favorite_ids = self._favorite_video_ids()
-        playing_index = video_ids.index(current) if current in video_ids else 0
         rows = [
             QueueRow(
                 video_id,
                 position,
                 self.candidates_by_video_id.get(video_id),
-                is_playing=video_id == current,
-                is_played=position <= playing_index,
+                is_playing=position - 1 == playing_index,
+                is_played=playing_index is not None and position - 1 < playing_index,
                 is_favorite=video_id in favorite_ids,
             )
             for position, video_id in enumerate(video_ids, start=1)
         ]
         await queue.extend(rows)
-        cursor_id: str | None = focus_video_id
-        if cursor_id is None:
-            cursor_id = held_cursor_id or self.selected_queue_video_id
-        self._set_queue_cursor(queue, list(video_ids), cursor_id)
+        cursor_index = focus_index if focus_index is not None else held_cursor_index
+        self._set_queue_cursor(queue, len(video_ids), cursor_index)
 
-    def _set_queue_cursor(self, queue, video_ids: list[str], target_id: str | None) -> None:
+    def _set_queue_cursor(self, queue: ListView, count: int, target_index: int | None) -> None:
         """Keep the selection cursor on the user's row across a rebuild, not the now-playing row."""
-        if target_id is None or target_id not in video_ids:
-            return
-        queue.index = video_ids.index(target_id)
+        index = min(max(target_index or 0, 0), count - 1) if count else None
+        queue.index = index
+        self.selected_queue_index = index

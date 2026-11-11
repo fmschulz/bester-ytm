@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from textual.widgets import Input, ListView
+from functools import partial
+
+from textual.widgets import Input, ListItem, ListView
 
 from .config import ConfigError
 from .playlist_plan import slugify
@@ -124,17 +126,42 @@ class TrackMetadataActions:
     async def _remove_from_youtube_playlist(self, playlist_id: str, video_id: str) -> None:
         title = self.playlist_title or playlist_id
         self._set_status(f"Removing track from YouTube playlist {title!r}...")
+        self.run_worker(
+            partial(self._remove_youtube_track_worker, playlist_id, video_id, title),
+            name="playlist-remove",
+            group="playlist-edit",
+            thread=True,
+        )
+
+    def _remove_youtube_track_worker(self, playlist_id: str, video_id: str, title: str) -> None:
         try:
             removed = YTMClient(authenticated=True).remove_playlist_item(playlist_id, video_id)
         except (ConfigError, YTMClientError) as exc:
-            self._set_status(str(exc))
+            self.call_from_thread(
+                self._finish_youtube_removal, playlist_id, video_id, title, 0, str(exc)
+            )
+            return
+        self.call_from_thread(self._finish_youtube_removal, playlist_id, video_id, title, removed)
+
+    async def _finish_youtube_removal(
+        self,
+        playlist_id: str,
+        video_id: str,
+        title: str,
+        removed: int,
+        error: str | None = None,
+    ) -> None:
+        if error is not None:
+            self._set_status(error)
             return
         if not removed:
             self._set_status(f"Track is not in YouTube playlist {title!r}.")
             return
-        self.playlist_video_ids = [v for v in self.playlist_video_ids if v != video_id]
-        self.playback.queue = [v for v in self.playback.queue if v != video_id]
-        await self._render_queue()
+        if playlist_id == self.active_youtube_playlist_id:
+            self._supersede_queue_load()
+            self.playlist_video_ids = [v for v in self.playlist_video_ids if v != video_id]
+            self.playback.queue = [v for v in self.playback.queue if v != video_id]
+            await self._render_queue()
         self._set_status(f"Removed track from YouTube playlist {title!r}.")
 
     async def _delete_highlighted_playlist(self) -> None:
@@ -174,7 +201,7 @@ class TrackMetadataActions:
         await item.remove()  # type: ignore[attr-defined]
         self._set_status(f"Deleted local playlist {playlist.name!r}.")
 
-    async def _delete_youtube_playlist(self, item: object, playlist_id: str) -> None:
+    async def _delete_youtube_playlist(self, item: ListItem, playlist_id: str) -> None:
         title = getattr(item, "playlist_title", None) or playlist_id
         if self._pending_playlist_delete != playlist_id:
             self._pending_playlist_delete = playlist_id
@@ -183,10 +210,37 @@ class TrackMetadataActions:
             )
             return
         self._pending_playlist_delete = None
+        self._set_status(f"Deleting YouTube playlist {title!r}...")
+        self.run_worker(
+            partial(
+                self._delete_youtube_playlist_worker,
+                item,
+                playlist_id,
+                title,
+                self._results_load_id,
+            ),
+            name="playlist-delete",
+            group="playlist-edit",
+            thread=True,
+        )
+
+    def _delete_youtube_playlist_worker(
+        self, item: ListItem, playlist_id: str, title: str, load_id: int
+    ) -> None:
         try:
             YTMClient(authenticated=True).delete_playlist(playlist_id)
         except (ConfigError, YTMClientError) as exc:
-            self._set_status(str(exc))
+            self.call_from_thread(self._finish_youtube_delete, item, title, load_id, str(exc))
             return
-        await item.remove()  # type: ignore[attr-defined]
+        self.call_from_thread(self._finish_youtube_delete, item, title, load_id)
+
+    async def _finish_youtube_delete(
+        self, item: ListItem, title: str, load_id: int, error: str | None = None
+    ) -> None:
+        if error is not None:
+            self._set_status(error)
+            return
+        results = self._query_optional("#results", ListView)
+        if load_id == self._results_load_id and results is not None and item in results.children:
+            await item.remove()
         self._set_status(f"Deleted YouTube playlist {title!r}.")
