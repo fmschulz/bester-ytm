@@ -199,8 +199,8 @@ def rewrite_config_sections(updates: dict[str, dict[str, Any]], path: Path | Non
             lines.append("")
         lines.append(f"[{header}]")
         for key, value in entries.items():
-            scalar = _toml_scalar(config_path, f"{header}.{key}", value)
-            lines.append(f"{_toml_key(key)} = {scalar}")
+            scalar = toml_scalar(config_path, f"{header}.{key}", value)
+            lines.append(f"{toml_key(key)} = {scalar}")
 
     for section in _REWRITABLE_SECTIONS:
         entries = document.get(section)
@@ -265,14 +265,15 @@ def _parse_setting_string(path: Path, section: dict[str, Any], key: str, default
     return value
 
 
-def _toml_key(key: str) -> str:
+def toml_key(key: str) -> str:
     """A bare key when TOML allows it, else a quoted key ("Groove Salad")."""
     if key and key.isascii() and all(ch.isalnum() or ch in "-_" for ch in key):
         return key
     return json.dumps(key)
 
 
-def _toml_scalar(path: Path, dotted_key: str, value: Any) -> str:
+def toml_scalar(path: Path, dotted_key: str, value: Any) -> str:
+    """Encode a TOML scalar, or raise ConfigError for an unsupported value."""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, int | float):

@@ -5,12 +5,17 @@ from __future__ import annotations
 import asyncio
 import json
 from functools import partial
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 from textual.widgets import TextArea
+from typer.testing import CliRunner
 
 from bester_ytm import playlist_builder as builder_module
+from bester_ytm.cli import app as cli_app
+from bester_ytm.config import get_paths
+from bester_ytm.config_options import AppOptions
 from bester_ytm.intelligence import llm
 from bester_ytm.intelligence.llm import IntelligenceSettings
 from bester_ytm.playlist_plan import SongCandidate
@@ -19,6 +24,53 @@ from bester_ytm.tui import BesterYTMApp
 from bester_ytm.tui_builder import _normalize_build_inputs
 
 BRIEF = "create a playlist with 10 songs of bands similar to blind guardian"
+
+
+def test_favorites_import_command_is_removed() -> None:
+    result = CliRunner().invoke(cli_app, ["favorites", "--help"])
+    assert result.exit_code == 2
+    assert "No such command" in result.output
+
+
+def test_empty_build_ignores_sibling_seed_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = tmp_path / "player"
+    work.mkdir()
+    sibling = tmp_path / "tuiradio"
+    sibling.mkdir()
+    (sibling / "favs.md").write_text("- Band - Song\n", encoding="utf-8")
+    monkeypatch.chdir(work)
+    app = BesterYTMApp()
+    assert app._has_default_favorites() is False
+
+
+def test_seed_file_build_preserves_legacy_favorites(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from bester_ytm.playlist_plan import PlaylistPlan
+
+    source = tmp_path / "seeds.md"
+    source.write_text("- Band - Song\n", encoding="utf-8")
+    legacy = get_paths().favorites_file
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text("- Old Song (old-id)\n", encoding="utf-8")
+    builder = Mock()
+    builder.build_from_favorites.return_value = PlaylistPlan(id="seed", name="Seed", target_count=1)
+    monkeypatch.setattr("bester_ytm.tui_builder.PlaylistBuilder", lambda: builder)
+    app = BesterYTMApp()
+    app.app_options = AppOptions(favorites_file=source)
+
+    _, message = app._run_playlist_build("", "")
+
+    assert builder.build_from_favorites.call_args.args == (source.resolve(),)
+    assert builder.build_from_favorites.call_args.kwargs == {
+        "name": "Favorites Inspired 30",
+        "count": 30,
+        "brief": "",
+    }
+    assert legacy.read_text(encoding="utf-8") == "- Old Song (old-id)\n"
+    assert "Imported" not in message
 
 
 @pytest.fixture

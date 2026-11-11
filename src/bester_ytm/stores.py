@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ValidationError
 
 from .config import ConfigError, get_paths, write_private_text
-from .playlist_plan import PlaylistPlan, SongCandidate, parse_seed_file, plan_to_markdown, slugify
+from .playlist_plan import PlaylistPlan, SongCandidate, plan_to_markdown, slugify
 from .search_query import SearchItem, search_item_from_song
 
 logger = logging.getLogger(__name__)
@@ -92,23 +92,12 @@ _LEGACY_FAVORITE_LINE = re.compile(r"^- (?P<name>.+) \((?P<video_id>[^()\s]+)\)$
 
 
 class FavoritesStore:
-    """Faved tracks as SongCandidates in favorites.json; the legacy favorites.md
-    (written by older versions and `favorites import-tuiradio`) is migrated on
-    first read and still used as the tuiradio import target."""
+    """Saved tracks in favorites.json, with one-time migration from favorites.md."""
 
     def __init__(self, path: Path | None = None, legacy_path: Path | None = None) -> None:
         paths = get_paths()
         self.path = path or paths.favorites_store_file
         self.legacy_path = legacy_path or paths.favorites_file
-
-    def import_tuiradio(self, source: Path) -> int:
-        seeds = parse_seed_file(source)
-        lines = ["# bester-ytm Favorites", ""]
-        for seed in seeds:
-            station = f" [{seed.station}]" if seed.station else ""
-            lines.append(f"- {seed.artist} - {seed.title}{station}")
-        write_private_text(self.legacy_path, "\n".join(lines) + "\n")
-        return len(seeds)
 
     def list(self) -> builtins.list[SongCandidate]:
         if not self.path.exists():
@@ -153,8 +142,7 @@ class FavoritesStore:
         write_private_text(self.path, json.dumps(payload, indent=2) + "\n")
 
     def _migrate_legacy(self) -> builtins.list[SongCandidate]:
-        """Carry `- Display Name (video_id)` lines from favorites.md into the JSON
-        store once; tuiradio-imported lines have no video id and are skipped."""
+        """Migrate legacy lines with a video ID into the JSON store once."""
         if not self.legacy_path.exists():
             return []
         favorites: builtins.list[SongCandidate] = []

@@ -12,22 +12,20 @@ from rich.table import Table
 from .auth import AuthManager
 from .cli_config import config_app
 from .cli_play import play_app
-from .config import ConfigError, resolve_existing_input
+from .config import ConfigError
 from .playlist_builder import PlaylistBuilder, PlaylistBuildError
 from .playlist_create import PlaylistCreateError, create_or_update_playlist
-from .stores import FavoritesStore, PlanStore
+from .stores import PlanStore
 from .ytm_client import YTMClient, YTMClientError
 
 console = Console()
 app = typer.Typer(no_args_is_help=False, help="Local YouTube Music terminal companion.")
 auth_app = typer.Typer(help="Authenticate with YouTube Music.")
 playlist_app = typer.Typer(help="Build, create, and export playlist plans.")
-favorites_app = typer.Typer(help="Manage local favorites.")
 
 app.add_typer(auth_app, name="auth")
 app.add_typer(play_app, name="play")
 app.add_typer(playlist_app, name="playlist")
-app.add_typer(favorites_app, name="favorites")
 app.add_typer(config_app, name="config")
 
 
@@ -260,17 +258,3 @@ def playlist_export(
         sys.stdout.write(PlanStore().export(plan_id, fmt))
     except (ConfigError, FileNotFoundError, FileExistsError) as exc:
         _exit_error(str(exc))
-
-
-@favorites_app.command("import-tuiradio")
-def favorites_import_tuiradio(
-    source: Annotated[
-        Path,
-        typer.Argument(help="Path to tuiradio favs.md."),
-    ],
-) -> None:
-    try:
-        count = FavoritesStore().import_tuiradio(resolve_existing_input(source))
-    except ConfigError as exc:
-        _exit_error(str(exc))
-    console.print(f"Imported {count} favorites.")

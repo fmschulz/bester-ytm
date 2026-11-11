@@ -60,8 +60,10 @@ comes from the brief: "save it as X" sets it, and the AI providers may refine
 it into a short title.
 
 `i` or **Build playlist** with an empty box builds from your favorites file:
-set `[builder] favorites_file` in `config.toml` to a seeds file. A sibling
-`../tuiradio/favs.md` is used when present.
+set `[builder] favorites_file` in `config.toml` to a seeds file. Without that
+setting, the app asks for a description or seed lines. Builds from this file
+are named `Favorites Inspired 30`. Builds leave saved favorites and the legacy
+`favorites.md` file unchanged.
 
 The queue is then your editable working playlist: `d` removes, `j`/`k` move,
 `g` adds suggestions, and `w` saves back to the local playlist.
@@ -88,7 +90,9 @@ provider = "auto"   # auto | heuristic | codex | claude | openai | anthropic
   configuration. The app waits up to 180 seconds for a response.
 - `claude`: runs [Claude Code](https://claude.com/claude-code) (`claude -p`)
   with your existing claude login; no API key needed. Set `model = "..."`
-  (for example `sonnet`) to choose the model.
+  (for example `sonnet`) to choose the model. Calls disable user settings,
+  hooks, skills, slash commands, and MCP servers. Song suggestions have no
+  tools; station lookups allow only WebSearch and WebFetch.
 - `openai`: any OpenAI-compatible chat-completions endpoint, such as
   OpenRouter, vLLM, Ollama, llama.cpp, or OpenAI:
 
@@ -103,7 +107,9 @@ provider = "auto"   # auto | heuristic | codex | claude | openai | anthropic
   For Ollama, use `base_url = "http://localhost:11434/v1"` and any non-empty
   key in the named env var.
 - `anthropic`: the Anthropic API through the official SDK. Set
-  `ANTHROPIC_API_KEY`; `model` defaults to a recent Claude model.
+  `ANTHROPIC_API_KEY`; `model` defaults to `claude-opus-5-5`. Requests use low
+  effort and a 16,000-token budget, including thinking. A declined request
+  reports that the API declined it.
 
 API keys are read from environment variables only; they are never written to
 disk or logged. Every suggestion is resolved against YouTube Music before it is

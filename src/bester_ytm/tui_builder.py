@@ -18,10 +18,8 @@ from .playlist_builder import (
     name_from_brief,
 )
 from .playlist_plan import PlaylistPlan, parse_seed_text
-from .stores import FavoritesStore, PlanStore
+from .stores import PlanStore
 from .tui_radio import parse_add_station_request
-
-FALLBACK_FAVORITES = Path("../tuiradio/favs.md")
 
 # "Add 5 songs similar to Four Tet" grows the queue; it is not a new playlist.
 ADD_TRACKS_PATTERN = re.compile(r"^\s*(?:please\s+)?(?:add|queue|append)\b", re.IGNORECASE)
@@ -76,7 +74,9 @@ class BuilderActions:
 
     def _favorites_source(self) -> Path:
         configured = self.app_options.favorites_file
-        return resolve_existing_input(configured or FALLBACK_FAVORITES)
+        if configured is None:
+            raise ConfigError("Set [builder] favorites_file to use a seeds file.")
+        return resolve_existing_input(configured)
 
     def _has_default_favorites(self) -> bool:
         try:
@@ -110,7 +110,6 @@ class BuilderActions:
 
     def _run_playlist_build(self, builder_text: str, brief: str) -> tuple[PlaylistPlan, str]:
         if builder_text:
-            imported = 0
             plan = PlaylistBuilder().build_from_text(
                 builder_text,
                 source="tui-paste",
@@ -119,23 +118,19 @@ class BuilderActions:
                 brief=brief,
             )
         elif brief:
-            imported = 0
             plan = PlaylistBuilder().build_from_brief(
                 brief, name=name_from_brief(brief), count=count_from_brief(brief)
             )
         else:
             source = self._favorites_source()
-            imported = FavoritesStore().import_tuiradio(source)
             plan = PlaylistBuilder().build_from_favorites(
                 source,
-                name="ByteFM Inspired 30",
+                name="Favorites Inspired 30",
                 count=30,
                 brief=brief,
             )
         json_path, _ = PlanStore().save(plan)
-        imported_text = f"Imported {imported} favorites; " if imported else ""
         message = (
-            f"{imported_text}plan saved: {json_path.name} "
-            f"({plan.resolved_count}/{plan.target_count} resolved)."
+            f"plan saved: {json_path.name} ({plan.resolved_count}/{plan.target_count} resolved)."
         )
         return plan, message
