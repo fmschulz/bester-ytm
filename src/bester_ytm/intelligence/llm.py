@@ -8,9 +8,12 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
+from threading import Event
 
 import requests
 from pydantic import BaseModel, ValidationError
+
+from .cli_process import CliCancelledError, run_cli
 
 CODEX_TIMEOUT_SECONDS = 180.0
 CLAUDE_TIMEOUT_SECONDS = 180.0
@@ -68,9 +71,11 @@ def suggest_tracks(
     context_lines: list[str],
     count: int,
     brief: str = "",
+    *,
+    cancel: Event | None = None,
 ) -> list[SuggestedTrack]:
     """Ask the configured AI provider for track suggestions; raises IntelligenceError."""
-    return suggest_playlist(settings, context_lines, count, brief).tracks
+    return suggest_playlist(settings, context_lines, count, brief, cancel=cancel).tracks
 
 
 def suggest_playlist(
@@ -78,14 +83,16 @@ def suggest_playlist(
     context_lines: list[str],
     count: int,
     brief: str = "",
+    *,
+    cancel: Event | None = None,
 ) -> SuggestedTracks:
     """Ask the configured AI provider for a named track list; raises IntelligenceError."""
     provider = resolve_provider(settings)
     prompt = build_prompt(context_lines, count, brief)
     if provider == "codex":
-        return _suggest_via_codex(settings, prompt)
+        return _parse_playlist(_codex_text(settings, prompt, cancel=cancel), source="codex")
     if provider == "claude":
-        return _parse_playlist(_claude_text(settings, prompt), source="claude")
+        return _parse_playlist(_claude_text(settings, prompt, cancel=cancel), source="claude")
     if provider == "openai":
         return _suggest_via_openai(settings, prompt)
     if provider == "anthropic":
@@ -121,11 +128,7 @@ def build_prompt(context_lines: list[str], count: int, brief: str) -> str:
     return "\n\n".join(parts)
 
 
-def _suggest_via_codex(settings: IntelligenceSettings, prompt: str) -> SuggestedTracks:
-    return _parse_playlist(_codex_text(settings, prompt), source="codex")
-
-
-def _codex_text(settings: IntelligenceSettings, prompt: str) -> str:
+def _codex_text(settings: IntelligenceSettings, prompt: str, *, cancel: Event | None = None) -> str:
     """Raw codex exec output for a prompt; raises IntelligenceError."""
     codex = shutil.which("codex")
     if not codex:
@@ -149,13 +152,9 @@ def _codex_text(settings: IntelligenceSettings, prompt: str) -> str:
         cmd += ["-m", settings.model]
     cmd.append(prompt)
     try:
-        result = subprocess.run(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=CODEX_TIMEOUT_SECONDS,
-        )
+        result = run_cli(cmd, timeout=CODEX_TIMEOUT_SECONDS, cancel=cancel)
+    except (CliCancelledError, OSError) as exc:
+        raise IntelligenceError(str(exc)) from exc
     except subprocess.TimeoutExpired as exc:
         raise IntelligenceError(
             f"codex did not answer within {int(CODEX_TIMEOUT_SECONDS)}s"
@@ -167,7 +166,13 @@ def _codex_text(settings: IntelligenceSettings, prompt: str) -> str:
     return result.stdout
 
 
-def _claude_text(settings: IntelligenceSettings, prompt: str, *, web_access: bool = False) -> str:
+def _claude_text(
+    settings: IntelligenceSettings,
+    prompt: str,
+    *,
+    web_access: bool = False,
+    cancel: Event | None = None,
+) -> str:
     """Raw claude -p output for a prompt; raises IntelligenceError.
 
     Uses the Claude Code CLI print mode, riding the user's existing claude
@@ -185,13 +190,9 @@ def _claude_text(settings: IntelligenceSettings, prompt: str, *, web_access: boo
         cmd += ["--model", settings.model]
     cmd.append(prompt)
     try:
-        result = subprocess.run(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=CLAUDE_TIMEOUT_SECONDS,
-        )
+        result = run_cli(cmd, timeout=CLAUDE_TIMEOUT_SECONDS, cancel=cancel)
+    except (CliCancelledError, OSError) as exc:
+        raise IntelligenceError(str(exc)) from exc
     except subprocess.TimeoutExpired as exc:
         raise IntelligenceError(
             f"claude did not answer within {int(CLAUDE_TIMEOUT_SECONDS)}s"

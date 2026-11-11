@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from threading import Event
+
 from .intelligence.llm import (
     IntelligenceError,
     IntelligenceSettings,
@@ -24,6 +26,8 @@ def find_similar_candidates(
     count: int,
     settings: IntelligenceSettings,
     brief: str = "",
+    *,
+    cancel: Event | None = None,
 ) -> tuple[list[SongCandidate], str]:
     """Return up to count playable candidates similar to seeds plus the provider used.
 
@@ -42,7 +46,7 @@ def find_similar_candidates(
             )
         return _related_via_ytm(client, seeds, count, exclude_ids), provider
     context = [seed.display_name for seed in seeds[:CONTEXT_LIMIT]]
-    suggestions = suggest_tracks(settings, context, count, brief)
+    suggestions = suggest_tracks(settings, context, count, brief, cancel=cancel)
     exclude_names = {seed.display_name.casefold() for seed in seeds}
     found = _resolve_suggestions(client, suggestions, count, exclude_ids, exclude_names)
     return found, provider

@@ -32,8 +32,8 @@ def test_station_prompt_demands_direct_stream_json() -> None:
 def test_find_station_via_codex_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
     monkeypatch.setattr(
-        llm.subprocess,
-        "run",
+        llm,
+        "run_cli",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args, 0, stdout=f"thinking...\n{STATION_JSON}\n", stderr=""
         ),
@@ -49,8 +49,8 @@ def test_find_station_via_codex_parses_json(monkeypatch: pytest.MonkeyPatch) -> 
 def test_find_station_rejects_non_json_output(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
     monkeypatch.setattr(
-        llm.subprocess,
-        "run",
+        llm,
+        "run_cli",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args, 0, stdout="I could not find it, sorry.", stderr=""
         ),
@@ -77,8 +77,8 @@ def test_parse_add_station_request_variants() -> None:
 def test_find_station_via_claude_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(
-        llm.subprocess,
-        "run",
+        llm,
+        "run_cli",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args, 0, stdout=STATION_JSON, stderr=""
         ),
@@ -95,7 +95,7 @@ def test_claude_station_lookup_allows_only_web_tools(
 ) -> None:
     run = Mock(return_value=SimpleNamespace(returncode=0, stdout=STATION_JSON, stderr=""))
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
-    monkeypatch.setattr(llm.subprocess, "run", run)
+    monkeypatch.setattr(llm, "run_cli", run)
 
     find_station(IntelligenceSettings(provider="claude", model=model), "WFMU")
 

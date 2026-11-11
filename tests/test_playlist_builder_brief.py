@@ -55,7 +55,7 @@ def test_brief_with_ai_provider_seeds_from_suggestions(monkeypatch) -> None:
     monkeypatch.setattr(
         builder_module,
         "suggest_playlist",
-        lambda settings, context, count, brief: SuggestedTracks(
+        lambda settings, context, count, brief, *, cancel: SuggestedTracks(
             tracks=[SuggestedTrack(artist="Soulfly", title="Eye for an Eye", reason="tribal")]
         ),
     )
@@ -80,7 +80,7 @@ def test_brief_uses_the_ai_provided_playlist_name(monkeypatch) -> None:
     monkeypatch.setattr(
         builder_module,
         "suggest_playlist",
-        lambda settings, context, count, brief: SuggestedTracks(
+        lambda settings, context, count, brief, *, cancel: SuggestedTracks(
             name="powermetal-10",
             tracks=[SuggestedTrack(artist="Blind Guardian", title="Valhalla")],
         ),

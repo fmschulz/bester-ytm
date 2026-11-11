@@ -91,7 +91,7 @@ def test_brief_reaches_the_ai_and_stands_alone_without_seeds(monkeypatch) -> Non
 
     captured: dict = {}
 
-    def fake_suggest(settings, context, count, brief=""):
+    def fake_suggest(settings, context, count, brief="", *, cancel):
         captured["brief"] = brief
         captured["context"] = context
         return [SuggestedTrack(artist="Four Tet", title="Two Thousand and Seventeen")]

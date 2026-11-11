@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
+from threading import Event
 
 from .config import ConfigError, load_intelligence_settings, resolve_existing_input
 from .intelligence.heuristic import HeuristicProvider
@@ -146,6 +147,8 @@ class PlaylistBuilder:
         name: str,
         count: int,
         settings: IntelligenceSettings | None = None,
+        *,
+        cancel: Event | None = None,
     ) -> PlaylistPlan:
         """Build from a brief and any saved favorites it requests."""
         if count < 1:
@@ -170,7 +173,7 @@ class PlaylistBuilder:
                 ] or self._seeds_from_brief(cleaned)
             else:
                 context = [track.display_name for track in favorites]
-                suggestion = suggest_playlist(settings, context, count, cleaned)
+                suggestion = suggest_playlist(settings, context, count, cleaned, cancel=cancel)
                 seeds = [
                     SeedTrack(artist=track.artist, title=track.title, source=f"ai:{provider}")
                     for track in suggestion.tracks
