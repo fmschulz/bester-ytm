@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Queue and library lists mount all rows in one batch for faster rebuilds.
 - The code is formatted with `ruff format`; CI checks the format and installs
   from the lock file.
 

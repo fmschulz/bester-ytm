@@ -287,8 +287,8 @@ class PlaybackRenderer:
         self._update_queue_title(video_ids)
         favorite_ids = self._favorite_video_ids()
         playing_index = video_ids.index(current) if current in video_ids else 0
-        for position, video_id in enumerate(video_ids, start=1):
-            row = QueueRow(
+        rows = [
+            QueueRow(
                 video_id,
                 position,
                 self.candidates_by_video_id.get(video_id),
@@ -296,7 +296,9 @@ class PlaybackRenderer:
                 is_played=position <= playing_index,
                 is_favorite=video_id in favorite_ids,
             )
-            await queue.append(row)
+            for position, video_id in enumerate(video_ids, start=1)
+        ]
+        await queue.extend(rows)
         cursor_id: str | None = focus_video_id
         if cursor_id is None:
             cursor_id = held_cursor_id or self.selected_queue_video_id

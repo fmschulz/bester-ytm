@@ -57,6 +57,10 @@ src/bester_ytm/
   `YTMClientError`, `IntelligenceError`, `RadioError`) with a message that
   says what to do.
 - Tests fake mpv at the `subprocess.Popen` and IPC seams and inject clocks.
+- TUI tests share list, input, text, and playback doubles in `tests/fakes.py`.
+  Keep test-specific failures and scheduling behavior in local subclasses.
+- List rebuilds mount rows with one awaited `ListView.extend` call. Queue
+  rebuilds stay serialized; deferred results check their load ID before mounting.
 
 [Architecture](architecture.md) explains the dual-deck engine and the stage;
 [Manual Testing](manual-testing.md) lists the checks that need audio or a

@@ -35,8 +35,7 @@ class PlaylistLoadActions:
         self._clear_result_selection()
         self._update_library_summary("Playlists")
         local_items = LocalPlaylistStore().search_items()
-        for search_item in local_items:
-            await results.append(self._result_item(search_item))
+        await results.extend([self._result_item(item) for item in local_items])
         self.run_worker(
             partial(self._list_playlists_worker, local_items, self._results_load_id),
             name="playlists",
@@ -86,10 +85,16 @@ class PlaylistLoadActions:
         if load_id != self._results_load_id:
             return  # a newer search or listing started after this was scheduled
         results = self.query_one("#results", ListView)
-        for playlist in playlists:
-            title = playlist.title or playlist.playlist_id
-            row = LibraryPlaylistRow(playlist.playlist_id, title, playlist.track_count)
-            await results.append(row)
+        await results.extend(
+            [
+                LibraryPlaylistRow(
+                    playlist.playlist_id,
+                    playlist.title or playlist.playlist_id,
+                    playlist.track_count,
+                )
+                for playlist in playlists
+            ]
+        )
         self._focus_first_result(results, bool(local_items or playlists))
         self._set_status(f"{len(local_items)} local + {len(playlists)} YouTube playlist(s).")
 

@@ -144,8 +144,7 @@ class LibraryActions:
         results = self.query_one("#results", ListView)
         self._show_results_list()
         favorite_ids = self._favorite_video_ids()
-        for search_item in items:
-            await results.append(self._result_item(search_item, favorite_ids))
+        await results.extend([self._result_item(item, favorite_ids) for item in items])
         self._focus_first_result(results, bool(items))
         if parsed.lists_favorites:
             self._update_favorites_summary(len(items))
@@ -181,10 +180,12 @@ class LibraryActions:
         await results.clear()
         highlight_index: int | None = None
         items = LocalPlaylistStore().search_items()
+        rows: list[ResultRow] = []
         for index, search_item in enumerate(items):
-            await results.append(self._result_item(search_item))
+            rows.append(self._result_item(search_item))
             if highlight_id and search_item.playlist_id == highlight_id:
                 highlight_index = index
+        await results.extend(rows)
         if highlight_index is not None:
             try:
                 results.index = highlight_index
@@ -326,13 +327,16 @@ class LibraryActions:
                 (video_id for video_id in ids if video_id in self.selected_result_video_ids), None
             )
         await results.clear()
+        rows: list[ResultRow] = []
+        favorite_ids = set(ids)
         for search_item in items:
-            if load_id != self._results_load_id:
-                return
-            item = self._result_item(search_item, set(ids))
+            item = self._result_item(search_item, favorite_ids)
             candidate = item.candidate
             item.marked = bool(candidate and candidate.video_id in self.selected_result_video_ids)
-            await results.append(item)
+            rows.append(item)
+        if load_id != self._results_load_id:
+            return
+        await results.extend(rows)
         if ids:
             results.index = (
                 ids.index(highlighted.video_id)
