@@ -11,7 +11,7 @@ from .config import ConfigError
 from .local_files import local_search_items
 from .playback import PlaybackError
 from .playlist_plan import SongCandidate
-from .radio import station_search_items
+from .radio import RadioError, station_search_items
 from .search_query import ParsedSearch, SearchItem, parse_search_query
 from .stores import FavoritesStore, LocalPlaylistStore
 from .tui_effects import NO_TRACK
@@ -74,12 +74,17 @@ class LibraryActions:
             try:
                 items = FavoritesStore().search_items(parsed.text)
             except ConfigError as exc:
-                self._set_status(str(exc))
+                self._show_search_failure(str(exc))
                 return
             await self._show_search_results(parsed, items, self._results_load_id)
             return
         if parsed.lists_radio_stations:
-            await self._show_search_results(parsed, station_search_items(), self._results_load_id)
+            try:
+                items = station_search_items()
+            except RadioError as exc:
+                self._show_search_failure(str(exc))
+                return
+            await self._show_search_results(parsed, items, self._results_load_id)
             return
         worker = self._local_search_worker if parsed.lists_local_files else self._search_worker
         self.run_worker(
@@ -109,7 +114,12 @@ class LibraryActions:
 
     def _finish_search_error(self, message: str, load_id: int) -> None:
         if load_id == self._results_load_id:
-            self._set_status(message)
+            self._show_search_failure(message)
+
+    def _show_search_failure(self, message: str) -> None:
+        """Say why the list is empty; the pane must not stay on "Searching"."""
+        self._update_library_summary("Library", message)
+        self._set_status(message)
 
     def _finish_search(self, parsed: ParsedSearch, items: list[SearchItem], load_id: int) -> None:
         if load_id != self._results_load_id:

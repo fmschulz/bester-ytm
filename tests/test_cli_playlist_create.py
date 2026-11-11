@@ -46,3 +46,35 @@ def test_playlist_create_handles_client_config_error(
     assert result.exit_code == 1
     assert "No auth configured" in result.output
     assert "Traceback" not in result.output
+
+
+def test_playlist_commands_report_a_corrupt_plan_without_a_traceback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    store = PlanStore()
+    store.ensure()
+    store.json_path("broken").write_text('{"id": "broken"}', encoding="utf-8")
+
+    for command in (["playlist", "create", "broken"], ["playlist", "export", "broken"]):
+        result = CliRunner().invoke(app, command)
+
+        assert result.exit_code == 1, command
+        assert "is corrupt" in result.output
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+def test_playlist_commands_report_an_unreadable_plan_without_a_traceback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    store = PlanStore()
+    store.ensure()
+    store.json_path("binary").write_bytes(b"\xff\xfe\x00not text")
+
+    for command in (["playlist", "create", "binary"], ["playlist", "export", "binary"]):
+        result = CliRunner().invoke(app, command)
+
+        assert result.exit_code == 1, command
+        assert "is corrupt" in result.output
+        assert result.exception is None or isinstance(result.exception, SystemExit)

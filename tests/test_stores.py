@@ -125,3 +125,17 @@ def test_local_playlist_store_list_skips_corrupt_file_with_warning(
 
     assert [playlist.id for playlist in playlists] == ["good"]
     assert "bad.json" in caplog.text
+
+
+def test_stores_report_files_that_are_not_text_as_corrupt(tmp_path: Path) -> None:
+    favorites = tmp_path / "favorites.json"
+    favorites.write_bytes(b"\xff\xfe\x00")
+    with pytest.raises(ConfigError, match="is corrupt"):
+        FavoritesStore(path=favorites, legacy_path=tmp_path / "favorites.md").list()
+
+    playlists = LocalPlaylistStore(playlists_dir=tmp_path / "playlists")
+    playlists.ensure()
+    playlists.path_for_id("mix").write_bytes(b"\xff\xfe\x00")
+    with pytest.raises(ConfigError, match="is corrupt"):
+        playlists.load("mix")
+    assert playlists.list() == []

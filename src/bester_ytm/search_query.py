@@ -96,6 +96,7 @@ def parse_search_query(value: str) -> ParsedSearch:
             text = head[len(prefix) :].strip()
             break
 
+    name_parts = [text]
     for token in rest:
         folded = token.casefold()
         if folded == "songs":
@@ -108,6 +109,11 @@ def parse_search_query(value: str) -> ParsedSearch:
             year_text = token.split(":", 1)[1].strip()
             if year_text.isdigit():
                 year = int(year_text)
+        else:
+            # Not a modifier: a comma inside a name ("Earth, Wind & Fire").
+            name_parts.append(token)
+    if kind != "free":
+        text = ", ".join(part for part in name_parts if part)
 
     if kind == "playlist":
         view = "playlists"

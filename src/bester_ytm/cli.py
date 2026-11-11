@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import typer
 from rich.console import Console
@@ -12,7 +12,7 @@ from rich.table import Table
 from .auth import AuthManager
 from .cli_config import config_app
 from .cli_play import play_app
-from .config import ConfigError
+from .config import ConfigError, resolve_existing_input
 from .playlist_builder import PlaylistBuilder, PlaylistBuildError
 from .playlist_create import PlaylistCreateError, create_or_update_playlist
 from .stores import FavoritesStore, PlanStore
@@ -31,7 +31,7 @@ app.add_typer(favorites_app, name="favorites")
 app.add_typer(config_app, name="config")
 
 
-def _exit_error(message: str, code: int = 1) -> None:
+def _exit_error(message: str, code: int = 1) -> NoReturn:
     console.print(f"[red]{message}[/red]")
     raise typer.Exit(code)
 
@@ -219,7 +219,7 @@ def playlist_create(
     store = PlanStore()
     try:
         plan = store.load(plan_id)
-    except (FileNotFoundError, FileExistsError) as exc:
+    except (ConfigError, FileNotFoundError, FileExistsError) as exc:
         _exit_error(str(exc))
     try:
         client = YTMClient(authenticated=True)
@@ -258,7 +258,7 @@ def playlist_export(
         _exit_error("--format must be md or json")
     try:
         sys.stdout.write(PlanStore().export(plan_id, fmt))
-    except (FileNotFoundError, FileExistsError, ValueError) as exc:
+    except (ConfigError, FileNotFoundError, FileExistsError) as exc:
         _exit_error(str(exc))
 
 
@@ -270,8 +270,6 @@ def favorites_import_tuiradio(
     ],
 ) -> None:
     try:
-        from .config import resolve_existing_input
-
         count = FavoritesStore().import_tuiradio(resolve_existing_input(source))
     except ConfigError as exc:
         _exit_error(str(exc))

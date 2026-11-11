@@ -118,23 +118,23 @@ class HelpScreen(ModalScreen[None]):
     """Keep search and exit controls visible while the shortcut list scrolls."""
 
     DEFAULT_CSS = """
-    HelpScreen { align: center middle; background: #040813 85%; }
+    HelpScreen { align: center middle; background: $background 85%; }
     HelpScreen #help-panel {
         width: 88; max-width: 96%; height: 90%;
-        border: round #55d9e8; background: #0b1220; padding: 1 2;
+        border: round $primary; background: $surface; padding: 1 2;
     }
     HelpScreen #help-heading { height: 3; align-vertical: middle; }
-    HelpScreen #help-title { width: 1fr; color: #55d9e8; text-style: bold; }
+    HelpScreen #help-title { width: 1fr; color: $primary; text-style: bold; }
     HelpScreen #help-close { min-width: 12; width: 12; }
-    HelpScreen #help-intro { height: auto; margin-bottom: 1; color: #c4cfdf; }
+    HelpScreen #help-intro { height: auto; margin-bottom: 1; color: $foreground 85%; }
     HelpScreen #help-filter { height: 3; margin-bottom: 1; }
     HelpScreen #help-shortcuts { height: 1fr; scrollbar-size-vertical: 1; }
-    HelpScreen .help-section { color: #55d9e8; text-style: bold; margin-top: 1; }
+    HelpScreen .help-section { color: $primary; text-style: bold; margin-top: 1; }
     HelpScreen .help-row { height: auto; min-height: 1; }
-    HelpScreen .help-key { width: 15; color: #f1c77b; text-style: bold; }
+    HelpScreen .help-key { width: 15; color: $warning; text-style: bold; }
     HelpScreen .help-desc { width: 1fr; height: auto; padding-left: 1; }
-    HelpScreen #help-empty { height: auto; color: #c4cfdf; padding: 1 0; }
-    HelpScreen #help-hint { height: auto; color: #8b9bb4; margin-top: 1; }
+    HelpScreen #help-empty { height: auto; color: $foreground 85%; padding: 1 0; }
+    HelpScreen #help-hint { height: auto; color: $text-muted; margin-top: 1; }
     HelpScreen.short #help-panel { padding: 0 1; height: 96%; }
     HelpScreen.short #help-heading { height: 1; }
     HelpScreen.short #help-intro { display: none; }

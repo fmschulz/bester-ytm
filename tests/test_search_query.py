@@ -132,3 +132,13 @@ def test_parse_liked_aliases_favorites() -> None:
     assert parsed.kind == "favorites"
     assert parsed.lists_favorites is True
     assert parse_search_query("liked:beach").text == "beach"
+
+
+def test_commas_in_a_name_stay_in_the_search_text() -> None:
+    parsed = parse_search_query("artist:Earth, Wind & Fire, albums")
+
+    assert parsed.kind == "artist"
+    assert parsed.text == "Earth, Wind & Fire"
+    assert parsed.view == "albums"
+    assert parse_search_query("song:Hello, Goodbye").text == "Hello, Goodbye"
+    assert parse_search_query("album:Crosby, Stills & Nash, year:1969").year == 1969

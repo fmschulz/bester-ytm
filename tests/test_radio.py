@@ -310,3 +310,18 @@ def test_probe_stream_rejects_playlist_urls_and_mime_types(
     )
     with pytest.raises(RadioError, match="serves a playlist"):
         probe_stream("https://example.com/stream")
+
+
+def test_broken_config_file_is_a_radio_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Callers that play or list stations handle one error type."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    config_file = tmp_path / "bester-ytm" / "config.toml"
+    config_file.parent.mkdir(parents=True)
+    config_file.write_text("[radio.stations\nfip = 1", encoding="utf-8")
+
+    with pytest.raises(RadioError, match="is not valid TOML"):
+        stations()
+    with pytest.raises(RadioError, match="is not valid TOML"):
+        video_url("radio:kalx")

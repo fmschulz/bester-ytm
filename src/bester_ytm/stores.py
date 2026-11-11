@@ -22,6 +22,13 @@ def _corrupt_store_error(path: Path, error: Exception) -> ConfigError:
     )
 
 
+def _read_store_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise _corrupt_store_error(path, exc) from exc
+
+
 class PlanStore:
     def __init__(self, plans_dir: Path | None = None) -> None:
         self.paths = get_paths()
@@ -69,13 +76,9 @@ class PlanStore:
     def load(self, plan_id_or_path: str) -> PlaylistPlan:
         path = self.find(plan_id_or_path)
         try:
-            return PlaylistPlan.model_validate_json(path.read_text(encoding="utf-8"))
+            return PlaylistPlan.model_validate_json(_read_store_text(path))
         except ValidationError as exc:
             raise _corrupt_store_error(path, exc) from exc
-
-    def list(self) -> list[Path]:
-        self.ensure()
-        return sorted(self.plans_dir.glob("*.json"), reverse=True)
 
     def export(self, plan_id_or_path: str, fmt: str) -> str:
         plan = self.load(plan_id_or_path)
@@ -112,7 +115,7 @@ class FavoritesStore:
         if not self.path.exists():
             return self._migrate_legacy()
         try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
+            payload = json.loads(_read_store_text(self.path))
         except json.JSONDecodeError as exc:
             raise _corrupt_store_error(self.path, exc) from exc
         if not isinstance(payload, list):
@@ -190,7 +193,7 @@ class LocalPlaylistStore:
     def load(self, playlist_id: str) -> LocalPlaylist:
         path = self.path_for_id(playlist_id)
         try:
-            text = path.read_text(encoding="utf-8")
+            text = _read_store_text(path)
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"No local playlist named {playlist_id!r}; in the Ctrl+P list only "
@@ -218,9 +221,11 @@ class LocalPlaylistStore:
         playlists: list[LocalPlaylist] = []
         for path in sorted(self.playlists_dir.glob("*.json")):
             try:
-                playlists.append(LocalPlaylist.model_validate_json(path.read_text(encoding="utf-8")))
+                playlists.append(LocalPlaylist.model_validate_json(_read_store_text(path)))
             except ValidationError as exc:
                 logger.warning("%s", _corrupt_store_error(path, exc))
+            except ConfigError as exc:
+                logger.warning("%s", exc)
         return playlists
 
     def search_items(self) -> builtins.list[SearchItem]:

@@ -779,3 +779,41 @@ def test_local_search_with_bad_path_reports_error(monkeypatch, tmp_path) -> None
 
     assert widgets["#results"].items == []
     assert statuses[-1].startswith("Path not found")
+
+
+def test_radio_listing_reports_a_broken_config_file(monkeypatch, tmp_path) -> None:
+    """radio: reads [radio.stations]; an invalid config.toml must not crash the app."""
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path)
+    config_file = tmp_path / "config" / "bester-ytm" / "config.toml"
+    config_file.parent.mkdir(parents=True)
+    config_file.write_text("[radio.stations\nfip = 1", encoding="utf-8")
+
+    asyncio.run(app._search("radio:"))
+
+    assert widgets["#results"].items == []
+    assert "is not valid TOML" in statuses[-1]
+
+
+def test_failed_search_does_not_leave_the_pane_on_searching(monkeypatch, tmp_path) -> None:
+    class FailingClient:
+        def structured_search(self, parsed, limit: int = 25):
+            raise YTMClientError("quota exceeded")
+
+    pane = SimpleNamespace(border_title=None)
+    empty = FakeStatic()
+    widgets = {
+        "#results": FakeListView(),
+        "#queue": FakeListView(),
+        "#left": pane,
+        "#library-empty": empty,
+    }
+    app, _, _ = _make_app(monkeypatch, tmp_path, widgets)
+    app.client = FailingClient()  # type: ignore[assignment]
+    workers = _capture_workers(app, monkeypatch)
+
+    asyncio.run(app._search("free text"))
+    assert str(pane.border_title) == "Library / Searching"
+    _drain_workers(workers)
+
+    assert str(pane.border_title) == "Library"
+    assert empty.value == "quota exceeded"

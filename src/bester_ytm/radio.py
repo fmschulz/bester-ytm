@@ -77,11 +77,15 @@ def is_radio_video_id(video_id: str) -> bool:
 def stations() -> list[RadioStation]:
     """Built-in stations plus [radio.stations] entries from config.toml."""
     # Imported here: config -> transitions -> deck -> radio at module load.
-    from .config import get_paths, load_config_document
+    from .config import ConfigError, get_paths, load_config_document
 
     result = list(BUILTIN_STATIONS)
     known = {station.key for station in result}
-    section = load_config_document(get_paths().config_file).get("radio", {})
+    try:
+        section = load_config_document(get_paths().config_file).get("radio", {})
+    except ConfigError as exc:
+        # One error type for every caller that plays or lists stations.
+        raise RadioError(str(exc)) from exc
     extras = section.get("stations", {}) if isinstance(section, dict) else {}
     if isinstance(extras, dict):
         for key, url in sorted(extras.items(), key=lambda item: str(item[0]).casefold()):
