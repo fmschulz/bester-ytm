@@ -102,11 +102,6 @@ class Deck:
             {"command": ["set_property", "mute", muted]}, deadline_seconds
         )
 
-    def stop(self) -> None:
-        terminate_process(self.process)
-        remove_socket_file(self.ipc_socket)
-        self.state = DeckState.STOPPED
-
 
 def deck_socket_path(name: str) -> Path:
     socket_name = f"bester-ytm-mpv-{os.getpid()}-deck-{name.lower()}.sock"
@@ -120,6 +115,7 @@ def spawn_mpv(
     *,
     paused: bool,
     volume: float,
+    muted: bool = False,
 ) -> subprocess.Popen[str]:
     """Launch a detached audio-only mpv playing one YouTube Music track."""
     stream_options = []
@@ -143,6 +139,7 @@ def spawn_mpv(
         "--af=@astats:lavfi=[asetnsamples=n=2048,astats=metadata=1:reset=1]",
         f"--pause={'yes' if paused else 'no'}",
         f"--volume={volume:g}",
+        f"--mute={'yes' if muted else 'no'}",
         f"--input-ipc-server={ipc_socket}",
         video_url(video_id),
     ]

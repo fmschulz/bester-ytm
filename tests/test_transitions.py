@@ -143,6 +143,7 @@ class FakeHost:
         self.queue = ["v2", "v3"]
         self.history: list[str] = []
         self.paused = False
+        self.muted = False
         self.master_volume = 100.0
         self.active_deck = "A"
         self.transition = TransitionSettings(
@@ -729,31 +730,6 @@ def test_deck_refresh_readiness_requires_socket_and_duration(tmp_path) -> None:
     assert deck.refresh_readiness() is True
 
 
-def test_deck_stop_terminates_running_process_and_unlinks_socket(tmp_path) -> None:
-    socket_path = tmp_path / "deck.sock"
-    socket_path.touch()
-    process = FakeProcess()
-    deck = Deck(name="A", video_id="v", process=process, ipc_socket=socket_path)
-
-    deck.stop()
-
-    assert process.terminated
-    assert deck.state is DeckState.STOPPED
-    assert not socket_path.exists()
-
-
-def test_deck_stop_tolerates_dead_process(tmp_path) -> None:
-    process = FakeProcess(exit_code=0)
-    deck = Deck(
-        name="A", video_id="v", process=process, ipc_socket=tmp_path / "deck.sock"
-    )
-
-    deck.stop()
-
-    assert not process.terminated
-    assert deck.state is DeckState.STOPPED
-
-
 def make_stubborn_deck(tmp_path: Path, name: str = "A") -> Deck:
     socket_path = tmp_path / f"deck-{name.lower()}.sock"
     socket_path.touch()
@@ -869,3 +845,34 @@ def test_shutdown_flushes_dying_decks_with_blocking_reap(monkeypatch) -> None:
     assert lingering.process.wait_calls == 1
     assert lingering.process.poll() is not None
     assert harness.engine.reaper.dying == []
+
+
+def test_a_live_radio_stream_is_never_blended_out(monkeypatch) -> None:
+    """mpv reports a stream's buffered extent as its duration, a few seconds ahead."""
+    harness = EngineHarness(monkeypatch)
+    harness.host.current_video_id = "radio:kalx"
+    harness.host.queue = ["v2"]
+    harness.timing = (15.5, 19.6)
+
+    harness.engine.tick()
+
+    assert harness.spawned == []
+    assert harness.host.current_video_id == "radio:kalx"
+    assert harness.host.queue == ["v2"]
+
+
+def test_promotion_keeps_the_known_mute_when_the_live_deck_does_not_answer(
+    monkeypatch,
+) -> None:
+    class SilentClient:
+        def __init__(self, socket_path: Path) -> None:
+            pass
+
+        def get_property(self, name: str, deadline_seconds: float = 2.0) -> object:
+            raise MpvIpcError("timed out")
+
+    host = FakeHost()
+    host.muted = True
+    monkeypatch.setattr(transitions, "MpvIpcClient", SilentClient)
+
+    assert TransitionEngine(host)._read_live_muted() is True

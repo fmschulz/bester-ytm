@@ -13,6 +13,10 @@ class MpvIpcError(RuntimeError):
     pass
 
 
+class MpvCommandError(MpvIpcError):
+    """mpv answered and refused the command, e.g. a property that is not available yet."""
+
+
 def request_ipc(
     socket_path: Path,
     payload: dict[str, object],
@@ -23,21 +27,22 @@ def request_ipc(
 
     Opens a fresh unix connection per request, frames messages by newline,
     matches responses on request_id, and retries until the deadline.
-    Raises MpvIpcError on timeout, socket failure, or an mpv error response.
+    Raises MpvIpcError on timeout or socket failure, and MpvCommandError when
+    mpv answers with an error.
     """
     request_payload = dict(payload)
     request_payload["request_id"] = request_id
-    deadline = time.time() + deadline_seconds
+    deadline = time.monotonic() + deadline_seconds
     last_error: Exception | None = None
     encoded = json.dumps(request_payload).encode("utf-8") + b"\n"
-    while time.time() < deadline:
+    while time.monotonic() < deadline:
         try:
             with socket.socket(socket.AF_UNIX) as sock:
                 sock.settimeout(deadline_seconds)
                 sock.connect(str(socket_path))
                 sock.sendall(encoded)
                 buffer = b""
-                while time.time() < deadline:
+                while time.monotonic() < deadline:
                     chunk = sock.recv(4096)
                     if not chunk:
                         break
@@ -53,7 +58,7 @@ def request_ipc(
                             continue
                         error = response.get("error")
                         if error and error != "success":
-                            raise MpvIpcError(f"mpv IPC command failed: {error}")
+                            raise MpvCommandError(f"mpv IPC command failed: {error}")
                         return response
         except (OSError, json.JSONDecodeError) as exc:
             last_error = exc

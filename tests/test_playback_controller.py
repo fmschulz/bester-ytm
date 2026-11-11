@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from bester_ytm import playback as playback_module
-from bester_ytm.mpv_ipc import MpvIpcError
+from bester_ytm.mpv_ipc import MpvCommandError, MpvIpcError
 from bester_ytm.playback import PlaybackController, PlaybackError
 
 
@@ -457,3 +457,146 @@ class QuietClient:
 
     def get_property(self, name: str, deadline_seconds: float = 2.0) -> bool:
         return False
+
+
+class LoadingClient:
+    """mpv while a stream still loads: timing is unavailable, the mixer answers."""
+
+    def get_float(self, name: str, deadline_seconds: float = 2.0) -> float:
+        if name in {"time-pos", "duration"}:
+            raise MpvCommandError("mpv IPC command failed: property unavailable")
+        return {"volume": 40.0, "speed": 1.0}[name]
+
+    def get_property(self, name: str, deadline_seconds: float = 2.0) -> bool:
+        return {"mute": True, "pause": False}[name]
+
+
+def test_status_reports_volume_and_mute_while_the_track_loads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    controller = PlaybackController(
+        process=RunningProcess(),  # type: ignore[arg-type]
+        current_video_id="v1",
+        ipc_socket=tmp_path / "mpv.sock",
+    )
+    monkeypatch.setattr(controller, "_live_client", LoadingClient)
+
+    status = controller.status()
+
+    assert status.position_seconds is None
+    assert status.duration_seconds is None
+    assert status.volume == 40.0
+    assert status.muted is True
+
+
+def test_volume_step_while_the_track_loads_starts_from_the_set_volume(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    controller = PlaybackController(
+        process=RunningProcess(),  # type: ignore[arg-type]
+        current_video_id="v1",
+        ipc_socket=tmp_path / "mpv.sock",
+        master_volume=40.0,
+    )
+    commands: list[dict[str, object]] = []
+    monkeypatch.setattr(controller, "_send_ipc", commands.append)
+    monkeypatch.setattr(controller, "_live_client", FailingLoadClient)
+
+    controller.change_volume(5)
+
+    assert commands == [{"command": ["set_property", "volume", 45.0]}]
+    assert controller.master_volume == 45.0
+
+
+class FailingLoadClient:
+    """No property answers yet, as right after mpv starts."""
+
+    def get_float(self, name: str, deadline_seconds: float = 2.0) -> float:
+        raise MpvIpcError("mpv IPC command failed: timed out")
+
+    def get_property(self, name: str, deadline_seconds: float = 2.0) -> bool:
+        raise MpvIpcError("mpv IPC command failed: timed out")
+
+
+def test_status_reports_no_duration_for_web_radio(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """mpv reports the buffered extent of a live stream as a growing duration."""
+
+    class LiveStreamClient:
+        def get_float(self, name: str, deadline_seconds: float = 2.0) -> float:
+            return {"time-pos": 15.5, "duration": 19.6, "volume": 80.0, "speed": 1.0}[name]
+
+        def get_property(self, name: str, deadline_seconds: float = 2.0) -> bool:
+            return False
+
+    controller = PlaybackController(
+        process=RunningProcess(),  # type: ignore[arg-type]
+        current_video_id="radio:kalx",
+        ipc_socket=tmp_path / "mpv.sock",
+    )
+    monkeypatch.setattr(controller, "_live_client", LiveStreamClient)
+
+    status = controller.status()
+
+    assert status.position_seconds == 15.5
+    assert status.duration_seconds is None
+
+
+def test_mute_stays_on_when_the_next_track_starts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each track runs in a new mpv process, which starts unmuted unless told."""
+    spawned: list[dict[str, object]] = []
+    live = {"mute": False}
+
+    class MuteClient:
+        def get_float(self, name: str, deadline_seconds: float = 2.0) -> None:
+            return None
+
+        def get_property(self, name: str, deadline_seconds: float = 2.0) -> bool:
+            return live["mute"] if name == "mute" else False
+
+    def spawn(*args: object, **kwargs: object) -> RunningProcess:
+        spawned.append(kwargs)
+        live["mute"] = bool(kwargs.get("muted"))
+        return RunningProcess()
+
+    def send(payload: dict[str, object]) -> None:
+        assert payload == {"command": ["cycle", "mute"]}
+        live["mute"] = not live["mute"]
+
+    controller = PlaybackController(queue=["v2"])
+    monkeypatch.setattr(controller, "_mpv_path", lambda: "mpv")
+    monkeypatch.setattr(controller, "_require_stream_resolver", lambda: None)
+    monkeypatch.setattr(playback_module, "spawn_mpv", spawn)
+    monkeypatch.setattr("bester_ytm.playback.time.sleep", lambda seconds: None)
+    monkeypatch.setattr(controller, "_live_client", MuteClient)
+    monkeypatch.setattr(controller, "_send_ipc", send)
+    monkeypatch.setattr(controller, "_get_property", lambda name: live["mute"])
+
+    controller.play_video("v1")
+    assert controller.toggle_mute().muted is True
+    status = controller.play_queue()
+
+    assert [kwargs.get("muted") for kwargs in spawned] == [False, True]
+    assert status.muted is True
+
+
+def test_mute_is_remembered_when_the_status_read_after_it_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    controller = PlaybackController(
+        process=RunningProcess(),  # type: ignore[arg-type]
+        current_video_id="v1",
+        ipc_socket=tmp_path / "mpv.sock",
+    )
+    def failing_read(name: str) -> object:
+        raise PlaybackError("mpv IPC command failed: timed out")
+
+    monkeypatch.setattr(controller, "_send_ipc", lambda payload: None)
+    monkeypatch.setattr(controller, "_get_property", failing_read)
+    monkeypatch.setattr(controller, "_live_client", FailingLoadClient)
+
+    controller.toggle_mute()
+    assert controller.muted is True
+    controller.toggle_mute()
+    assert controller.muted is False

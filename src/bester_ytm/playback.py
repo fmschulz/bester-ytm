@@ -7,12 +7,13 @@ import signal
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .deck import remove_socket_file, spawn_mpv, terminate_process
 from .local_files import is_local_video_id
-from .mpv_ipc import MpvIpcClient, MpvIpcError, rms_db_from_astats
+from .mpv_ipc import MpvCommandError, MpvIpcClient, MpvIpcError, rms_db_from_astats
 from .playback_status import PlaybackStatus  # noqa: F401  (re-exported)
 from .radio import RadioError, is_radio_video_id
 from .transitions import (
@@ -27,6 +28,14 @@ class PlaybackError(RuntimeError):
     pass
 
 
+def _available(read: Callable[[str], float | None], name: str) -> float | None:
+    """A property value, or None while mpv has none yet (a track that still loads)."""
+    try:
+        return read(name)
+    except MpvCommandError:
+        return None
+
+
 @dataclass
 class PlaybackController:
     process: subprocess.Popen[str] | None = None
@@ -35,6 +44,7 @@ class PlaybackController:
     history: list[str] = field(default_factory=list)
     ipc_socket: Path | None = None
     paused: bool = False
+    muted: bool = False
     transition: TransitionSettings = field(default_factory=TransitionSettings)
     master_volume: float = 100.0
     active_deck: str = "A"
@@ -78,6 +88,7 @@ class PlaybackController:
                 ipc_socket,
                 paused=False,
                 volume=self.master_volume,
+                muted=self.muted,
             )
         except RadioError as exc:
             # A saved queue may name a config station that was since removed.
@@ -223,26 +234,25 @@ class PlaybackController:
         return self.status()
 
     def change_volume(self, delta: float) -> PlaybackStatus:
-        status = self.status()
-        current = status.volume if status.volume is not None else 100.0
-        return self.set_volume(current + delta)
+        return self.set_volume(self.master_volume + delta)
 
     def toggle_mute(self) -> PlaybackStatus:
         if self._transport_ipc_unavailable():
             return self.status()
         self._send_ipc({"command": ["cycle", "mute"]})
+        try:
+            self.muted = bool(self._get_property("mute"))
+        except PlaybackError:
+            # The cycle went through; a failed read must not lose the new state.
+            self.muted = not self.muted
+            return self.status()
         if self._is_mixing():
             self._mirror_mute_to_draining_deck()
         return self.status()
 
     def _mirror_mute_to_draining_deck(self) -> None:
-        if self._engine is None:
-            return
-        try:
-            muted = bool(self._get_property("mute"))
-        except PlaybackError:
-            return
-        self._engine.mirror_mute_to_draining(muted)
+        if self._engine is not None:
+            self._engine.mirror_mute_to_draining(self.muted)
 
     def _request_ipc(self, payload: dict[str, object]) -> dict[str, object]:
         try:
@@ -291,13 +301,16 @@ class PlaybackController:
             client = self._live_client()
             try:
                 sampled_at = time.monotonic()
-                position = client.get_float("time-pos")
-                duration = client.get_float("duration")
+                position = _available(client.get_float, "time-pos")
+                if not is_radio_video_id(self.current_video_id or ""):
+                    # mpv reports a live stream's buffered extent as a growing duration.
+                    duration = _available(client.get_float, "duration")
                 self._cache_timing(position, duration, client.get_float("speed"), sampled_at)
                 volume = client.get_float("volume")
                 muted = bool(client.get_property("mute"))
                 paused = bool(client.get_property("pause"))
                 self.paused = paused
+                self.muted = muted
             except MpvIpcError:
                 # The live mpv may be mid-teardown; report what is known.
                 pass

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from bester_ytm import mpv_ipc
-from bester_ytm.mpv_ipc import MpvIpcClient, MpvIpcError, request_ipc
+from bester_ytm.mpv_ipc import MpvCommandError, MpvIpcClient, MpvIpcError, request_ipc
 
 
 class ScriptedUnixServer:
@@ -54,11 +54,12 @@ def test_request_ipc_skips_noise_and_matches_request_id(tmp_path: Path) -> None:
 
 
 def test_request_ipc_raises_on_mpv_error_response(tmp_path: Path) -> None:
+    """A command error means mpv answered; callers tell it from a dead socket."""
     socket_path = tmp_path / "mpv.sock"
     reply = b'{"request_id": 1, "error": "property unavailable"}\n'
     server = ScriptedUnixServer(socket_path, [reply])
 
-    with pytest.raises(MpvIpcError, match="property unavailable"):
+    with pytest.raises(MpvCommandError, match="property unavailable"):
         request_ipc(socket_path, {"command": ["get_property", "volume"]}, 1)
     server.join()
 

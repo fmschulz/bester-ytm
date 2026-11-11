@@ -17,6 +17,7 @@ from typing import Protocol
 from .deck import Deck, DeckReaper, DeckState, spawn_prebuffer_deck
 from .fader import Fader
 from .mpv_ipc import MpvIpcClient, MpvIpcError
+from .radio import is_radio_video_id
 from .transition_settings import (  # noqa: F401  (re-exported for import sites)
     DEFAULT_APP_SETTINGS,
     MANUAL_MIX_MAX_SECONDS,
@@ -44,6 +45,7 @@ class DeckHost(Protocol):
     queue: list[str]
     history: list[str]
     paused: bool
+    muted: bool
     master_volume: float
     active_deck: str
     transition: TransitionSettings
@@ -90,6 +92,10 @@ class TransitionEngine:
             self.discard_idle_deck()
             return
         if not self._is_live_process_running():
+            return
+        if is_radio_video_id(self.host.current_video_id or ""):
+            # A live stream has no end to blend out of: mpv reports its buffered
+            # extent as the duration, always a few seconds ahead of the position.
             return
         timing = self._read_live_timing()
         if timing is None:
@@ -291,12 +297,12 @@ class TransitionEngine:
     def _read_live_muted(self) -> bool:
         socket_path = self.host.ipc_socket
         if socket_path is None:
-            return False
+            return self.host.muted
         client = MpvIpcClient(socket_path=socket_path)
         try:
             return bool(client.get_property("mute", TICK_READ_DEADLINE_SECONDS))
         except MpvIpcError:
-            return False
+            return self.host.muted
 
     def _other_deck_name(self) -> str:
         return "B" if self.host.active_deck == "A" else "A"
