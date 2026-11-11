@@ -4,12 +4,8 @@ from __future__ import annotations
 
 from threading import Event
 
-from .intelligence.llm import (
-    IntelligenceError,
-    IntelligenceSettings,
-    resolve_provider,
-    suggest_tracks,
-)
+from .intelligence.llm import resolve_provider, suggest_tracks
+from .intelligence.settings import IntelligenceError, IntelligenceSettings
 from .playlist_plan import SongCandidate
 from .resolver import variant_term
 from .ytm_client import YTMClient, YTMClientError

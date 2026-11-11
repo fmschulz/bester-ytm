@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .intelligence.llm import KNOWN_PROVIDERS, IntelligenceSettings
+from .intelligence.settings import KNOWN_PROVIDERS, IntelligenceSettings
 from .transitions import (
     DEFAULT_APP_SETTINGS,
     MAX_FADE_SECONDS,
@@ -161,75 +161,12 @@ def load_transition_settings(path: Path | None = None) -> TransitionSettings:
     )
 
 
-def save_transition_settings(settings: TransitionSettings, path: Path | None = None) -> Path:
-    return rewrite_config_sections(
-        {
-            "playback": {
-                "transition": settings.style.value,
-                "fade_seconds": float(settings.fade_seconds),
-            }
-        },
-        path,
-    )
-
-
-# Sections this app may rewrite; anything else in config.toml is the user's.
-# "radio" is never written by the app but must survive settings rewrites.
-_REWRITABLE_SECTIONS = ("playback", "intelligence", "ui", "builder", "radio")
-
-
 def load_config_document(path: Path) -> dict[str, Any]:
     """The parsed config.toml, or an empty document when the file does not exist."""
     try:
         return _parse_toml_file(path)
     except FileNotFoundError:
         return {}
-
-
-def rewrite_config_sections(updates: dict[str, dict[str, Any]], path: Path | None = None) -> Path:
-    """Merge updates into config.toml, preserving every other app section and key."""
-    config_path = path or get_paths().config_file
-    document = _existing_rewritable_document(config_path)
-    for section, values in updates.items():
-        document.setdefault(section, {}).update(values)
-    lines: list[str] = []
-
-    def emit_table(header: str, entries: dict[str, Any]) -> None:
-        if lines:
-            lines.append("")
-        lines.append(f"[{header}]")
-        for key, value in entries.items():
-            scalar = toml_scalar(config_path, f"{header}.{key}", value)
-            lines.append(f"{toml_key(key)} = {scalar}")
-
-    for section in _REWRITABLE_SECTIONS:
-        entries = document.get(section)
-        if not entries:
-            continue
-        scalars = {k: v for k, v in entries.items() if not isinstance(v, dict)}
-        subtables = {k: v for k, v in entries.items() if isinstance(v, dict)}
-        if scalars:
-            emit_table(section, scalars)
-        for name, table in subtables.items():
-            emit_table(f"{section}.{name}", table)
-    try:
-        write_private_text(config_path, "\n".join(lines) + "\n")
-    except OSError as exc:
-        raise ConfigError(f"could not write {config_path}: {exc}") from exc
-    return config_path
-
-
-def _existing_rewritable_document(config_path: Path) -> dict[str, dict[str, Any]]:
-    existing = load_config_document(config_path)
-    unknown = set(existing) - set(_REWRITABLE_SECTIONS)
-    if unknown:
-        raise ConfigError(
-            f"{config_path} contains sections this app cannot rewrite "
-            f"({', '.join(sorted(unknown))}); edit the file manually"
-        )
-    return {
-        section: dict(values) for section, values in existing.items() if isinstance(values, dict)
-    }
 
 
 def load_intelligence_settings(path: Path | None = None) -> IntelligenceSettings:
@@ -263,26 +200,6 @@ def _parse_setting_string(path: Path, section: dict[str, Any], key: str, default
     if not isinstance(value, str):
         raise ConfigError(f"{path}: intelligence.{key} must be a string (got {value!r})")
     return value
-
-
-def toml_key(key: str) -> str:
-    """A bare key when TOML allows it, else a quoted key ("Groove Salad")."""
-    if key and key.isascii() and all(ch.isalnum() or ch in "-_" for ch in key):
-        return key
-    return json.dumps(key)
-
-
-def toml_scalar(path: Path, dotted_key: str, value: Any) -> str:
-    """Encode a TOML scalar, or raise ConfigError for an unsupported value."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, int | float):
-        return str(value)
-    if isinstance(value, str):
-        return json.dumps(value)
-    raise ConfigError(
-        f"{path}: {dotted_key} has a value this app cannot rewrite; edit the file manually"
-    )
 
 
 def _parse_toml_file(path: Path) -> dict[str, Any]:

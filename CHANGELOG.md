@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restructure internal modules and remove unused state and code, with no behavior change.
 - The keyboard guide groups keys by action, uses readable key names, and gives
   each action a full description.
 - Queue titles keep counts and running time; narrow pane borders drop whole

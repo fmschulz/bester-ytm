@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from bester_ytm.intelligence import cli_process, llm
+from bester_ytm.intelligence.settings import IntelligenceError, IntelligenceSettings
 
 
 @pytest.mark.parametrize("provider", ["codex", "claude"])
@@ -27,8 +28,8 @@ def test_cancelled_cli_terminates_and_reaps_process(
     process.communicate.side_effect = communicate
     monkeypatch.setattr(llm.shutil, "which", lambda name: f"/bin/{name}")
     monkeypatch.setattr(subprocess, "Popen", Mock(return_value=process))
-    with pytest.raises(llm.IntelligenceError, match="cancelled"):
-        llm.suggest_playlist(llm.IntelligenceSettings(provider=provider), [], 1, cancel=cancel)
+    with pytest.raises(IntelligenceError, match="cancelled"):
+        llm.suggest_playlist(IntelligenceSettings(provider=provider), [], 1, cancel=cancel)
     process.terminate.assert_called_once()
     assert process.communicate.call_count == 2
 
@@ -39,8 +40,8 @@ def test_pre_cancelled_cli_does_not_spawn(monkeypatch: pytest.MonkeyPatch) -> No
     popen = Mock()
     monkeypatch.setattr(subprocess, "Popen", popen)
     monkeypatch.setattr(llm.shutil, "which", lambda name: f"/bin/{name}")
-    with pytest.raises(llm.IntelligenceError, match="cancelled"):
-        llm.suggest_playlist(llm.IntelligenceSettings(provider="codex"), [], 1, cancel=cancel)
+    with pytest.raises(IntelligenceError, match="cancelled"):
+        llm.suggest_playlist(IntelligenceSettings(provider="codex"), [], 1, cancel=cancel)
     popen.assert_not_called()
 
 

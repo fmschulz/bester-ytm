@@ -28,7 +28,14 @@ uv run pytest -q --cov=bester_ytm --cov-fail-under=80 # tests and coverage gate
   mpv. They reach YouTube Music only through `ytm_client.py` (a facade over
   the `ytm_*` modules; the login setup in `auth.py` and `auth_capture.py` is
   the one exception) and mpv only through `playback.py` (with its engine in
-  `transitions.py`, `deck.py`, `fader.py`, and `mpv_ipc.py`).
+  `transitions.py`, `deck.py`, `fader.py`, and `mpv_ipc.py`; status reads and
+  failure checks live in `playback_monitor.py`). Config writes belong in
+  `config_writer.py`, brief parsing in `playlist_brief.py`, and CLI AI calls
+  in `intelligence/cli_providers.py`, with shared types in `intelligence/settings.py`.
+- **TUI seams**: `tui_shell.py` holds workspace actions, `tui_favorites.py`
+  holds the favorites view, `tui_focus.py` holds focus bookkeeping, and
+  `tui_queue_render.py` draws the queue. `tui_selection.py` owns marked song
+  IDs and the range anchor for both result rows and album trees.
 - **Size**: modules under about 300 lines, functions under about 30, nesting
   at most 3 levels. Full type hints, `from __future__ import annotations`,
   double quotes.

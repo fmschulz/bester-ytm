@@ -4,12 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from bester_ytm.config import (
-    ConfigError,
-    load_intelligence_settings,
-    load_transition_settings,
-    save_transition_settings,
-)
+from bester_ytm.config import ConfigError, load_intelligence_settings, load_transition_settings
+from bester_ytm.config_writer import save_transition_settings
 from bester_ytm.transitions import TransitionSettings, TransitionStyle
 
 

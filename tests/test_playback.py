@@ -10,7 +10,7 @@ def test_play_queue_removes_track_only_after_success(monkeypatch) -> None:
 
     def fake_play_video(video_id: str, seconds: int | None = None) -> PlaybackStatus:
         controller.current_video_id = video_id
-        return PlaybackStatus(running=True, current_video_id=video_id, queue_size=2)
+        return PlaybackStatus(running=True, current_video_id=video_id)
 
     monkeypatch.setattr(controller, "play_video", fake_play_video)
 
@@ -45,7 +45,7 @@ def test_previous_mutates_history_and_queue_only_after_success(monkeypatch) -> N
 
     def fake_play_video(video_id: str, seconds: int | None = None) -> PlaybackStatus:
         controller.current_video_id = video_id
-        return PlaybackStatus(running=True, current_video_id=video_id, queue_size=1)
+        return PlaybackStatus(running=True, current_video_id=video_id)
 
     monkeypatch.setattr(controller, "play_video", fake_play_video)
 

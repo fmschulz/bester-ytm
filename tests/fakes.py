@@ -110,7 +110,6 @@ class FakePlayback:
         return PlaybackStatus(
             running=self.running,
             current_video_id=self.current_video_id,
-            queue_size=len(self.queue),
             paused=self.paused,
             volume=self.volume,
             muted=self.muted,

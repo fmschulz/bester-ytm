@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from textual.widgets import ListView
 
-from .config import ConfigError, save_transition_settings
+from .config import ConfigError
+from .config_writer import save_transition_settings
 from .playback import PlaybackError, PlaybackStatus
 from .playlist_plan import SongCandidate
 from .radio import is_radio_video_id
@@ -95,9 +96,8 @@ class PlaybackActions:
             item = results.highlighted_child
             playlist_id = getattr(item, "playlist_id", None) if item else None
             if playlist_id and not self.playback.queue:
-                loaded = await self._load_playlist_queue(str(playlist_id))
-                if not loaded:
-                    return
+                await self._load_playlist_queue(str(playlist_id))
+                return
             if self.playback.queue:
                 try:
                     status = self.playback.play_queue()

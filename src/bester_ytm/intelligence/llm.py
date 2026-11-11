@@ -6,30 +6,16 @@ import json
 import os
 import re
 import shutil
-import subprocess
-from dataclasses import dataclass
 from threading import Event
 
 import requests
 from pydantic import BaseModel, ValidationError
 
-from .cli_process import CliCancelledError, run_cli
+from . import cli_providers
+from .settings import KNOWN_PROVIDERS, IntelligenceError, IntelligenceSettings
 
-CODEX_TIMEOUT_SECONDS = 180.0
-CLAUDE_TIMEOUT_SECONDS = 180.0
 HTTP_TIMEOUT_SECONDS = 90.0
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5"
-KNOWN_PROVIDERS = ("auto", "heuristic", "codex", "claude", "openai", "anthropic")
-CODEX_MUSIC_INSTRUCTIONS = (
-    "This is a one-shot request for a music player, not a coding task. "
-    "Return only the JSON requested in the prompt. Do not inspect local files, "
-    "run shell commands, invoke skills, or perform agent/session setup or reporting. "
-    "Use web search only when needed to find a radio station's current stream URL."
-)
-
-
-class IntelligenceError(RuntimeError):
-    pass
 
 
 class SuggestedTrack(BaseModel):
@@ -41,14 +27,6 @@ class SuggestedTrack(BaseModel):
 class SuggestedTracks(BaseModel):
     tracks: list[SuggestedTrack]
     name: str = ""
-
-
-@dataclass(frozen=True)
-class IntelligenceSettings:
-    provider: str = "auto"
-    model: str = ""
-    base_url: str = "https://openrouter.ai/api/v1"
-    api_key_env: str = "OPENROUTER_API_KEY"
 
 
 def resolve_provider(settings: IntelligenceSettings) -> str:
@@ -90,9 +68,13 @@ def suggest_playlist(
     provider = resolve_provider(settings)
     prompt = build_prompt(context_lines, count, brief)
     if provider == "codex":
-        return _parse_playlist(_codex_text(settings, prompt, cancel=cancel), source="codex")
+        return _parse_playlist(
+            cli_providers.codex_text(settings, prompt, cancel=cancel), source="codex"
+        )
     if provider == "claude":
-        return _parse_playlist(_claude_text(settings, prompt, cancel=cancel), source="claude")
+        return _parse_playlist(
+            cli_providers.claude_text(settings, prompt, cancel=cancel), source="claude"
+        )
     if provider == "openai":
         return _suggest_via_openai(settings, prompt)
     if provider == "anthropic":
@@ -126,91 +108,6 @@ def build_prompt(context_lines: list[str], count: int, brief: str) -> str:
         '{"name": "...", "tracks": [{"artist": "...", "title": "...", "reason": "..."}]}'
     )
     return "\n\n".join(parts)
-
-
-def _codex_text(settings: IntelligenceSettings, prompt: str, *, cancel: Event | None = None) -> str:
-    """Raw codex exec output for a prompt; raises IntelligenceError."""
-    codex = shutil.which("codex")
-    if not codex:
-        raise IntelligenceError("codex CLI is not installed or not on PATH")
-    cmd = [
-        codex,
-        "exec",
-        "--skip-git-repo-check",
-        "--sandbox",
-        "read-only",
-        "--color",
-        "never",
-        "-c",
-        'model_reasoning_effort="medium"',
-        "-c",
-        "skills.include_instructions=false",
-        "-c",
-        f"developer_instructions={json.dumps(CODEX_MUSIC_INSTRUCTIONS)}",
-    ]
-    if settings.model:
-        cmd += ["-m", settings.model]
-    cmd.append(prompt)
-    try:
-        result = run_cli(cmd, timeout=CODEX_TIMEOUT_SECONDS, cancel=cancel)
-    except (CliCancelledError, OSError) as exc:
-        raise IntelligenceError(str(exc)) from exc
-    except subprocess.TimeoutExpired as exc:
-        raise IntelligenceError(
-            f"codex did not answer within {int(CODEX_TIMEOUT_SECONDS)}s"
-        ) from exc
-    if result.returncode != 0:
-        raise IntelligenceError(
-            f"codex exec failed (exit {result.returncode}): {_stderr_summary(result.stderr)}"
-        )
-    return result.stdout
-
-
-def _claude_text(
-    settings: IntelligenceSettings,
-    prompt: str,
-    *,
-    web_access: bool = False,
-    cancel: Event | None = None,
-) -> str:
-    """Raw claude -p output for a prompt; raises IntelligenceError.
-
-    Uses the Claude Code CLI print mode, riding the user's existing claude
-    login without user settings or tools beyond the requested web access.
-    """
-    claude = shutil.which("claude")
-    if not claude:
-        raise IntelligenceError("claude CLI is not installed or not on PATH")
-    cmd = [claude, "-p", "--output-format", "text", "--setting-sources", "", "--tools"]
-    cmd.append("WebSearch,WebFetch" if web_access else "")
-    if web_access:
-        cmd += ["--allowedTools", "WebSearch,WebFetch"]
-    cmd += ["--disable-slash-commands", "--strict-mcp-config"]
-    if settings.model:
-        cmd += ["--model", settings.model]
-    cmd.append(prompt)
-    try:
-        result = run_cli(cmd, timeout=CLAUDE_TIMEOUT_SECONDS, cancel=cancel)
-    except (CliCancelledError, OSError) as exc:
-        raise IntelligenceError(str(exc)) from exc
-    except subprocess.TimeoutExpired as exc:
-        raise IntelligenceError(
-            f"claude did not answer within {int(CLAUDE_TIMEOUT_SECONDS)}s"
-        ) from exc
-    if result.returncode != 0:
-        raise IntelligenceError(
-            f"claude -p failed (exit {result.returncode}): {_stderr_summary(result.stderr)}"
-        )
-    return result.stdout
-
-
-def _stderr_summary(stderr: str) -> str:
-    """The decisive error is printed last; startup log noise comes first."""
-    lines = [line.strip() for line in stderr.strip().splitlines() if line.strip()]
-    if not lines:
-        return "no error output"
-    errors = [line for line in lines if "ERROR" in line]
-    return (errors[-1] if errors else lines[-1])[:300]
 
 
 def _suggest_via_openai(settings: IntelligenceSettings, prompt: str) -> SuggestedTracks:

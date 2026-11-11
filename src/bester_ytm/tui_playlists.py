@@ -110,8 +110,8 @@ class PlaylistLoadActions:
         """Queue or playback state the user builds cancels any in-flight deferred load."""
         self._queue_load_id += 1
 
-    async def _load_playlist_queue(self, playlist_id: str, *, authenticated: bool = True) -> bool:
-        """Start fetching playlist tracks off the UI thread; returns False (deferred)."""
+    async def _load_playlist_queue(self, playlist_id: str, *, authenticated: bool = True) -> None:
+        """Fetch playlist tracks off the UI thread and fill the queue when they arrive."""
         self._set_status("Loading playlist tracks...")
         self._queue_load_id += 1
         self.run_worker(
@@ -126,7 +126,6 @@ class PlaylistLoadActions:
             group="playlist-load",
             thread=True,
         )
-        return False
 
     def _playlist_load_worker(
         self, playlist_id: str, authenticated: bool, play_after: bool, load_id: int

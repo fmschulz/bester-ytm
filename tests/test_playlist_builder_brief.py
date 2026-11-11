@@ -5,18 +5,10 @@ from unittest.mock import Mock
 import pytest
 
 from bester_ytm import playlist_builder as builder_module
-from bester_ytm.intelligence.llm import (
-    IntelligenceError,
-    IntelligenceSettings,
-    SuggestedTrack,
-    SuggestedTracks,
-)
-from bester_ytm.playlist_builder import (
-    PlaylistBuilder,
-    PlaylistBuildError,
-    count_from_brief,
-    name_from_brief,
-)
+from bester_ytm.intelligence.llm import SuggestedTrack, SuggestedTracks
+from bester_ytm.intelligence.settings import IntelligenceError, IntelligenceSettings
+from bester_ytm.playlist_brief import count_from_brief, name_from_brief
+from bester_ytm.playlist_builder import PlaylistBuilder, PlaylistBuildError
 from bester_ytm.playlist_plan import PlaylistPlan, SeedTrack, SongCandidate
 from bester_ytm.stores import FavoritesStore
 

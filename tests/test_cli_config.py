@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from bester_ytm import config
+from bester_ytm import config_writer
 from bester_ytm.cli import app
 from bester_ytm.config import get_paths
 
@@ -122,7 +122,7 @@ def test_config_show_omits_empty_tables(tmp_path: Path, monkeypatch: pytest.Monk
 def test_public_toml_helpers_round_trip(
     tmp_path: Path, key: str, value: bool | int | float | str
 ) -> None:
-    scalar = config.toml_scalar(tmp_path / "config.toml", key, value)
-    text = f"{config.toml_key(key)} = {scalar}"
+    scalar = config_writer.toml_scalar(tmp_path / "config.toml", key, value)
+    text = f"{config_writer.toml_key(key)} = {scalar}"
 
     assert tomllib.loads(text) == {key: value}

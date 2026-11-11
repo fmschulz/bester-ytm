@@ -57,6 +57,10 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "bester_ytm.tui_library",
+    "bester_ytm.tui_favorites",
+    "bester_ytm.tui_focus",
+    "bester_ytm.tui_queue_render",
+    "bester_ytm.tui_shell",
     "bester_ytm.tui_playback",
     "bester_ytm.tui_effects",
     "bester_ytm.tui_selection",

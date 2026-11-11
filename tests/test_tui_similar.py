@@ -5,7 +5,7 @@ import asyncio
 from fakes import FakeListView, FakePlayback, FakeStatic
 
 from bester_ytm import tui_similar
-from bester_ytm.intelligence.llm import IntelligenceError, IntelligenceSettings
+from bester_ytm.intelligence.settings import IntelligenceError, IntelligenceSettings
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.tui import BesterYTMApp
 

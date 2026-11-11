@@ -649,7 +649,7 @@ def test_build_playlist_reports_build_errors(monkeypatch, tmp_path) -> None:
 
 
 def test_build_playlist_from_brief_runs_in_background_with_feedback(monkeypatch, tmp_path) -> None:
-    from bester_ytm.intelligence.llm import IntelligenceSettings
+    from bester_ytm.intelligence.settings import IntelligenceSettings
 
     class FakeBriefBuilder:
         last: dict[str, object] = {}

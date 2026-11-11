@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .config import ConfigError, get_paths, load_config_document, rewrite_config_sections
+from .config import ConfigError, get_paths, load_config_document
+from .config_writer import rewrite_config_sections
 
 DEFAULT_VISUALIZER = "astra"
 DEFAULT_THEME = "astra"

@@ -68,10 +68,6 @@ class SelectionActions:
         video_id = candidate.video_id
         selected = video_id not in self.selected_result_video_ids
         self._mark_selection_item(item, selected)
-        if selected and self.result_selection_anchor_video_id is None:
-            self.result_selection_anchor_video_id = video_id
-        elif not selected and self.result_selection_anchor_video_id == video_id:
-            self.result_selection_anchor_video_id = self._first_selected_result_video_id()
         count = len(self.selected_result_video_ids)
         self._set_status(f"{count} track(s) selected; Enter queues them in order.")
         return True
@@ -150,11 +146,18 @@ class SelectionActions:
         candidate = self._selection_candidate(item)
         if candidate is None:
             return
-        if selected:
-            self.selected_result_video_ids.add(candidate.video_id)
-        else:
-            self.selected_result_video_ids.discard(candidate.video_id)
+        self._mark_selected(candidate.video_id, selected)
         self._render_selection_item(item, selected)
+
+    def _mark_selected(self, video_id: str, selected: bool) -> None:
+        if selected:
+            self.selected_result_video_ids.add(video_id)
+            if self.result_selection_anchor_video_id is None:
+                self.result_selection_anchor_video_id = video_id
+        else:
+            self.selected_result_video_ids.discard(video_id)
+            if self.result_selection_anchor_video_id == video_id:
+                self.result_selection_anchor_video_id = self._first_selected_result_video_id()
 
     def _render_selection_item(self, item: object, selected: bool) -> None:
         if isinstance(getattr(item, "data", None), dict):

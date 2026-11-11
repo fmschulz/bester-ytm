@@ -7,7 +7,8 @@ import time
 from functools import partial
 
 from .config import ConfigError
-from .intelligence.llm import IntelligenceError, resolve_provider
+from .intelligence.llm import resolve_provider
+from .intelligence.settings import IntelligenceError
 from .intelligence.station_finder import find_station
 from .playback import PlaybackError
 from .playlist_plan import PlannedTrack, SongCandidate

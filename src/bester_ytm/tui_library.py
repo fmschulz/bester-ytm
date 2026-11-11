@@ -1,15 +1,14 @@
-"""Search, result loading, and focus-preservation actions for the TUI."""
+"""Search the music library and load result snapshots into the queue."""
 
 from __future__ import annotations
 
 from functools import partial
 
 from textual.content import Content
-from textual.widgets import Input, ListView, Static, TextArea
+from textual.widgets import Input, ListView, Static
 
 from .config import ConfigError
 from .local_files import local_search_items
-from .playback import PlaybackError
 from .playlist_plan import SongCandidate
 from .radio import RadioError, station_search_items
 from .search_query import ParsedSearch, SearchItem, parse_search_query
@@ -20,7 +19,7 @@ from .ytm_client import PlaylistSnapshot, YTMClientError
 
 
 class LibraryActions:
-    """Mixin with search, result loading, and current-track lookup helpers."""
+    """Mixin with library searches and queue snapshot loading."""
 
     selected_queue_index: int | None
     result_selection_anchor_video_id: str | None
@@ -30,15 +29,7 @@ class LibraryActions:
     active_youtube_playlist_id: str | None
     _pending_playlist_delete: str | None
     _results_load_id: int
-    _results_focus_snapshot: tuple[object | None, str | None]
-    _favorites_query: str | None = None
-
-    async def action_show_favorites(self) -> None:
-        self.action_leave_stage()
-        search = self._query_optional("#search", Input)
-        if search is not None:
-            search.value = "favs:"
-        await self._search("favs:")
+    _favorites_query: str | None
 
     def _update_library_summary(self, title: str, empty_message: str = "") -> None:
         pane = self._query_optional("#left")
@@ -156,19 +147,6 @@ class LibraryActions:
             )
             self._set_status(f"{len(items)} {parsed.view} result(s).")
 
-    def _update_favorites_summary(self, count: int) -> None:
-        self._update_library_summary(
-            f"Favorites / {count} saved locally",
-            (
-                "No matching favorites. Edit favs: to change the filter."
-                if self._favorites_query
-                else "Your favorites live here. Highlight a song and press f to save it.\n"
-                "Use Favorite playing to save the current track. No account needed."
-            )
-            if count == 0
-            else "",
-        )
-
     async def _refresh_local_playlist_library(self, highlight_id: str | None = None) -> None:
         """Repopulate the left pane with local playlists (offline; no YouTube fetch) so a
         freshly built or saved playlist appears at once; highlight the named one if given."""
@@ -272,173 +250,3 @@ class LibraryActions:
         self._update_track_label(NO_TRACK)
         self._show_playing_favorite(False)
         await self._render_queue()
-
-    def _favorite_video_ids(self) -> set[str]:
-        """Faved ids for row markers; a corrupt store degrades to a status message."""
-        try:
-            return FavoritesStore().ids()
-        except ConfigError as exc:
-            self._report_error(str(exc))
-            return set()
-
-    def _refresh_favorite_markers(self, video_id: str, faved: bool) -> None:
-        """Reflect a favorite toggle in the result rows, the queue, and Now Playing."""
-        self._relabel_result_favorite(video_id, faved)
-        tree = self._album_tree()
-        if tree is not None:
-            favorite_ids = self._favorite_video_ids()
-            for album in tree.root.children:
-                for node in self._song_children(album):
-                    if self._song_candidate(node).video_id == video_id:
-                        node.set_label(
-                            self._song_label(
-                                self._song_candidate(node),
-                                video_id in self.selected_result_video_ids,
-                                favorite_ids,
-                            )
-                        )
-        if self._favorites_query is not None:
-            self.run_worker(
-                self._refresh_favorites_view(self._results_load_id),
-                exclusive=True,
-                group="favorites-refresh",
-            )
-        self.run_worker(self._render_queue(), exclusive=True, group="queue-render")
-        current = self.current_candidate
-        if current is not None and current.video_id == video_id:
-            self._show_playing_favorite(faved)
-
-    async def _refresh_favorites_view(self, load_id: int) -> None:
-        """Keep the filter, cursor and surviving selections when a favorite changes."""
-        if load_id != self._results_load_id or self._favorites_query is None:
-            return
-        results = self.query_one("#results", ListView)
-        highlighted = self._highlighted_result_candidate()
-        index = getattr(results, "index", 0) or 0
-        try:
-            items = FavoritesStore().search_items(self._favorites_query)
-        except ConfigError as exc:
-            self._report_error(str(exc))
-            return
-        ids = [item.candidate.video_id for item in items if item.candidate]
-        self.selected_result_video_ids.intersection_update(ids)
-        if self.result_selection_anchor_video_id not in self.selected_result_video_ids:
-            self.result_selection_anchor_video_id = next(
-                (video_id for video_id in ids if video_id in self.selected_result_video_ids), None
-            )
-        await results.clear()
-        rows: list[ResultRow] = []
-        favorite_ids = set(ids)
-        for search_item in items:
-            item = self._result_item(search_item, favorite_ids)
-            candidate = item.candidate
-            item.marked = bool(candidate and candidate.video_id in self.selected_result_video_ids)
-            rows.append(item)
-        if load_id != self._results_load_id:
-            return
-        await results.extend(rows)
-        if ids:
-            results.index = (
-                ids.index(highlighted.video_id)
-                if highlighted is not None and highlighted.video_id in ids
-                else min(index, len(ids) - 1)
-            )
-        self._update_favorites_summary(len(items))
-
-    def _relabel_result_favorite(self, video_id: str, faved: bool) -> None:
-        results = self._query_optional("#results", ListView)
-        if results is None:
-            return
-        for item in getattr(results, "children", []):
-            candidate = getattr(item, "candidate", None)
-            if candidate is not None and candidate.video_id == video_id:
-                item.favorite = faved
-
-    def _focus_first_result(self, results: ListView, has_items: bool) -> None:
-        if not has_items:
-            return
-        try:
-            results.index = 0
-        except AttributeError:
-            pass
-        if self._input_focus_changed_since_load():
-            return  # the user is typing in an input; do not yank focus away
-        focus = getattr(results, "focus", None)
-        if callable(focus):
-            focus()
-
-    def _note_results_focus(self) -> None:
-        """Record focus at load start so a deferred completion can tell whether
-        the user has since focused or typed into an input."""
-        self._results_focus_snapshot = self._focus_snapshot()
-        self._favorites_query = None
-
-    def _focus_snapshot(self) -> tuple[object | None, str | None]:
-        try:
-            focused = self.focused
-        except Exception:
-            return (None, None)
-        value: str | None = None
-        if isinstance(focused, Input):
-            value = focused.value
-        elif isinstance(focused, TextArea):
-            value = focused.text
-        return (focused, value)
-
-    def _input_focus_changed_since_load(self) -> bool:
-        focused, value = self._focus_snapshot()
-        if not isinstance(focused, (Input, TextArea)):
-            return False
-        baseline_widget, baseline_value = self._results_focus_snapshot
-        return focused is not baseline_widget or value != baseline_value
-
-    def _highlighted_queue_index(self) -> int | None:
-        try:
-            focused = self.focused
-        except Exception:
-            focused = None
-        queue = self._query_optional("#queue", ListView)
-        if queue and getattr(focused, "id", None) == "queue":
-            return queue.index
-        return self.selected_queue_index
-
-    def _highlighted_queue_video_id(self) -> str | None:
-        index = self._highlighted_queue_index()
-        order = self.playlist_video_ids or self.playback.queue
-        return order[index] if index is not None and 0 <= index < len(order) else None
-
-    def _highlighted_result_candidate(self):
-        if self._album_tree_active():
-            tree = self._album_tree()
-            return self._selection_candidate(getattr(tree, "cursor_node", None))
-        results = self._query_optional("#results", ListView)
-        item = getattr(results, "highlighted_child", None) if results else None
-        return getattr(item, "candidate", None) if item else None
-
-    def _current_video_id(self) -> str | None:
-        if self._focus_context() == "results":
-            candidate = self._highlighted_result_candidate()
-            return candidate.video_id if candidate else None
-        highlighted = self._highlighted_queue_video_id()
-        if highlighted:
-            return highlighted
-        result_candidate = self._highlighted_result_candidate()
-        if result_candidate:
-            return result_candidate.video_id
-        if self.current_candidate:
-            return self.current_candidate.video_id
-        try:
-            return self.playback.status().current_video_id
-        except PlaybackError:
-            return None
-
-    def _current_candidate(self):
-        if self._focus_context() == "results":
-            return self._highlighted_result_candidate()
-        video_id = self._current_video_id()
-        if video_id and video_id in self.candidates_by_video_id:
-            return self.candidates_by_video_id[video_id]
-        result_candidate = self._highlighted_result_candidate()
-        if result_candidate:
-            return result_candidate
-        return self.current_candidate

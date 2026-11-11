@@ -19,11 +19,18 @@ Every ytmusicapi response is converted to pydantic models (`ytm_models.py`) at
 the `ytm_client` boundary, so nothing above it depends on raw API shapes. The
 only other module that uses ytmusicapi is `auth.py`, for login setup.
 
+`tui_shell.py` holds workspace actions. `tui_focus.py` tracks focus during
+deferred loads, `tui_favorites.py` keeps the favorites view and markers in sync,
+and `tui_queue_render.py` draws queue rows and keeps their cursor in place.
+`tui_selection.py` owns song marks and the range anchor in result rows and album trees.
+
 ## Playback: the dual-deck transition engine
 
 Playback runs mpv with video output disabled, controlled over a JSON IPC Unix
-socket (`mpv_ipc.py`). YouTube tracks prefer HLS audio, then the smallest HLS
-video stream with audio; ordinary audio streams remain the final fallback.
+socket (`mpv_ipc.py`). `playback_monitor.py` reads status and detects playback
+failure and early stream ends for `PlaybackController`. YouTube tracks prefer
+HLS audio, then the smallest HLS video stream with audio; ordinary audio
+streams remain the final fallback.
 The extractor uses its default clients plus the embedded web client, which
 provides segmented streams when direct audio requests fail. Both live and
 prebuffer decks use this path. Transitions run up to two mpv processes at
@@ -92,13 +99,19 @@ the seek bar (`tui_player.py`) records each track's loudness on a fixed -42 to
 ```text
 seeds (favorites, pasted text) or a prose brief
   -> intelligence provider (heuristic | codex | claude | openai | anthropic)
-  -> resolver (search candidates, penalize live/cover/remix, confidence)
+  -> resolver (search candidates, filter live/cover/remix unless allowed, confidence)
   -> plan JSON and Markdown in ~/.local/share/bester-ytm/plans/
   -> playlist create or update through ytm_client -> check against the plan
 ```
 
 Low-confidence matches are recorded in the plan for review, not accepted
 silently.
+
+`playlist_brief.py` parses track counts and playlist names from briefs.
+`intelligence/settings.py` holds provider settings and errors;
+`intelligence/cli_providers.py` runs Codex and Claude, while `intelligence/llm.py`
+builds prompts, parses track lists, and calls API providers. `HeuristicProvider`
+builds offline plans as a plain class.
 
 ## Storage and configuration
 
@@ -110,7 +123,8 @@ silently.
 ```
 
 `config.py` owns all paths (XDG-aware) and enforces private file modes.
-`save_transition_settings` refuses to rewrite a config file that contains
+`config_writer.py` writes TOML through those private file helpers.
+Its `save_transition_settings` refuses to rewrite a config file that contains
 sections it does not own, so it never destroys user edits.
 
 ## Testing

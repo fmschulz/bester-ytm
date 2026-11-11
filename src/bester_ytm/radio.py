@@ -137,7 +137,8 @@ def add_station(name: str, stream_url: str, key: str = "") -> RadioStation:
     built-in under a different display name.
     """
     # Imported here: config -> transitions -> deck -> radio at module load.
-    from .config import get_paths, load_config_document, rewrite_config_sections
+    from .config import get_paths, load_config_document
+    from .config_writer import rewrite_config_sections
 
     display = name.strip()
     url = stream_url.strip()

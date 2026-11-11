@@ -7,15 +7,9 @@ import re
 
 from pydantic import BaseModel, ValidationError
 
-from .llm import (
-    DEFAULT_ANTHROPIC_MODEL,
-    IntelligenceError,
-    IntelligenceSettings,
-    _claude_text,
-    _codex_text,
-    _openai_text,
-    resolve_provider,
-)
+from . import cli_providers
+from .llm import DEFAULT_ANTHROPIC_MODEL, _openai_text, resolve_provider
+from .settings import IntelligenceError, IntelligenceSettings
 
 MANUAL_ADD_HINT = (
     "add it manually to ~/.config/bester-ytm/config.toml:\n"
@@ -50,9 +44,11 @@ def find_station(settings: IntelligenceSettings, request: str) -> SuggestedStati
     provider = resolve_provider(settings)
     prompt = station_prompt(request)
     if provider == "codex":
-        return _parse_station(_codex_text(settings, prompt), source="codex")
+        return _parse_station(cli_providers.codex_text(settings, prompt), source="codex")
     if provider == "claude":
-        return _parse_station(_claude_text(settings, prompt, web_access=True), source="claude")
+        return _parse_station(
+            cli_providers.claude_text(settings, prompt, web_access=True), source="claude"
+        )
     if provider == "openai":
         return _parse_station(_openai_text(settings, prompt), source=settings.model)
     if provider == "anthropic":

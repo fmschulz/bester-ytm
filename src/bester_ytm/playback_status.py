@@ -9,7 +9,6 @@ from dataclasses import dataclass
 class PlaybackStatus:
     running: bool
     current_video_id: str | None = None
-    queue_size: int = 0
     paused: bool = False
     position_seconds: float | None = None
     duration_seconds: float | None = None

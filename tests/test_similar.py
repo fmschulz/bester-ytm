@@ -3,7 +3,8 @@ from __future__ import annotations
 import pytest
 
 from bester_ytm import similar
-from bester_ytm.intelligence.llm import IntelligenceError, IntelligenceSettings, SuggestedTrack
+from bester_ytm.intelligence.llm import SuggestedTrack
+from bester_ytm.intelligence.settings import IntelligenceError, IntelligenceSettings
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.similar import find_similar_candidates
 from bester_ytm.ytm_client import YTMClientError
@@ -87,7 +88,8 @@ def test_empty_seeds_are_rejected() -> None:
 
 def test_brief_reaches_the_ai_and_stands_alone_without_seeds(monkeypatch) -> None:
     from bester_ytm import similar as similar_module
-    from bester_ytm.intelligence.llm import IntelligenceSettings, SuggestedTrack
+    from bester_ytm.intelligence.llm import SuggestedTrack
+    from bester_ytm.intelligence.settings import IntelligenceSettings
 
     captured: dict = {}
 
@@ -121,7 +123,7 @@ def test_brief_reaches_the_ai_and_stands_alone_without_seeds(monkeypatch) -> Non
 
 def test_heuristic_without_seeds_rejects_briefs(monkeypatch) -> None:
     from bester_ytm import similar as similar_module
-    from bester_ytm.intelligence.llm import IntelligenceError, IntelligenceSettings
+    from bester_ytm.intelligence.settings import IntelligenceError, IntelligenceSettings
 
     monkeypatch.setattr(similar_module, "resolve_provider", lambda settings: "heuristic")
 

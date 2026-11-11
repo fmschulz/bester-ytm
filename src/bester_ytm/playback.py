@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import math
 import os
 import shutil
 import signal
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import playback_monitor
 from .deck import remove_socket_file, spawn_mpv, terminate_process
 from .local_files import is_local_video_id
-from .mpv_ipc import MpvCommandError, MpvIpcClient, MpvIpcError, rms_db_from_astats
+from .mpv_ipc import MpvIpcClient, MpvIpcError
 from .playback_status import PlaybackStatus  # noqa: F401  (re-exported)
 from .radio import RadioError, is_radio_video_id
 from .transitions import (
@@ -26,14 +25,6 @@ from .transitions import (
 
 class PlaybackError(RuntimeError):
     pass
-
-
-def _available(read: Callable[[str], float | None], name: str) -> float | None:
-    """A property value, or None while mpv has none yet (a track that still loads)."""
-    try:
-        return read(name)
-    except MpvCommandError:
-        return None
 
 
 @dataclass
@@ -285,121 +276,17 @@ class PlaybackController:
         self._paused_via_signal = False
 
     def status(self) -> PlaybackStatus:
-        self.tick()
-        self._check_playback_failure()
-        running = bool(self.process and self.process.poll() is None)
-        position = None
-        duration = None
-        volume = None
-        muted = False
-        paused = self.paused and running
-        # A SIGSTOP-paused mpv cannot answer IPC; skip the poll so status
-        # returns promptly with the cached paused state instead of wedging.
-        if running and self.ipc_socket and not self._paused_via_signal:
-            client = self._live_client()
-            try:
-                sampled_at = time.monotonic()
-                position = _available(client.get_float, "time-pos")
-                if not is_radio_video_id(self.current_video_id or ""):
-                    # mpv reports a live stream's buffered extent as a growing duration.
-                    duration = _available(client.get_float, "duration")
-                self._cache_timing(position, duration, client.get_float("speed"), sampled_at)
-                volume = client.get_float("volume")
-                muted = bool(client.get_property("mute"))
-                paused = bool(client.get_property("pause"))
-                self.paused = paused
-                self.muted = muted
-            except MpvIpcError:
-                # The live mpv may be mid-teardown; report what is known.
-                pass
-        if self._is_mixing():
-            # Report the user-facing level, not the mid-ramp deck volume.
-            volume = self.master_volume
-        return PlaybackStatus(
-            running=running,
-            current_video_id=self.current_video_id if running else None,
-            queue_size=len(self.queue),
-            paused=paused,
-            position_seconds=position,
-            duration_seconds=duration,
-            volume=volume,
-            muted=muted,
-            transition_style=self.transition.style.value,
-            fade_seconds=self.transition.fade_seconds,
-            mix_progress=eng.mix_progress if (eng := self._engine) and eng.is_mixing else None,
-            active_deck=self.active_deck,
-            transition_error=self.last_transition_error,
-            playback_error=self.playback_error,
-            process_id=self.process.pid if running and self.process else None,
-        )
+        return playback_monitor.read_status(self)
 
     def read_audio_level_db(self) -> float | None:
         """Current overall RMS loudness in dB from the live deck, if available."""
-        if not self.process or self.process.poll() is not None or not self.ipc_socket:
-            return None
-        if self._paused_via_signal:
-            return None
-        try:
-            # Polled every visual frame (~50ms); a slow reply must not stall the tick.
-            metadata = self._live_client().get_property("af-metadata/astats", 0.05)
-        except MpvIpcError:
-            return None
-        return rms_db_from_astats(metadata)
+        return playback_monitor.read_audio_level(self)
 
     def consume_transition_error(self) -> str | None:
-        """Return and clear the pending mix-failure message; status() only reports it."""
-        error = self.last_transition_error
-        self.last_transition_error = None
-        return error
-
-    def _cache_timing(
-        self, position: float | None, duration: float | None, speed: float | None, sampled_at: float
-    ) -> None:
-        if self.process is self._seeked_process:
-            return
-        if any(value is None or not math.isfinite(value) for value in (position, duration, speed)):
-            return
-        assert position is not None and duration is not None and speed is not None
-        if position < 0 or duration <= 0 or speed <= 0:
-            return
-        self._timing_process = self.process
-        self._timing_sample = (position, duration, speed, sampled_at)
-
-    def _check_playback_failure(self) -> bool:
-        if self.playback_error:
-            return True
-        if self.process is None:
-            return False
-        exit_code = self.process.poll()
-        if exit_code is None:
-            return False
-        reason = f"mpv exited with exit code {exit_code}" if exit_code else None
-        if exit_code == 0 and self.process is self._timing_process and self._timing_sample:
-            position, duration, speed, sampled_at = self._timing_sample
-            elapsed = time.monotonic() - sampled_at
-            # Old samples cannot distinguish a complete track from a lost stream.
-            # Allow twice the sampled speed plus five seconds for timing jitter.
-            if 0 <= elapsed <= 10 and duration - position > elapsed * speed * 2 + 5:
-                reason = "the audio stream ended early"
-        if reason is None:
-            return False
-        self.playback_error = f"Playback failed: {reason}. Retry or choose next."
-        self.stop()
-        self._engine = None
-        return True
+        return playback_monitor.consume_transition_error(self)
 
     def tick(self) -> None:
-        if self._check_playback_failure():
-            return
-        if self._paused_via_signal:
-            # A stopped mpv cannot answer the engine's timing reads, and
-            # pause_resume() snapped any active fade before signalling.
-            return
-        if self.transition.style is TransitionStyle.CUT:
-            if self._engine is not None:
-                self._engine.discard_idle_deck()
-            return
-        self._ensure_engine().tick()
+        playback_monitor.tick(self)
 
     def set_transition_style(self, style: TransitionStyle) -> TransitionSettings:
         if style is TransitionStyle.CUT and self._engine is not None:

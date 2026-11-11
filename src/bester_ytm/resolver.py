@@ -50,7 +50,6 @@ def variant_term(title: str) -> str | None:
 def rank_candidate(
     target: PlannedTrack,
     candidate: SongCandidate,
-    allow_variants: bool = False,
 ) -> RankedCandidate:
     title_score = _similarity(target.title, candidate.title)
     artist_text = " ".join(candidate.artists)
@@ -70,11 +69,6 @@ def rank_candidate(
     if candidate.result_type and "song" in candidate.result_type.casefold():
         score += 0.05
         reasons.append("song result")
-
-    variant = variant_term(candidate.title)
-    if variant and not allow_variants:
-        score -= 0.35
-        reasons.append(f"penalized {variant} variant")
 
     if candidate.duration_seconds is not None:
         if 60 <= candidate.duration_seconds <= 600:
@@ -108,10 +102,7 @@ class Resolver:
         ]
         if not viable:
             return None
-        ranked = [
-            rank_candidate(target, candidate, allow_variants=self.allow_variants)
-            for candidate in viable
-        ]
+        ranked = [rank_candidate(target, candidate) for candidate in viable]
         ranked.sort(key=lambda item: item.score, reverse=True)
         if ranked[0].score < min_score:
             return None

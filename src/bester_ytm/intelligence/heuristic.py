@@ -3,10 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from ..playlist_plan import PlannedTrack, PlaylistPlan, SeedTrack, SongCandidate, new_plan_id
-from .base import IntelligenceProvider
 
 
-class HeuristicProvider(IntelligenceProvider):
+class HeuristicProvider:
     """Deterministic fallback provider using seeds and YouTube Music related tracks."""
 
     def build_playlist_plan(

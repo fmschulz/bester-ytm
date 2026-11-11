@@ -1,4 +1,7 @@
-from .base import IntelligenceProvider
+"""Offline playlist planning provider."""
+
+from __future__ import annotations
+
 from .heuristic import HeuristicProvider
 
-__all__ = ["HeuristicProvider", "IntelligenceProvider"]
+__all__ = ["HeuristicProvider"]

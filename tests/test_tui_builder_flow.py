@@ -16,8 +16,8 @@ from bester_ytm import playlist_builder as builder_module
 from bester_ytm.cli import app as cli_app
 from bester_ytm.config import get_paths
 from bester_ytm.config_options import AppOptions
-from bester_ytm.intelligence import llm
-from bester_ytm.intelligence.llm import IntelligenceSettings
+from bester_ytm.intelligence import cli_providers
+from bester_ytm.intelligence.settings import IntelligenceSettings
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.stores import FavoritesStore, PlanStore
 from bester_ytm.tui import BesterYTMApp
@@ -123,7 +123,7 @@ def test_brief_build_resolves_30_songs_with_requested_favorite_context(
             }
         )
     )
-    monkeypatch.setattr(llm, "_codex_text", ai)
+    monkeypatch.setattr(cli_providers, "codex_text", ai)
 
     plan, message = BesterYTMApp()._run_playlist_build(*_normalize_build_inputs(brief, ""))
 

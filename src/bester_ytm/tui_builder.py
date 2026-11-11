@@ -13,13 +13,10 @@ from textual.widgets import TextArea
 
 from .config import ConfigError, resolve_existing_input
 from .config_options import AppOptions
-from .intelligence.llm import IntelligenceError, IntelligenceSettings, resolve_provider
-from .playlist_builder import (
-    PlaylistBuilder,
-    PlaylistBuildError,
-    count_from_brief,
-    name_from_brief,
-)
+from .intelligence.llm import resolve_provider
+from .intelligence.settings import IntelligenceError, IntelligenceSettings
+from .playlist_brief import count_from_brief, name_from_brief
+from .playlist_builder import PlaylistBuilder, PlaylistBuildError
 from .playlist_plan import PlaylistPlan, parse_seed_text
 from .stores import PlanStore
 from .tui_radio import parse_add_station_request

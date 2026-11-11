@@ -56,10 +56,9 @@ class WorkspaceScreen(Screen):
     """Restore responsive classes after resizing with a modal on top."""
 
     def on_screen_resume(self) -> None:
-        self.set_class(self.app.size.width < 110, "compact")
-        self.set_class(self.app.size.height < 35, "short")
-
         app = cast("BesterYTMApp", self.app)
+        self.set_class(app.size.width < app.HORIZONTAL_BREAKPOINTS[1][0], "compact")
+        self.set_class(app.size.height < app.VERTICAL_BREAKPOINTS[1][0], "short")
         app.call_after_refresh(app._resize_pane_labels)
 
 

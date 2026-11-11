@@ -194,7 +194,8 @@ def test_now_playing_display_variants() -> None:
 def test_settings_rewrite_preserves_radio_stations_section(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from bester_ytm.config import load_config_document, rewrite_config_sections
+    from bester_ytm.config import load_config_document
+    from bester_ytm.config_writer import rewrite_config_sections
 
     config = tmp_path / "config.toml"
     config.write_text(

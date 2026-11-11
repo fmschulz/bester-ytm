@@ -8,8 +8,9 @@ from threading import Event
 from textual import events
 from textual.timer import Timer
 
-from .intelligence.llm import IntelligenceError, IntelligenceSettings, resolve_provider
-from .playlist_builder import count_from_brief
+from .intelligence.llm import resolve_provider
+from .intelligence.settings import IntelligenceError, IntelligenceSettings
+from .playlist_brief import count_from_brief
 from .playlist_plan import SongCandidate
 from .radio import is_radio_video_id
 from .similar import SIMILAR_COUNT, find_similar_candidates

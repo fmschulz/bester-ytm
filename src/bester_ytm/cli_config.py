@@ -11,10 +11,9 @@ from .config import (
     load_config_document,
     load_intelligence_settings,
     load_transition_settings,
-    toml_key,
-    toml_scalar,
 )
 from .config_options import load_app_options
+from .config_writer import toml_key, toml_scalar
 
 console = Console(soft_wrap=True)
 config_app = typer.Typer(help="Inspect bester-ytm configuration.")

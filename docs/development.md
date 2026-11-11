@@ -31,22 +31,30 @@ publishes a GitHub release with notes from the changelog.
 src/bester_ytm/
 ├── cli.py, cli_play.py, cli_config.py   Typer commands (thin; no API logic)
 ├── tui.py + tui_*.py                    Textual app shell and action mixins
+├── tui_shell.py, tui_focus.py           workspace actions and focus bookkeeping
+├── tui_favorites.py                     favorites view and row markers
+├── tui_queue_render.py                  queue rows, title, and cursor
 ├── tui_canvas.py, tui_stage.py,         the stage: pixel canvas, widget,
 │   tui_visuals.py, tui_astra.py         audio signal, and scenes
 ├── tui_player.py, tui_rows.py           player deck and list rows
 ├── playback.py                          PlaybackController: queue, history, mpv
+├── playback_monitor.py                  status reads and playback failure checks
 ├── transitions.py, deck.py, fader.py    dual-deck crossfade engine
 ├── playback_status.py, transition_settings.py   shared dataclasses
 ├── mpv_ipc.py                           mpv JSON IPC transport
 ├── ytm_client.py + ytm_*.py             YouTube Music access: facade over
 │                                        session, search, library, models
 ├── auth.py, auth_capture.py             logins from browsers, files, pastes
-├── config.py, config_options.py         paths and config.toml
+├── config.py, config_options.py         paths and config.toml reads
+├── config_writer.py                     private config.toml writes
 ├── playlist_plan.py, playlist_builder.py, playlist_create.py, resolver.py
+├── playlist_brief.py                    brief counts, names, and patterns
 ├── stores.py, search_query.py, similar.py
 ├── local_files.py, radio.py             local audio files and web radio
-└── intelligence/                        AI providers (heuristic, codex,
-                                         claude, openai, anthropic)
+└── intelligence/                        heuristic.py: offline plans;
+                                         llm.py: AI suggestions and API calls;
+                                         cli_providers.py: codex and claude calls;
+                                         settings.py: provider settings and errors
 ```
 
 - The UI layers (`cli*`, `tui*`) never call ytmusicapi or spawn mpv; they use

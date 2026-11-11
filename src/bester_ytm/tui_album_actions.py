@@ -44,10 +44,7 @@ class AlbumQueueActions:
     def _toggle_song_node(self, node: TreeNode) -> None:
         candidate = self._song_candidate(node)
         selected = candidate.video_id not in self.selected_result_video_ids
-        self._mark_selected(candidate.video_id, selected)
-        node.set_label(self._song_label(candidate, selected))
-        if node.parent is not None:
-            self._refresh_album_marker(node.parent)
+        self._mark_selection_item(node, selected)
 
     def _toggle_album_node(self, node: TreeNode) -> None:
         candidates = self._album_songs(node)
@@ -70,16 +67,6 @@ class AlbumQueueActions:
             song.video_id in self.selected_result_video_ids for song in songs
         )
         node.set_label(self._album_label(data["item"], all_selected))
-
-    def _mark_selected(self, video_id: str, selected: bool) -> None:
-        if selected:
-            self.selected_result_video_ids.add(video_id)
-            if self.result_selection_anchor_video_id is None:
-                self.result_selection_anchor_video_id = video_id
-        else:
-            self.selected_result_video_ids.discard(video_id)
-            if self.result_selection_anchor_video_id == video_id:
-                self.result_selection_anchor_video_id = self._first_selected_result_video_id()
 
     def _reset_album_tree_markers(self) -> None:
         tree = self._album_tree()

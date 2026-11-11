@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from bester_ytm.config import ConfigError, get_paths, save_transition_settings
+from bester_ytm.config import ConfigError, get_paths
 from bester_ytm.config_options import AppOptions, load_app_options, save_ui_options
+from bester_ytm.config_writer import save_transition_settings
 from bester_ytm.transitions import TransitionSettings, TransitionStyle
 
 

@@ -8,10 +8,8 @@ from unittest.mock import Mock
 import anthropic
 import pytest
 
-from bester_ytm.intelligence import llm
+from bester_ytm.intelligence import cli_providers, llm
 from bester_ytm.intelligence.llm import (
-    IntelligenceError,
-    IntelligenceSettings,
     SuggestedTrack,
     SuggestedTracks,
     build_prompt,
@@ -19,6 +17,7 @@ from bester_ytm.intelligence.llm import (
     suggest_playlist,
     suggest_tracks,
 )
+from bester_ytm.intelligence.settings import IntelligenceError, IntelligenceSettings
 
 TRACKS_JSON = (
     '[{"artist": "Machine Head", "title": "Davidian", "reason": "groove metal"},'
@@ -66,7 +65,7 @@ def test_codex_provider_parses_final_json_line(monkeypatch) -> None:
         return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
 
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
-    monkeypatch.setattr(llm, "run_cli", fake_run)
+    monkeypatch.setattr(cli_providers, "run_cli", fake_run)
 
     tracks = suggest_tracks(IntelligenceSettings(provider="codex"), ["A - B"], 2)
 
@@ -83,7 +82,7 @@ def test_codex_provider_parses_named_playlist_object(monkeypatch) -> None:
     )
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
     monkeypatch.setattr(
-        llm,
+        cli_providers,
         "run_cli",
         lambda cmd, **kwargs: SimpleNamespace(returncode=0, stdout=stdout, stderr=""),
     )
@@ -98,7 +97,7 @@ def test_codex_provider_parses_named_playlist_object(monkeypatch) -> None:
 def test_codex_music_call_limits_reasoning_and_skips_project_work(monkeypatch, model) -> None:
     run = Mock(return_value=SimpleNamespace(returncode=0, stdout=TRACKS_JSON, stderr=""))
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
-    monkeypatch.setattr(llm, "run_cli", run)
+    monkeypatch.setattr(cli_providers, "run_cli", run)
 
     tracks = suggest_tracks(IntelligenceSettings(provider="codex", model=model), ["A - B"], 2)
 
@@ -120,7 +119,7 @@ def test_codex_music_call_limits_reasoning_and_skips_project_work(monkeypatch, m
 def test_codex_provider_reports_failure_and_timeout(monkeypatch) -> None:
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
     monkeypatch.setattr(
-        llm,
+        cli_providers,
         "run_cli",
         lambda cmd, **kwargs: SimpleNamespace(returncode=2, stdout="", stderr="login required"),
     )
@@ -130,7 +129,7 @@ def test_codex_provider_reports_failure_and_timeout(monkeypatch) -> None:
     def fake_timeout(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, timeout=1)
 
-    monkeypatch.setattr(llm, "run_cli", fake_timeout)
+    monkeypatch.setattr(cli_providers, "run_cli", fake_timeout)
     with pytest.raises(IntelligenceError, match="did not answer"):
         suggest_tracks(IntelligenceSettings(provider="codex"), [], 2)
 
@@ -145,7 +144,7 @@ def test_codex_failure_surfaces_last_error_not_startup_noise(monkeypatch) -> Non
     )
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
     monkeypatch.setattr(
-        llm,
+        cli_providers,
         "run_cli",
         lambda cmd, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr=stderr),
     )
@@ -155,8 +154,8 @@ def test_codex_failure_surfaces_last_error_not_startup_noise(monkeypatch) -> Non
 
 
 def test_stderr_summary_handles_empty_and_plain_output() -> None:
-    assert llm._stderr_summary("") == "no error output"
-    assert llm._stderr_summary("warming up\nconnection refused\n") == "connection refused"
+    assert cli_providers._stderr_summary("") == "no error output"
+    assert cli_providers._stderr_summary("warming up\nconnection refused\n") == "connection refused"
 
 
 def test_openai_provider_posts_to_compatible_endpoint(monkeypatch) -> None:
@@ -230,7 +229,7 @@ def test_anthropic_provider_wraps_api_errors(monkeypatch) -> None:
 def test_parse_rejects_output_without_json(monkeypatch) -> None:
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/codex")
     monkeypatch.setattr(
-        llm,
+        cli_providers,
         "run_cli",
         lambda cmd, **kwargs: SimpleNamespace(returncode=0, stdout="sorry, no idea", stderr=""),
     )
@@ -242,7 +241,7 @@ def test_resolve_provider_auto_falls_back_to_claude(monkeypatch) -> None:
     monkeypatch.setattr(
         llm.shutil, "which", lambda name: "/usr/bin/claude" if name == "claude" else None
     )
-    assert llm.resolve_provider(llm.IntelligenceSettings()) == "claude"
+    assert llm.resolve_provider(IntelligenceSettings()) == "claude"
 
 
 def test_claude_provider_parses_final_json_line(monkeypatch) -> None:
@@ -251,14 +250,14 @@ def test_claude_provider_parses_final_json_line(monkeypatch) -> None:
     )
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(
-        llm,
+        cli_providers,
         "run_cli",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args, 0, stdout=f"Here you go:\n{payload}\n", stderr=""
         ),
     )
 
-    result = llm.suggest_playlist(llm.IntelligenceSettings(provider="claude"), [], 1, "dub")
+    result = llm.suggest_playlist(IntelligenceSettings(provider="claude"), [], 1, "dub")
 
     assert result.name == "Dub Classics"
     assert result.tracks[0].artist == "King Tubby"
@@ -267,15 +266,15 @@ def test_claude_provider_parses_final_json_line(monkeypatch) -> None:
 def test_claude_provider_reports_failure(monkeypatch) -> None:
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(
-        llm,
+        cli_providers,
         "run_cli",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args, 1, stdout="", stderr="Not logged in"
         ),
     )
 
-    with pytest.raises(llm.IntelligenceError, match="claude -p failed"):
-        llm.suggest_playlist(llm.IntelligenceSettings(provider="claude"), [], 1, "dub")
+    with pytest.raises(IntelligenceError, match="claude -p failed"):
+        llm.suggest_playlist(IntelligenceSettings(provider="claude"), [], 1, "dub")
 
 
 @pytest.mark.parametrize("model", ["", "sonnet"])
@@ -284,7 +283,7 @@ def test_claude_suggestions_use_only_the_music_prompt(
 ) -> None:
     run = Mock(return_value=SimpleNamespace(returncode=0, stdout=TRACKS_JSON, stderr=""))
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
-    monkeypatch.setattr(llm, "run_cli", run)
+    monkeypatch.setattr(cli_providers, "run_cli", run)
 
     suggest_tracks(IntelligenceSettings(provider="claude", model=model), [], 2)
 
