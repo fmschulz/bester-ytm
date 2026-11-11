@@ -51,7 +51,7 @@ class UiOptionsActions:
         try:
             save_ui_options(self.visualizer_effect, left_width, right_width, theme=str(self.theme))
         except ConfigError as exc:
-            self._set_status(f"Settings not saved: {exc}")
+            self._report_error(f"Settings not saved: {exc}")
 
     def _apply_saved_pane_widths(self) -> None:
         for selector, width in (

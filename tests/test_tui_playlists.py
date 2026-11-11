@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from fakes import FakeInput, FakeListView, FakePlayback, FakeStatic
 from rich.cells import cell_len
+from textual.geometry import Size
 from textual.widgets import ListView
 
 from bester_ytm import tui, tui_playlists
@@ -655,7 +656,7 @@ def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) ->
     status = FakeStatic()
     track = FakeStatic()
     playlist_name = FakeInput()
-    queue_pane = SimpleNamespace(border_title=None)
+    queue_pane = SimpleNamespace(border_title=None, outer_size=Size(60, 20))
     widgets = {
         "#results": results,
         "#queue": queue,
@@ -701,7 +702,7 @@ def test_tui_playlist_query_lists_and_loads_local_playlists(monkeypatch, tmp_pat
     status = FakeStatic()
     track = FakeStatic()
     playlist_name = FakeInput()
-    queue_pane = SimpleNamespace(border_title=None)
+    queue_pane = SimpleNamespace(border_title=None, outer_size=Size(60, 20))
     widgets = {
         "#results": results,
         "#queue": queue,
@@ -739,7 +740,7 @@ def test_tui_favorite_and_local_playlist_controls_target_highlighted_queue_song(
     status = FakeStatic()
     track = FakeStatic()
     playlist_name = FakeInput("Selected Tracks")
-    queue_pane = SimpleNamespace(border_title=None)
+    queue_pane = SimpleNamespace(border_title=None, outer_size=Size(60, 20))
     widgets = {
         "#results": results,
         "#queue": queue,

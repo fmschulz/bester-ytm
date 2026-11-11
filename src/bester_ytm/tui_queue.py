@@ -6,6 +6,7 @@ import random
 
 from textual.widgets import Input, ListView
 
+from .config import ConfigError
 from .playback import PlaybackError
 from .playlist_plan import PlaylistPlan, SongCandidate, slugify
 from .stores import LocalPlaylist, LocalPlaylistStore
@@ -45,7 +46,7 @@ class QueueEditActions:
         try:
             status = self.playback.status()
         except PlaybackError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
 
         current = status.current_video_id if status.running else None
@@ -80,14 +81,18 @@ class QueueEditActions:
     async def _load_plan_into_queue(self, plan: PlaylistPlan, message: str) -> None:
         candidates = plan.resolved_candidates()
         if not candidates:
-            self._set_status(f"{message} No resolved tracks to queue.")
+            self._report_error(f"{message} No resolved tracks to queue.")
             return
         self._supersede_queue_load()
         for candidate in candidates:
             self.candidates_by_video_id[candidate.video_id] = candidate
         video_ids = [candidate.video_id for candidate in candidates]
         playlist = LocalPlaylist(id=slugify(plan.name), name=plan.name, tracks=candidates)
-        LocalPlaylistStore().save(playlist)
+        try:
+            LocalPlaylistStore().save(playlist)
+        except ConfigError as exc:
+            self._report_error(str(exc))
+            return
         self.active_local_playlist_id = playlist.id
         self.active_youtube_playlist_id = None
         current = self.playback.current_video_id if self.playback.status().running else None
@@ -237,7 +242,11 @@ class QueueEditActions:
         # Replace semantics: the saved playlist mirrors the queue exactly,
         # so removals and reordering done with d/j/k persist.
         playlist = LocalPlaylist(id=slugify(name), name=name, tracks=candidates)
-        LocalPlaylistStore().save(playlist)
+        try:
+            LocalPlaylistStore().save(playlist)
+        except ConfigError as exc:
+            self._report_error(str(exc))
+            return
         self.active_local_playlist_id = playlist.id
         self._schedule_library_refresh(playlist.id)
         self._set_status(

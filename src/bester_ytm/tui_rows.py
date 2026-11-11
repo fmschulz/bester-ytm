@@ -167,11 +167,14 @@ class QueueRow(Row):
         return Content.assemble(_star(self.is_favorite), (_duration(self.candidate), "dim"))
 
 
-def queue_heading(title: str, count: int, seconds: float) -> Content:
+def queue_heading(title: str, count: int, seconds: float, *, width: int | None = None) -> Content:
     """``Late Night  14 tracks, 1 h 04 min``: the queue's name, size and running time."""
     tracks = f"{count} track" if count == 1 else f"{count} tracks"
     summary = f"{tracks}, {_running_time(seconds)}" if seconds else tracks
-    return Content.assemble((title, "bold"), ("  " + summary, "dim"))
+    name = Content.assemble((title, "bold"))
+    if width is not None:
+        name = name.truncate(max(0, width - len(summary) - 2), ellipsis=True)
+    return Content.assemble(name, "  " if name else "", (summary, "dim"))
 
 
 def _running_time(seconds: float) -> str:

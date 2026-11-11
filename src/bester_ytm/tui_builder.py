@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 from functools import partial
 from pathlib import Path
+from threading import Event
+from time import monotonic
 
+from textual.timer import Timer
 from textual.widgets import TextArea
 
 from .config import ConfigError, resolve_existing_input
@@ -40,6 +43,9 @@ class BuilderActions:
     intelligence_settings: IntelligenceSettings
     app_options: AppOptions
     playlist_video_ids: list[str]
+    _build_cancel: Event | None = None
+    _build_timer: Timer | None = None
+    _build_started: float = 0.0
 
     async def action_build_playlist(self) -> None:
         if self.build_in_progress:
@@ -60,17 +66,44 @@ class BuilderActions:
                 "or paste 'Artist - Title' lines, then press Build."
             )
             return
-        self.build_in_progress = True
-        queue = self._query_optional("#center")
-        if queue is not None:
-            queue.border_title = "Building playlist…"
+        cancel = self._begin_build()
         self._set_status(self._build_start_message(builder_text, brief))
         self.run_worker(
-            partial(self._build_playlist_worker, builder_text, brief),
+            partial(self._build_playlist_worker, builder_text, brief, cancel=cancel),
             name="builder",
             group="builder",
             thread=True,
         )
+
+    def _begin_build(self) -> Event:
+        self.build_in_progress = True
+        self._build_cancel = Event()
+        self._build_started = monotonic()
+        self.query_one("#cancel-build-button").display = True
+        self._update_build_progress()
+        self._build_timer = self.set_interval(1.0, self._update_build_progress)
+        return self._build_cancel
+
+    def _update_build_progress(self) -> None:
+        if self.build_in_progress:
+            elapsed = max(0, int(monotonic() - self._build_started))
+            minutes, seconds = divmod(elapsed, 60)
+            self.query_one("#center").border_title = f"Building playlist… {minutes}:{seconds:02d}"
+
+    def _end_build(self) -> None:
+        self.build_in_progress = False
+        if self._build_timer is not None:
+            self._build_timer.stop()
+            self._build_timer = None
+        self.query_one("#cancel-build-button").display = False
+        self._update_queue_title(self.playlist_video_ids or self.playback.queue)
+
+    def action_cancel_build(self) -> None:
+        if not self.build_in_progress or self._build_cancel is None:
+            return
+        self._build_cancel.set()
+        self._end_build()
+        self._set_status("Playlist build cancelled.")
 
     def _favorites_source(self) -> Path:
         configured = self.app_options.favorites_file
@@ -94,21 +127,30 @@ class BuilderActions:
             return "Building playlist from brief..."
         return f"Building playlist from brief via {provider} (this can take a minute)..."
 
-    def _build_playlist_worker(self, builder_text: str, brief: str) -> None:
+    def _build_playlist_worker(self, builder_text: str, brief: str, *, cancel: Event) -> None:
         """Runs on a worker thread so slow AI/network builds never freeze the UI."""
         try:
-            plan, message = self._run_playlist_build(builder_text, brief)
+            plan, message = self._run_playlist_build(builder_text, brief, cancel)
         except (ConfigError, PlaylistBuildError, IntelligenceError) as exc:
-            self.call_from_thread(self._report_build_failure, str(exc))
+            self.call_from_thread(self._report_build_failure, str(exc), cancel)
             return
-        self.call_from_thread(self._finish_playlist_build, plan, message)
+        self.call_from_thread(self._complete_playlist_build, plan, message, cancel)
 
-    def _report_build_failure(self, message: str) -> None:
-        self.build_in_progress = False
-        self._update_queue_title(self.playlist_video_ids or self.playback.queue)
-        self._set_status(message)
+    def _complete_playlist_build(self, plan: PlaylistPlan, message: str, cancel: Event) -> None:
+        if cancel.is_set() or cancel is not self._build_cancel:
+            return
+        self._end_build()
+        self._finish_playlist_build(plan, message)
 
-    def _run_playlist_build(self, builder_text: str, brief: str) -> tuple[PlaylistPlan, str]:
+    def _report_build_failure(self, message: str, cancel: Event) -> None:
+        if cancel.is_set() or cancel is not self._build_cancel:
+            return
+        self._end_build()
+        self._report_error(message)
+
+    def _run_playlist_build(
+        self, builder_text: str, brief: str, cancel: Event | None = None
+    ) -> tuple[PlaylistPlan, str]:
         if builder_text:
             plan = PlaylistBuilder().build_from_text(
                 builder_text,
@@ -119,7 +161,7 @@ class BuilderActions:
             )
         elif brief:
             plan = PlaylistBuilder().build_from_brief(
-                brief, name=name_from_brief(brief), count=count_from_brief(brief)
+                brief, name=name_from_brief(brief), count=count_from_brief(brief), cancel=cancel
             )
         else:
             source = self._favorites_source()
@@ -129,6 +171,8 @@ class BuilderActions:
                 count=30,
                 brief=brief,
             )
+        if cancel is not None and cancel.is_set():
+            raise IntelligenceError("Playlist build cancelled.")
         json_path, _ = PlanStore().save(plan)
         message = (
             f"plan saved: {json_path.name} ({plan.resolved_count}/{plan.target_count} resolved)."

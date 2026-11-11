@@ -38,7 +38,18 @@ Collapsible > Contents { padding: 0; }
     height: auto;
 }
 #playlist-actions Button { min-width: 3; margin-right: 1; }
+#right { padding: 0; }
+#right Button {
+    height: 1; min-width: 0; width: auto;
+    border: none; padding: 0; margin: 0 1 0 0;
+    background: $panel; color: $foreground;
+}
+#right Button:hover { background: $primary; color: $background; }
+#right Button:focus { background: $accent; color: $background; text-style: bold; }
+#transition-row { height: 2; layout: vertical; }
+#fade-actions { height: 1; }
 #builder { height: 4; }
+#cancel-build-button { display: none; }
 #stage { height: 40%; min-height: 7; background: $background; }
 #stage-heading { height: 1; padding: 0 1; }
 #effect-select { width: 14; }
@@ -64,7 +75,7 @@ Collapsible > Contents { padding: 0; }
 Screen.immersive #main, Screen.immersive #navigation { display: none; }
 Screen.immersive #stage { height: 1fr; }
 Screen.compact #right, Screen.compact PaneSplitter { display: none; }
-Screen.compact.tools-open #right { display: block; width: 1fr; min-width: 25; }
+Screen.compact.tools-open #right { display: block; width: 1fr; min-width: 30; }
 Screen.compact.tools-open #left { width: 1fr; }
 Screen.compact.tools-open #center { display: none; }
 Screen.compact #brand { display: none; }

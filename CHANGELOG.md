@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Keys for radio (`r`), new playlist (`N`), add track (`l`), and remove track
+  from the loaded playlist (`D`).
+- Error notifications alongside status messages, and a reminder to press `n`
+  after queueing songs during web radio.
+- Elapsed playlist build time and cancellation with `Esc` or **Cancel**.
+  Cancelled builds ignore late results and stop Codex and Claude CLI processes.
+
 ### Fixed
 
 - An unknown UI theme starts with Astra and reports the fallback at startup.
@@ -51,6 +60,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Briefs that mention favorites use the saved favorites as reference songs.
 
 ### Changed
+
+- The keyboard guide groups keys by action, uses readable key names, and gives
+  each action a full description.
+- Queue titles keep counts and running time; narrow pane borders drop whole
+  key hints. The login hint fits an 80-column terminal.
+- Workspace buttons have a visible shape, spacing, and hover and focus states
+  in both themes.
 
 - `config show` prints all effective settings as TOML, including configured
   radio stations and the API key variable name, without the key. Empty tables

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -26,6 +28,9 @@ from .tui_player import NOT_FAVORITE_GLYPH, PLAY_GLYPH, SeekBar, VolumeMeter
 from .tui_splitter import PaneSplitter
 from .tui_stage import Stage
 from .tui_visuals import EFFECT_OPTIONS
+
+if TYPE_CHECKING:
+    from .tui import BesterYTMApp
 
 
 class BuilderTextArea(TextArea):
@@ -54,6 +59,17 @@ class WorkspaceScreen(Screen):
         self.set_class(self.app.size.width < 110, "compact")
         self.set_class(self.app.size.height < 35, "short")
 
+        app = cast("BesterYTMApp", self.app)
+        app.call_after_refresh(app._resize_pane_labels)
+
+
+class WorkspacePane(Vertical):
+    """Fit border labels after terminal and splitter resizes."""
+
+    def on_resize(self) -> None:
+        app = cast("BesterYTMApp", self.app)
+        app.call_after_refresh(app._resize_pane_labels)
+
 
 RESULTS_HINT = "[b]enter[/b] play  [b]a[/b] add  [b]space[/b] mark  [b]f[/b] favorite"
 QUEUE_HINT = "[b]enter[/b] play  [b]d[/b] remove  [b]j/k[/b] move  [b]w[/b] save"
@@ -68,7 +84,7 @@ def build_layout(effect: str, deck: Content, volume: Content) -> ComposeResult:
         yield Button("Tools", id="tools-button", compact=True)
         yield Button("? Help", id="help-button", compact=True)
     with Horizontal(id="main"):
-        with Vertical(id="left") as library:
+        with WorkspacePane(id="left") as library:
             library.border_title = "Library"
             library.border_subtitle = RESULTS_HINT
             yield Input(placeholder="Search songs, artists, albums…", id="search")
@@ -84,7 +100,7 @@ def build_layout(effect: str, deck: Content, volume: Content) -> ComposeResult:
             yield ListView(id="results")
             yield AlbumTree("albums", id="album-tree")
         yield PaneSplitter("left", "right", grows_leftward=False)
-        with Vertical(id="center") as queue:
+        with WorkspacePane(id="center") as queue:
             queue.border_title = "Queue"
             queue.border_subtitle = QUEUE_HINT
             yield Static(
@@ -176,8 +192,10 @@ def _build_tools() -> ComposeResult:
         )
         with Horizontal(id="builder-actions"):
             yield Button("Build playlist", id="build-button", compact=True)
+            yield Button("Cancel", id="cancel-build-button", compact=True)
     with Collapsible(title="Crossfade", collapsed=True, id="mix-tools"):
-        with Horizontal(id="transition-row"):
+        with Vertical(id="transition-row"):
             yield Button("Mix style", id="transition-button", compact=True)
-            yield Button("Fade −", id="fade-down-button", compact=True)
-            yield Button("Fade +", id="fade-up-button", compact=True)
+            with Horizontal(id="fade-actions"):
+                yield Button("Fade −", id="fade-down-button", compact=True)
+                yield Button("Fade +", id="fade-up-button", compact=True)

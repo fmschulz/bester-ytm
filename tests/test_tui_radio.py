@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from fakes import FakeListView, FakePlayback
+from textual.geometry import Size
 
 from bester_ytm import tui, tui_radio
 from bester_ytm.playback import PlaybackStatus
@@ -343,9 +346,12 @@ def test_add_songs_brief_appends_to_queue_instead_of_building(monkeypatch, tmp_p
         text = "Add 5 songs similar to Four Tet"
 
     widgets["#builder"] = FakeBuilderArea()
+    widgets["#cancel-build-button"] = SimpleNamespace(display=False)
+    widgets["#center"] = SimpleNamespace(border_title="Queue", outer_size=Size(40, 20))
+    monkeypatch.setattr(app, "set_interval", lambda interval, callback: Mock())
     calls: dict = {}
 
-    def fake_find(client, seeds, count, settings, brief=""):
+    def fake_find(client, seeds, count, settings, brief="", *, cancel):
         calls["count"] = count
         calls["brief"] = brief
         track = SongCandidate(video_id="ft1", title="Parallel Jalebi", artists=["Four Tet"])

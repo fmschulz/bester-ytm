@@ -119,7 +119,7 @@ class LibraryActions:
     def _show_search_failure(self, message: str) -> None:
         """Say why the list is empty; the pane must not stay on "Searching"."""
         self._update_library_summary("Library", message)
-        self._set_status(message)
+        self._report_error(message)
 
     def _finish_search(self, parsed: ParsedSearch, items: list[SearchItem], load_id: int) -> None:
         if load_id != self._results_load_id:
@@ -210,14 +210,14 @@ class LibraryActions:
             return False
         if item.item_type == "album":
             if not item.browse_id:
-                self._set_status("Album result has no browse id.")
+                self._report_error("Album result has no browse id.")
                 return True
             # Deferred: the fetch runs on a worker thread and fills the queue later.
             self._load_album_queue(item.browse_id, item.title)
             return True
         if item.item_type == "playlist":
             if not item.playlist_id:
-                self._set_status("Playlist result has no playlist id.")
+                self._report_error("Playlist result has no playlist id.")
                 return True
             # Search playlists are public; keep the unauthenticated client.
             await self._load_playlist_queue(item.playlist_id, authenticated=False)
@@ -228,12 +228,12 @@ class LibraryActions:
 
     async def _load_local_playlist_item(self, item: SearchItem) -> bool:
         if not item.playlist_id:
-            self._set_status("Local playlist result has no id.")
+            self._report_error("Local playlist result has no id.")
             return True
         try:
             playlist = LocalPlaylistStore().load(item.playlist_id)
         except (ConfigError, FileNotFoundError) as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return True
         snapshot = PlaylistSnapshot(
             playlist_id=playlist.id,
@@ -278,7 +278,7 @@ class LibraryActions:
         try:
             return FavoritesStore().ids()
         except ConfigError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return set()
 
     def _refresh_favorite_markers(self, video_id: str, faved: bool) -> None:
@@ -318,7 +318,7 @@ class LibraryActions:
         try:
             items = FavoritesStore().search_items(self._favorites_query)
         except ConfigError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         ids = [item.candidate.video_id for item in items if item.candidate]
         self.selected_result_video_ids.intersection_update(ids)

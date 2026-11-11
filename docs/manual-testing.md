@@ -2,6 +2,33 @@
 
 These checks need audio or a login, so the automated tests skip them.
 
+## UI at 140x44 and 80x24, in Astra and Ember
+
+- [ ] The guide has one row per action, readable keys, full sentences, and the
+      current scene names. Filtering finds both keys and descriptions.
+- [ ] `r`, `N`, `l`, and `D` run the documented actions outside text fields;
+      typing them in an input or the builder only inserts text.
+- [ ] A long queue name shortens with an ellipsis while its count and time stay
+      whole. Resizing restores the full name when it fits.
+- [ ] Narrow pane borders drop whole hints from the right; resizing restores them.
+- [ ] Without login, the full startup hint, including `bester-ytm auth login`, fits.
+- [ ] While radio plays, queue a song, marked songs, an album, and `g` results.
+      Each status ends with "Press n to leave the station." The station keeps
+      playing until `n` starts the waiting songs.
+- [ ] Trigger playback, search, playlist load, build, auth, settings, and radio
+      failures. Each appears in the status and as an error notification that
+      stays after a later status update.
+- [ ] A build shows elapsed time each second even after a queue refresh or resize.
+- [ ] `Esc` during a build restores the queue title and reports cancellation,
+      including while typing. Late success or failure has no effect.
+- [ ] **Cancel** appears beside **Build playlist** only during a build and does
+      the same as `Esc`. A new build can start at once.
+- [ ] Cancelling a Codex or Claude CLI build stops its child process; an uncancelled
+      stalled request still times out at 180 seconds.
+- [ ] Workspace buttons have a one-row shape, a one-cell gap, and visible hover
+      and focus states. Every label fits a 30-cell pane. Navigation and transport
+      keep their look.
+
 ## Auth
 
 - [ ] `uv run bester-ytm auth login` finds an installed browser, reads the

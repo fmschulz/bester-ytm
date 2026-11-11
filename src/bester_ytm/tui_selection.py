@@ -198,7 +198,7 @@ class SelectionActions:
         if self.playback.status().running:
             self.playback.enqueue(video_ids)
             self.playlist_video_ids.extend(video_ids)
-            return f"Queued {len(video_ids)} track(s)."
+            return self._queued_status(f"Queued {len(video_ids)} track(s).")
         if self.playlist_video_ids or self.playback.queue:
             # A playlist is loaded but not playing: grow it instead of replacing it.
             self.playback.enqueue(video_ids)

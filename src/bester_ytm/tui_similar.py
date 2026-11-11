@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
+from threading import Event
 
 from textual import events
 from textual.timer import Timer
@@ -97,7 +98,37 @@ class SimilarActions:
     def _start_add_tracks_brief(self, brief: str) -> None:
         """Builder briefs like 'add 5 songs similar to Four Tet' append to the
         queue instead of building a new playlist."""
-        self._launch_similar(count_from_brief(brief, default=SIMILAR_COUNT), brief)
+        cancel = self._begin_build()
+        self._set_status("Finding songs from the builder brief...")
+        self.run_worker(
+            partial(self._add_tracks_brief_worker, brief, cancel),
+            name="builder",
+            group="builder",
+            thread=True,
+        )
+
+    def _add_tracks_brief_worker(self, brief: str, cancel: Event) -> None:
+        try:
+            candidates, provider = find_similar_candidates(
+                self.client,
+                self._similar_seeds(),
+                count_from_brief(brief, default=SIMILAR_COUNT),
+                self.intelligence_settings,
+                brief=brief,
+                cancel=cancel,
+            )
+        except (IntelligenceError, YTMClientError) as exc:
+            self.call_from_thread(self._report_build_failure, str(exc), cancel)
+            return
+        self.call_from_thread(self._complete_add_tracks_brief, candidates, provider, cancel)
+
+    def _complete_add_tracks_brief(
+        self, candidates: list[SongCandidate], provider: str, cancel: Event
+    ) -> None:
+        if cancel.is_set() or cancel is not self._build_cancel:
+            return
+        self._end_build()
+        self._finish_add_similar(candidates, provider)
 
     def _launch_similar(self, count: int, brief: str = "") -> None:
         seeds = self._similar_seeds()
@@ -107,7 +138,7 @@ class SimilarActions:
         try:
             provider = resolve_provider(self.intelligence_settings)
         except IntelligenceError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         self._set_status(f"Finding {count} similar songs via {provider}...")
         self.run_worker(
@@ -151,7 +182,7 @@ class SimilarActions:
                 brief=brief,
             )
         except (IntelligenceError, YTMClientError) as exc:
-            self.call_from_thread(self._set_status, str(exc))
+            self.call_from_thread(self._report_error, str(exc))
             return
         self.call_from_thread(self._finish_add_similar, candidates, provider)
 
@@ -164,4 +195,6 @@ class SimilarActions:
         self.playlist_video_ids.extend(video_ids)
         self.run_worker(self._render_queue(), exclusive=False)
         names = "; ".join(candidate.display_name for candidate in candidates)
-        self._set_status(f"Added {len(candidates)} similar track(s) via {provider}: {names}")
+        self._set_status(
+            self._queued_status(f"Added {len(candidates)} similar track(s) via {provider}: {names}")
+        )

@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from textual import events
 from textual.actions import ActionParseResult
 from textual.dom import DOMNode
+from textual.screen import ModalScreen
 from textual.widgets import Button, Input, ListView
 
 from .tui_help import HelpScreen
@@ -42,6 +43,7 @@ class EventHandlers:
         "remove-local-playlist-button": "remove_from_playlist",
         "save-queue-button": "save_queue_playlist",
         "build-button": "build_playlist",
+        "cancel-build-button": "cancel_build",
     }
 
     CONTEXT_ACTIONS = {
@@ -81,6 +83,15 @@ class EventHandlers:
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Hide queue/results-specific footer keys unless that pane is focused."""
         # Keep navigation keys from changing library views behind the help modal.
+        if self.is_running and action == "cancel_or_leave":
+            if isinstance(self.screen, ModalScreen):
+                return False
+            return (
+                self.build_in_progress
+                or self._similar_digits is not None
+                or self.screen.has_class("immersive")
+                or isinstance(self.focused, Input)
+            )
         if self.is_running and isinstance(self.screen, HelpScreen):
             return action in {"help", "toggle_playback"}
         if (

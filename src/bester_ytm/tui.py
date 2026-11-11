@@ -6,6 +6,7 @@ from functools import partial
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.content import Content
 from textual.widget import Widget
 from textual.widgets import Button, Footer, Input, Static
 
@@ -25,7 +26,7 @@ from .tui_builder import BuilderActions
 from .tui_effects import PlaybackRenderer, StageState
 from .tui_events import EventHandlers
 from .tui_help import HelpScreen
-from .tui_layout import WorkspaceScreen, build_layout
+from .tui_layout import QUEUE_HINT, RESULTS_HINT, WorkspaceScreen, build_layout
 from .tui_library import LibraryActions
 from .tui_metadata import TrackMetadataActions
 from .tui_options import UiOptionsActions
@@ -82,7 +83,7 @@ class BesterYTMApp(
         Binding("f2", "toggle_tools", "Tools", priority=True, show=False),
         Binding("ctrl+shift+p", "command_palette", "Commands", priority=True, show=False),
         Binding("V", "toggle_stage", "Stage", show=True),
-        Binding("escape", "leave_stage", "Back", show=False),
+        Binding("escape", "cancel_or_leave", "Back", show=False, priority=True),
         ("q", "quit", "Quit"),
         Binding("enter", "play_selected", "Play/Add"),
         Binding("shift+space", "range_select", "Range select", show=False),
@@ -109,6 +110,10 @@ class BesterYTMApp(
         Binding("shift+tab", "focus_previous", "Previous pane", show=False),
         Binding("a", "add_to_queue", "Add"),
         Binding("A", "play_album", "Play album", show=False),
+        Binding("r", "show_radio", "Radio", show=False),
+        Binding("N", "new_playlist", "New playlist", show=False),
+        Binding("l", "add_to_local_playlist", "Add track", show=False),
+        Binding("D", "remove_from_playlist", "Remove track", show=False),
         Binding("ctrl+a", "auth_status", "Auth", show=False),
         Binding("question_mark", "help", "Help", key_display="?"),
     ]
@@ -159,6 +164,7 @@ class BesterYTMApp(
         self.visual_fps = self.app_options.visual_fps
         self.playback_was_active = False
         self.auto_advance_pending = False
+        self._reported_playback_error: str | None = None
         self.was_mixing = False
         self.visualizer_effect = (
             self.app_options.visualizer if self.app_options.visualizer in EFFECT_ORDER else "astra"
@@ -194,7 +200,8 @@ class BesterYTMApp(
         self._apply_branded_theme()
         self._apply_saved_pane_widths()
         self.query_one("#search", Input).focus()
-        self._set_status(self._startup_status())
+        startup_report = self._report_error if self._config_error else self._set_status
+        startup_report(self._startup_status())
         self.set_interval(0.75, self._refresh_playback)
         self._animate_visual_panel()  # draw an initial frame even when visuals are off
         if self.visual_fps > 0:
@@ -208,14 +215,29 @@ class BesterYTMApp(
             if paths.oauth_token.exists() or paths.browser_auth.exists():
                 status = "Logged in to YouTube Music."
             else:
-                status = (
-                    "Not logged in: search and playback work now; "
-                    "run 'bester-ytm auth login' for library and playlist features."
-                )
+                status = "Not logged in. Search and playback work. Library: bester-ytm auth login"
         return f"{self._theme_warning} {status}" if self._theme_warning else status
 
     def _set_status(self, message: str) -> None:
         self.query_one("#status", Static).update(message)
+
+    def _report_error(self, message: str) -> None:
+        self._set_status(message)
+        self.notify(message, severity="error")
+
+    def _resize_pane_labels(self) -> None:
+        self._update_queue_title(self.playlist_video_ids or self.playback.queue)
+        for selector, hints in (("#left", RESULTS_HINT), ("#center", QUEUE_HINT)):
+            pane = self._query_optional(selector)
+            if pane is None:
+                continue
+            kept: list[str] = []
+            for hint in hints.split("  "):
+                candidate = "  ".join([*kept, hint])
+                if Content.from_markup(candidate).cell_length > pane.outer_size.width - 4:
+                    break
+                kept.append(hint)
+            pane.border_subtitle = "  ".join(kept)
 
     def _query_optional(self, selector: str, widget_type=None):
         try:
@@ -264,6 +286,15 @@ class BesterYTMApp(
         elif isinstance(self.focused, Input):
             self.set_focus(None)
 
+    def action_cancel_or_leave(self) -> None:
+        if self.build_in_progress:
+            self.action_cancel_build()
+        elif self._similar_digits is not None:
+            self._cancel_similar_count()
+            self._set_status("Add similar cancelled.")
+        else:
+            self.action_leave_stage()
+
     async def action_show_radio(self) -> None:
         self.action_leave_stage()
         self.query_one("#search", Input).value = "radio:"
@@ -288,7 +319,9 @@ class BesterYTMApp(
         try:
             status = YTMClient(authenticated=True).auth_status()
         except (ConfigError, YTMClientError) as exc:
-            self.call_from_thread(self._finish_auth_status, str(exc), request_id)
+            self.call_from_thread(
+                partial(self._finish_auth_status, str(exc), request_id, error=True)
+            )
             return
         message = (
             f"Auth {status.authenticated} via {status.backend}; "
@@ -296,9 +329,10 @@ class BesterYTMApp(
         )
         self.call_from_thread(self._finish_auth_status, message, request_id)
 
-    def _finish_auth_status(self, message: str, request_id: int) -> None:
+    def _finish_auth_status(self, message: str, request_id: int, *, error: bool = False) -> None:
         if request_id == self._auth_status_request_id:
-            self._set_status(message)
+            report = self._report_error if error else self._set_status
+            report(message)
 
 
 def run_tui() -> None:

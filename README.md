@@ -21,7 +21,8 @@ provider you choose, and publish them to your YouTube Music account.
   crossfaded in. The seek bar draws each track's loudness as it plays.
 - **Playlist builder**: turns seed songs or a brief ("15 songs like Blind
   Guardian, save as powermetal-15") into a reviewed plan, then creates the
-  playlist in your account.
+  playlist in your account. The TUI shows elapsed build time; `Esc` or
+  **Cancel** stops the build.
 - **AI providers**: the Codex CLI, the Claude Code CLI, any OpenAI-compatible
   endpoint (OpenRouter, Ollama, vLLM), the Anthropic API, or an offline
   heuristic.

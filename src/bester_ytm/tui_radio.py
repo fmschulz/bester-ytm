@@ -55,6 +55,13 @@ class RadioActions:
     _radio_poll_running: bool = False
     _radio_poll_failed: bool = False
 
+    def _queued_status(self, message: str) -> str:
+        """Explain when queued songs wait behind a live station."""
+        current = self.playback.current_video_id
+        if current and is_radio_video_id(current):
+            return f"{message} Press n to leave the station."
+        return message
+
     def _maybe_poll_radio(self, status) -> None:
         """Called from the refresh tick; fetches the live station's track periodically."""
         video_id = status.current_video_id if status.running else None
@@ -96,7 +103,7 @@ class RadioActions:
         if info is None:
             if not self._radio_poll_failed:
                 self._radio_poll_failed = True
-                self._set_status(f"Radio track info unavailable: {error}")
+                self._report_error(f"Radio track info unavailable: {error}")
             return
         self._radio_poll_failed = False
         if info != self.radio_now_playing:
@@ -122,7 +129,7 @@ class RadioActions:
         try:
             candidate = _resolve_radio_song(info)
         except (YTMClientError, RadioError, ConfigError) as exc:
-            self.call_from_thread(self._set_status, str(exc))
+            self.call_from_thread(self._report_error, str(exc))
             return
         self.call_from_thread(self._finish_radio_favorite, candidate)
 
@@ -131,7 +138,7 @@ class RadioActions:
             store = FavoritesStore()
             faved = store.toggle(candidate)
         except ConfigError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         self.candidates_by_video_id[candidate.video_id] = candidate
         self._refresh_favorite_markers(candidate.video_id, faved)
@@ -205,7 +212,7 @@ class RadioActions:
         try:
             provider = resolve_provider(self.intelligence_settings)
         except IntelligenceError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         self._set_status(f"Finding a stream for {request!r} via {provider}...")
         self.run_worker(
@@ -222,7 +229,7 @@ class RadioActions:
             station = add_station(suggestion.name, suggestion.stream_url, key=suggestion.key)
         except (IntelligenceError, RadioError, ConfigError) as exc:
             self.call_from_thread(
-                self._set_status,
+                self._report_error,
                 f"Could not add {request!r}: {exc} "
                 "(you can add it manually under [radio.stations] in config.toml)",
             )

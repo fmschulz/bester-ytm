@@ -10,6 +10,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Static
 
+from .tui_visuals import EFFECT_LABELS
+
 SECTION_ORDER = (
     "Start here",
     "Favorites & library",
@@ -28,6 +30,10 @@ ACTION_SECTIONS = {
     "toggle_favorite": "Favorites & library",
     "show_favorites": "Favorites & library",
     "show_playlists": "Favorites & library",
+    "show_radio": "Favorites & library",
+    "new_playlist": "Favorites & library",
+    "add_to_local_playlist": "Favorites & library",
+    "remove_from_playlist": "Favorites & library",
     "save_queue_playlist": "Favorites & library",
     "build_playlist": "Favorites & library",
     "pause_resume": "Transport",
@@ -60,36 +66,57 @@ ACTION_SECTIONS = {
     "toggle_stage": "Stage & navigation",
     "toggle_tools": "Stage & navigation",
     "command_palette": "Stage & navigation",
-    "leave_stage": "Stage & navigation",
+    "cancel_or_leave": "Stage & navigation",
     "auth_status": "Other",
     "quit": "Other",
 }
 
 ACTION_DESCRIPTIONS = {
-    "focus_search": "Focus search; type a query and press Enter",
-    "play_selected": "Play queue row; play/add result or marked songs",
-    "help": "Open this guide (F1 also works while typing)",
-    "toggle_favorite": "Toggle favorite for focused song; otherwise the playing song",
-    "show_favorites": "Browse saved favorites on this device",
-    "show_playlists": "Browse local and YouTube playlists",
-    "save_queue_playlist": "Save the current queue as a local playlist",
-    "pause_resume": "Mark a search result; pause/resume elsewhere",
-    "toggle_playback": "Pause/resume playback from any pane",
-    "add_to_queue": "Add highlighted song/album or marked songs",
-    "remove_from_queue": "Remove the highlighted queue row",
-    "clear_queue": "Clear the queue",
-    "move_queue_track_up": "Move highlighted queue row up",
-    "move_queue_track_down": "Move highlighted queue row down",
-    "toggle_select": "Mark/unmark a song in results",
-    "range_select": "Mark a range from the last marked result",
-    "cycle_visualizer": "Next stage scene: Astra, Pulsar, Bars, Scope",
-    "toggle_stage": "Full-screen stage (or click it); Esc returns",
-    "toggle_tools": "Open workspace tools; toggle them on a narrow terminal",
-    "command_palette": "Choose a theme or run a command",
-    "leave_stage": "Return from the stage to the library",
-    "cycle_transition": "Cycle the track transition style",
-    "fade_shorter": "Shorten the transition fade",
-    "fade_longer": "Lengthen the transition fade",
+    "focus_search": "Focus search, then type a query and press Enter.",
+    "play_selected": "Play a queue row; play or queue a result or marked songs.",
+    "help": "Open this guide; F1 also works while typing.",
+    "toggle_favorite": "Toggle favorite for the focused song, else the playing song.",
+    "show_favorites": "Browse saved favorites on this device.",
+    "show_playlists": "Browse local and YouTube playlists.",
+    "show_radio": "Browse web radio stations.",
+    "new_playlist": "Start a new playlist and focus its name field.",
+    "add_to_local_playlist": "Add the highlighted track to the named local playlist.",
+    "remove_from_playlist": "Remove the highlighted track from the loaded playlist.",
+    "save_queue_playlist": "Save the current queue as a local playlist.",
+    "build_playlist": "Build a playlist from seeds or a brief in the builder box.",
+    "pause_resume": "Mark a search result; pause or resume elsewhere.",
+    "toggle_playback": "Pause or resume playback from any pane.",
+    "next_track": "Play the next queued track, leaving a radio station if one plays.",
+    "previous_track": "Play the previous track.",
+    "add_to_queue": "Add the highlighted song or album, or marked songs, to the queue.",
+    "play_album": "Replace the queue and play the album or marked songs now.",
+    "add_similar": "Queue similar songs; type digits after g to set the count.",
+    "shuffle_queue": "Shuffle the upcoming tracks in the queue.",
+    "remove_from_queue": "Remove a queue row; press twice on a playlist to delete it.",
+    "clear_queue": "Clear the queue and keep the playing track.",
+    "move_queue_track_up": "Move the highlighted queue row up.",
+    "move_queue_track_down": "Move the highlighted queue row down.",
+    "toggle_select": "Mark or unmark a song in results.",
+    "range_select": "Mark a range from the first marked result.",
+    "cycle_visualizer": f"Cycle the stage scenes: {', '.join(EFFECT_LABELS.values())}.",
+    "toggle_stage": "Toggle the full-screen stage; Esc returns.",
+    "toggle_tools": "Open workspace tools; toggle them on a narrow terminal.",
+    "command_palette": "Choose a theme or run a command.",
+    "cancel_or_leave": "Cancel a running build, leave the full stage, or leave an input.",
+    "cycle_transition": "Cycle the track transition style.",
+    "fade_shorter": "Shorten the transition fade.",
+    "fade_longer": "Lengthen the transition fade.",
+    "seek_backward": "Seek backward by 10 seconds.",
+    "seek_forward": "Seek forward by 10 seconds.",
+    "seek_large_backward": "Seek backward by 30 seconds.",
+    "seek_large_forward": "Seek forward by 30 seconds.",
+    "volume_down": "Lower the playback volume.",
+    "volume_up": "Raise the playback volume.",
+    "mute": "Mute or unmute playback.",
+    "focus_next": "Focus the next control.",
+    "focus_previous": "Focus the previous control.",
+    "auth_status": "Check the YouTube Music login status.",
+    "quit": "Stop playback and quit the app.",
 }
 
 HelpRow = tuple[str, str]
@@ -100,17 +127,28 @@ def _as_binding(binding: BindingType) -> Binding:
 
 
 def key_display(binding: Binding) -> str:
-    return binding.key_display or binding.key
+    if binding.key_display:
+        return binding.key_display
+    names = {"escape": "Esc", "comma": ",", "full_stop": ".", "slash": "/"}
+    parts = binding.key.split("+")
+    return "+".join(
+        names.get(part, part.upper() if len(parts) > 1 and len(part) == 1 else part.title())
+        if len(part) > 1 or len(parts) > 1
+        else part
+        for part in parts
+    )
 
 
 def help_sections(bindings: Iterable[BindingType]) -> list[tuple[str, list[HelpRow]]]:
-    """Include every binding, with context where a short footer label is ambiguous."""
+    """Group all keys for an action in one row with a full description."""
     grouped: dict[str, list[HelpRow]] = {section: [] for section in SECTION_ORDER}
+    actions: dict[str, list[str]] = {}
     for entry in bindings:
         binding = _as_binding(entry)
-        section = ACTION_SECTIONS.get(binding.action, "Other")
-        description = ACTION_DESCRIPTIONS.get(binding.action, binding.description or binding.action)
-        grouped[section].append((key_display(binding), description))
+        actions.setdefault(binding.action, []).append(key_display(binding))
+    for action, keys in actions.items():
+        section = ACTION_SECTIONS.get(action, "Other")
+        grouped[section].append((" / ".join(keys), ACTION_DESCRIPTIONS[action]))
     return [(section, rows) for section, rows in grouped.items() if rows]
 
 

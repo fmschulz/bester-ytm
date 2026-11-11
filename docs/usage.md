@@ -5,8 +5,10 @@
 Run `bester-ytm`. The left pane searches and browses, the center pane holds the
 queue, and the right pane (the workspace) holds playlist tools, the playlist
 builder, and crossfade settings. The stage spans the width below the panes,
-with the player under it. Each pane's border shows its name and main keys. On
-narrow terminals, `F2` or **Tools** switches between the queue and the
+with the player under it. Each pane's border shows its name and main keys. In
+narrow panes, titles keep the track count and time, and key hints drop whole
+actions from the right. Failures also appear as error notifications so a later
+status message does not hide them. On narrow terminals, `F2` or **Tools** switches between the queue and the
 workspace. The top bar opens Favorites, Playlists, Radio, and Help.
 
 `F1` (from anywhere) or `?` (outside an input) opens the keyboard guide. Type
@@ -51,6 +53,10 @@ m          mute or unmute
 f          favorite or unfavorite the focused song, else the playing song
 Ctrl+F     browse favorites
 Ctrl+P     browse playlists (local first, then your YouTube library)
+r          browse radio stations
+N          start a new local playlist
+l          add the highlighted track to the named local playlist
+D          remove the highlighted track from the loaded playlist
 Ctrl+A     show the login status
 Tab / Shift+Tab  next / previous pane
 F1 / ?     keyboard guide
@@ -171,7 +177,8 @@ similar to it, and `f` looks it up on YouTube Music and saves it to your
 favorites. Radio needs no login.
 
 A station plays until you leave it. Songs you queue while it plays wait in the
-queue; press `n` to start them.
+queue; press `n` to start them. Adding a song, marked songs, an album, or similar
+tracks ends the status with "Press n to leave the station."
 
 To add a station, type `add radio station <name>` (for example
 `add radio station WFMU`) in the builder box and press **Build playlist**. The
@@ -221,6 +228,16 @@ Editing a finished playlist leaves no tracks queued to play.
 the rows still to play. With playback stopped, it shuffles the whole queue.
 **Shuffle** and **Clear queue** sit in the same section. The **Crossfade**
 section holds **Mix style** (cut or crossfade) and **Fade −** / **Fade +**.
+
+### Playlist builder
+
+Type seeds or a brief in the workspace, then press **Build playlist** (`i`).
+The queue title shows the elapsed build time, updated each second. This also
+works for briefs that add songs to the queue. Press `Esc`
+or **Cancel** beside **Build playlist** to cancel. The queue title returns,
+late results are ignored, and a new build can start at once. For Codex and
+Claude CLI builds, cancellation also stops the child process. Their timeout
+stays at 180 seconds. API requests may finish in the background after cancel.
 
 ## The CLI
 

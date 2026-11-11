@@ -17,6 +17,7 @@ class PlaybackActions:
 
     playlist_video_ids: list[str]
     current_candidate: SongCandidate | None
+    _reported_playback_error: str | None
 
     async def action_play_selected(self) -> None:
         try:
@@ -62,7 +63,7 @@ class PlaybackActions:
                 self.playback.enqueue([candidate.video_id])
                 self.playlist_video_ids.append(candidate.video_id)
                 await self._render_queue()
-                self._set_status(f"Queued {candidate.display_name}.")
+                self._set_status(self._queued_status(f"Queued {candidate.display_name}."))
                 return
             self.playback.replace_queue([candidate.video_id])
             self.playlist_video_ids = [candidate.video_id]
@@ -197,7 +198,8 @@ class PlaybackActions:
         self.playback_was_active = False
         self._sync_current_track(self.playback.status().current_video_id)
         await self._render_queue()
-        self._set_status(str(exc))
+        self._report_error(str(exc))
+        self._reported_playback_error = str(exc)
 
     async def _show_playback_status(self, status: PlaybackStatus, message: str) -> None:
         self._sync_current_track(status.current_video_id)
@@ -227,7 +229,7 @@ class PlaybackActions:
         try:
             status = self.playback.toggle_mute()
         except PlaybackError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         self._refresh_playback(status)
         self._set_status("Muted." if status.muted else "Unmuted.")
@@ -236,7 +238,7 @@ class PlaybackActions:
         try:
             status = self.playback.seek_relative(seconds)
         except PlaybackError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         self._refresh_playback(status)
         direction = "forward" if seconds > 0 else "back"
@@ -251,7 +253,7 @@ class PlaybackActions:
         try:
             status = self.playback.seek_absolute(seconds)
         except PlaybackError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         self._refresh_playback(status)
         self._set_status(f"Seeked to {format_time(seconds)}.")
@@ -260,7 +262,7 @@ class PlaybackActions:
         try:
             status = self.playback.change_volume(delta)
         except PlaybackError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         self._refresh_playback(status)
         if status.volume is not None:
@@ -270,12 +272,11 @@ class PlaybackActions:
         settings = self.playback.cycle_transition_style()
         self.transition_settings = settings
         suffix = self._persist_transition(settings)
+        report = self._report_error if suffix else self._set_status
         if settings.style is TransitionStyle.CUT:
-            self._set_status(f"Transition: cut.{suffix}")
+            report(f"Transition: cut.{suffix}")
             return
-        self._set_status(
-            f"Transition: crossfade {settings.fade_seconds:g}s ([ / ] adjust fade).{suffix}"
-        )
+        report(f"Transition: crossfade {settings.fade_seconds:g}s ([ / ] adjust fade).{suffix}")
 
     def action_fade_shorter(self) -> None:
         self._adjust_fade(-1.0)
@@ -288,7 +289,8 @@ class PlaybackActions:
         settings = self.playback.adjust_fade_seconds(delta)
         self.transition_settings = settings
         suffix = self._persist_transition(settings)
-        self._set_status(f"{self._fade_message(previous_fade, settings, delta)}{suffix}")
+        report = self._report_error if suffix else self._set_status
+        report(f"{self._fade_message(previous_fade, settings, delta)}{suffix}")
 
     def _fade_message(
         self, previous_fade: float, settings: TransitionSettings, delta: float

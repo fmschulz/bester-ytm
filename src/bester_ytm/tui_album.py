@@ -268,7 +268,7 @@ class AlbumActions:
             self._pending_album_action = None
         if load_id != self._results_load_id:
             return  # a newer search replaced these results; keep its status
-        self._set_status(message)
+        self._report_error(message)
 
     def _finish_album_node(self, node: TreeNode, snapshot: PlaylistSnapshot, load_id: int) -> None:
         _node_data(node)["loading"] = False

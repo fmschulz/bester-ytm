@@ -47,7 +47,7 @@ class TrackMetadataActions:
         try:
             faved = FavoritesStore().toggle(candidate)
         except ConfigError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         self._refresh_favorite_markers(candidate.video_id, faved)
         if faved:
@@ -77,12 +77,16 @@ class TrackMetadataActions:
             return
         name_input = self._query_optional("#playlist-name", Input)
         name = name_input.value.strip() if name_input and name_input.value.strip() else ""
-        if not name and self.active_local_playlist_id:
-            try:
-                name = LocalPlaylistStore().load(self.active_local_playlist_id).name
-            except FileNotFoundError:
-                name = ""
-        playlist = LocalPlaylistStore().add_track(name or "TUI Playlist", candidate)
+        try:
+            if not name and self.active_local_playlist_id:
+                try:
+                    name = LocalPlaylistStore().load(self.active_local_playlist_id).name
+                except FileNotFoundError:
+                    name = ""
+            playlist = LocalPlaylistStore().add_track(name or "TUI Playlist", candidate)
+        except ConfigError as exc:
+            self._report_error(str(exc))
+            return
         self.active_local_playlist_id = playlist.id
         if name_input:
             name_input.value = playlist.name
@@ -109,8 +113,8 @@ class TrackMetadataActions:
     async def _remove_from_local_playlist(self, playlist_id: str, video_id: str) -> None:
         try:
             playlist = LocalPlaylistStore().remove_track(playlist_id, video_id)
-        except FileNotFoundError as exc:
-            self._set_status(str(exc))
+        except (ConfigError, FileNotFoundError) as exc:
+            self._report_error(str(exc))
             return
         if self.active_local_playlist_id == playlist.id:
             snapshot = PlaylistSnapshot(
@@ -152,7 +156,7 @@ class TrackMetadataActions:
         error: str | None = None,
     ) -> None:
         if error is not None:
-            self._set_status(error)
+            self._report_error(error)
             return
         if not removed:
             self._set_status(f"Track is not in YouTube playlist {title!r}.")
@@ -194,7 +198,7 @@ class TrackMetadataActions:
         try:
             playlist = LocalPlaylistStore().delete(playlist_id)
         except FileNotFoundError as exc:
-            self._set_status(str(exc))
+            self._report_error(str(exc))
             return
         if self.active_local_playlist_id == playlist.id:
             self.active_local_playlist_id = None
@@ -238,7 +242,7 @@ class TrackMetadataActions:
         self, item: ListItem, title: str, load_id: int, error: str | None = None
     ) -> None:
         if error is not None:
-            self._set_status(error)
+            self._report_error(error)
             return
         results = self._query_optional("#results", ListView)
         if load_id == self._results_load_id and results is not None and item in results.children:

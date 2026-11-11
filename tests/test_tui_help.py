@@ -25,7 +25,10 @@ def test_help_binding_is_visible_in_footer() -> None:
 def test_every_binding_appears_in_help_sections() -> None:
     """Drift guard: each app binding (visible and hidden) gets a help row."""
     keys_shown = {
-        key for _section, rows in help_sections(BesterYTMApp.BINDINGS) for key, _description in rows
+        alias
+        for _section, rows in help_sections(BesterYTMApp.BINDINGS)
+        for key, _description in rows
+        for alias in key.split(" / ")
     }
     for entry in BesterYTMApp.BINDINGS:
         binding = _as_binding(entry)

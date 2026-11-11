@@ -59,7 +59,7 @@ class PlaylistLoadActions:
             return
         results = self.query_one("#results", ListView)
         self._focus_first_result(results, bool(local_items))
-        self._set_status(
+        self._report_error(
             f"{len(local_items)} local playlist(s). YouTube library unavailable: {message}"
         )
 
@@ -172,7 +172,7 @@ class PlaylistLoadActions:
 
     def _finish_playlist_load_error(self, message: str, load_id: int) -> None:
         if load_id == self._queue_load_id:
-            self._set_status(message)
+            self._report_error(message)
 
     def _finish_playlist_load(
         self,
@@ -184,7 +184,7 @@ class PlaylistLoadActions:
         if load_id != self._queue_load_id:
             return  # superseded by a newer load or a queue the user built meanwhile
         if not snapshot.video_ids:
-            self._set_status(f"Playlist {playlist_id} has no playable tracks.")
+            self._report_error(f"Playlist {playlist_id} has no playable tracks.")
             return
         self.run_worker(
             self._apply_playlist_snapshot(snapshot, playlist_id, play_after, load_id),
@@ -197,7 +197,7 @@ class PlaylistLoadActions:
         if load_id != self._queue_load_id:
             return  # superseded by a newer load or a queue the user built meanwhile
         if not snapshot.video_ids:
-            self._set_status(f"Album {title} has no playable tracks.")
+            self._report_error(f"Album {title} has no playable tracks.")
             return
         self.run_worker(
             self._apply_album_snapshot(snapshot, title, play_after, load_id),

@@ -37,6 +37,7 @@ StageState = Literal["live", "paused", "idle"]
 class PlaybackRenderer:
     """Mixin that reflects playback and queue state into the mounted widgets."""
 
+    _reported_playback_error: str | None
     was_mixing: bool
     auto_advance_pending: bool
     playback_was_active: bool
@@ -59,7 +60,8 @@ class PlaybackRenderer:
     def _refresh_playback(self, status=None) -> None:
         try:
             status = status or self.playback.status()
-        except PlaybackError:
+        except PlaybackError as exc:
+            self._announce_playback_error(str(exc))
             return
         self.last_playback_status = status
         self._status_clock = time.monotonic()
@@ -111,15 +113,16 @@ class PlaybackRenderer:
             self._set_status(f"Mixing into {name}." if name else "Mixing into the next track.")
         self.was_mixing = is_mixing
         if status.transition_error:
-            self._set_status(f"Mix failed; using cut: {status.transition_error}")
+            self._report_error(f"Mix failed; using cut: {status.transition_error}")
             # This is the only display site; retire the one-shot message here.
             self.playback.consume_transition_error()
 
     def _handle_auto_advance(self, status) -> bool:
         if status.playback_error:
             self.playback_was_active = False
-            self._set_status(status.playback_error)
+            self._announce_playback_error(status.playback_error)
             return False
+        self._reported_playback_error = None
         if status.running:
             self.playback_was_active = True
             return False
@@ -137,6 +140,11 @@ class PlaybackRenderer:
             self._sync_current_track(None)
             self._set_status("Queue finished.")
         return False
+
+    def _announce_playback_error(self, message: str) -> None:
+        if message != self._reported_playback_error:
+            self._report_error(message)
+            self._reported_playback_error = message
 
     def _update_transport_widgets(self, status: PlaybackStatus) -> None:
         position = self._position_seconds(status)
@@ -258,7 +266,14 @@ class PlaybackRenderer:
         seconds = sum(candidate.duration_seconds or 0 for candidate in candidates if candidate)
         pane = self._query_optional("#center")
         if pane is not None:
-            pane.border_title = queue_heading(self.playlist_title, len(video_ids), seconds)
+            pane.border_title = queue_heading(
+                self.playlist_title,
+                len(video_ids),
+                seconds,
+                width=max(0, pane.outer_size.width - 4),
+            )
+            if self.build_in_progress:
+                self._update_build_progress()
         empty = self._query_optional("#queue-empty")
         if empty is not None:
             empty.display = not video_ids
@@ -309,6 +324,11 @@ class PlaybackRenderer:
 
     def _set_queue_cursor(self, queue: ListView, count: int, target_index: int | None) -> None:
         """Keep the selection cursor on the user's row across a rebuild, not the now-playing row."""
-        index = min(max(target_index or 0, 0), count - 1) if count else None
+        if not count:
+            self.selected_queue_index = None
+            return
+        if target_index is None:
+            return  # no cursor yet: do not draw one on a pane the user has not entered
+        index = min(max(target_index, 0), count - 1)
         queue.index = index
         self.selected_queue_index = index

@@ -4,9 +4,11 @@ import asyncio
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from fakes import FakeInput, FakeListView, FakePlayback, FakeStatic
+from textual.geometry import Size
 
 from bester_ytm import tui, tui_builder
 from bester_ytm.config_options import AppOptions
@@ -581,6 +583,8 @@ def _builder_widgets(text: str) -> dict[str, object]:
         "#results": FakeListView(),
         "#queue": FakeListView(),
         "#builder": SimpleNamespace(text=text),
+        "#center": SimpleNamespace(border_title="Queue", outer_size=Size(40, 20)),
+        "#cancel-build-button": SimpleNamespace(display=False),
     }
 
 
@@ -589,6 +593,7 @@ def _run_build(app, monkeypatch) -> None:
     workers: list = []
     monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: workers.append(work))
     monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
+    monkeypatch.setattr(app, "set_interval", lambda interval, callback: Mock())
     asyncio.run(app.action_build_playlist())
     index = 0
     while index < len(workers):
@@ -649,7 +654,7 @@ def test_build_playlist_from_brief_runs_in_background_with_feedback(monkeypatch,
     class FakeBriefBuilder:
         last: dict[str, object] = {}
 
-        def build_from_brief(self, brief, name, count) -> PlaylistPlan:
+        def build_from_brief(self, brief, name, count, *, cancel) -> PlaylistPlan:
             FakeBriefBuilder.last = {"brief": brief, "name": name, "count": count}
             return _plan(name, count)
 

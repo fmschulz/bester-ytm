@@ -53,7 +53,11 @@ passed along, so "add 5 more like this" works.
 checks that it plays, and saves it to `[radio.stations]` in `config.toml` (see
 [Usage: Web radio](usage.md#web-radio)).
 
-Builds run in the background while music plays. The result becomes a named
+Builds run in the background while music plays. The queue title shows elapsed
+time each second. `Esc` or **Cancel** stops the build, restores the queue title,
+and lets you start another build. Late results are ignored. Codex and Claude
+CLI child processes stop on cancel; API requests may finish in the background.
+The result of a completed build becomes a named
 local playlist and loads into the queue, after the current song if one is
 playing. A count in the brief ("15 songs") is used; the default is 30. The name
 comes from the brief: "save it as X" sets it, and the AI providers may refine
