@@ -11,37 +11,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Keys for radio (`r`), new playlist (`N`), add track (`l`), and remove track
   from the loaded playlist (`D`).
-- Error notifications alongside status messages, and a reminder to press `n`
-  after queueing songs during web radio.
-- Elapsed playlist build time and cancellation with `Esc` or **Cancel**.
-  Cancelled builds ignore late results and stop Codex and Claude CLI processes.
+- Failures show as notifications as well as in the status line.
+- A playlist build shows its elapsed time. `Esc` or **Cancel** stops it, ends
+  the Codex or Claude CLI process, and ignores a late result.
+- Queueing songs during web radio reminds you to press `n` to leave the
+  station.
+
+### Changed
+
+- The keyboard guide has one row per action, readable key names, and a full
+  description for each action.
+- The queue title keeps the track count and running time and shortens the
+  name. Narrow panes drop whole key hints. The login hint fits 80 columns.
+- Workspace buttons have a visible shape with hover and focus states.
+- Shuffle changes only the tracks still to play; played rows stay in place.
+- A station plays until `n` in crossfade mode, as it did in cut mode. It
+  faded out a few seconds after a song was queued before.
+- `config show` prints every effective setting as a TOML document. It names
+  the API key variable and never prints the key.
+- The Anthropic provider defaults to `claude-opus-5-5` with low effort and
+  reports a declined request.
+- Claude CLI requests run without user settings, hooks, skills, MCP servers,
+  or tools. Station lookups may search and fetch the web.
+- Queue and library lists mount all rows in one batch. A 500-row queue
+  renders in about a third of the time.
+- A build from the seeds file is named `Favorites Inspired 30`.
+- The code is formatted with `ruff format`. CI checks the format and installs
+  from the lock file. Large modules are split; no module exceeds 320 lines.
 
 ### Fixed
-
-- An unknown UI theme starts with Astra and reports the fallback at startup.
-
-- Login checks and YouTube playlist removal and deletion run off the UI
-  thread. Playlist edits report their outcome after the view changes. Track
-  removal updates the queue while the same YouTube playlist is loaded.
-
-- Repeated songs in the queue have separate play marks and cursor positions.
-  Remove, move, and play act on the selected row. Remove and move keep the
-  upcoming queue empty after the playlist ends and keep its boundary when stopped.
-
-- Claude CLI music calls skip user settings and tools. Station lookups allow
-  only web search and fetch.
-
-- Shuffle keeps played rows in place and changes only the upcoming queue.
 
 - Web radio shows `live` and the recent-loudness seek bar again. mpv reports
   the buffered part of a live stream as a growing track length, which the
   player showed as a normal track.
-- In crossfade mode a station no longer fades out a few seconds after a song
-  is queued. It plays until `n`, as it did in cut mode.
 - A volume key pressed while a track loads steps from the set volume. It
   jumped to 100% before, and the volume and mute display went blank during
   the load.
 - Mute stays on when the next track starts in a new player process.
+- A song queued twice has two separate rows: one play mark, and remove, move,
+  and Enter act on the highlighted row.
+- The login check and YouTube playlist edits no longer freeze the UI while
+  they wait for the network.
+- An unknown `ui.theme` starts on Astra and says so in the status line.
 - `playlist create` and `playlist export` report a corrupt plan file with a
   message, not a traceback. Favorites and local playlists treat a file that
   is not text the same way.
@@ -59,37 +70,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer time out on agent setup.
 - Briefs that mention favorites use the saved favorites as reference songs.
 
-### Changed
-
-- Restructure internal modules and remove unused state and code, with no behavior change.
-- The keyboard guide groups keys by action, uses readable key names, and gives
-  each action a full description.
-- Queue titles keep counts and running time; narrow pane borders drop whole
-  key hints. The login hint fits an 80-column terminal.
-- Workspace buttons have a visible shape, spacing, and hover and focus states
-  in both themes.
-
-- `config show` prints all effective settings as TOML, including configured
-  radio stations and the API key variable name, without the key. Empty tables
-  are omitted.
-
-- Builds from the seeds file are named `Favorites Inspired 30`.
-
-- The Anthropic provider defaults to `claude-opus-5-5` with low effort and a
-  16,000-token budget for songs and stations. Refusals have a clear error.
-
-- Queue and library lists mount all rows in one batch for faster rebuilds.
-- The code is formatted with `ruff format`; CI checks the format and installs
-  from the lock file.
-
 ### Removed
 
-- The `favorites import-tuiradio` command and the builder's sibling
-  `../tuiradio/favs.md` fallback. Empty builds use only `[builder] favorites_file`.
-
+- The `favorites import-tuiradio` command, which had no visible effect, and
+  the builder's `../tuiradio/favs.md` fallback. An empty build uses only
+  `[builder] favorites_file`.
 - Unused code: the YouTube like call (favorites are local since 1.4.0), the
-  provider `rank_candidates` hook, `Deck.stop`, `PlanStore.list`, and three
-  unused re-exports of `ytm_client`.
+  provider base class and its `rank_candidates` hook, `Deck.stop`,
+  `PlanStore.list`, `PlaybackStatus.queue_size`, and three unused re-exports
+  of `ytm_client`.
 
 ## [1.5.0] - 2026-09-27
 
