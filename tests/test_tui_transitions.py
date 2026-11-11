@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 from dataclasses import replace
 from pathlib import Path
 
+from fakes import FakeStatic, FakeTransitionPlayback
 from textual.binding import Binding
 
 from bester_ytm import tui, tui_playback
@@ -11,13 +14,10 @@ from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.transitions import DEFAULT_APP_SETTINGS, TransitionSettings, TransitionStyle
 
 
-class FakeWidget:
+class FakeWidget(FakeStatic):
     def __init__(self) -> None:
-        self.value = ""
-        self.classes = set()
-
-    def update(self, value: str) -> None:
-        self.value = value
+        super().__init__()
+        self.classes: set[str] = set()
 
     def add_class(self, class_name: str) -> None:
         self.classes.add(class_name)
@@ -29,47 +29,6 @@ class FakeWidget:
 class FakeSeekBar:
     def show(self, fraction, levels) -> None:
         self.fraction = fraction
-
-
-class FakeTransitionPlayback:
-    def __init__(
-        self,
-        style: TransitionStyle = TransitionStyle.CUT,
-        fade_seconds: float = 6.0,
-    ) -> None:
-        self.queue: list[str] = []
-        self.transition = TransitionSettings(style=style, fade_seconds=fade_seconds)
-        self.current = PlaybackStatus(running=False)
-        self.stopped = False
-
-    def status(self) -> PlaybackStatus:
-        return self.current
-
-    def consume_transition_error(self) -> str | None:
-        error = self.current.transition_error
-        self.current = replace(self.current, transition_error=None)
-        return error
-
-    def stop(self) -> None:
-        self.stopped = True
-
-    def cycle_transition_style(self) -> TransitionSettings:
-        next_style = (
-            TransitionStyle.CROSSFADE
-            if self.transition.style is TransitionStyle.CUT
-            else TransitionStyle.CUT
-        )
-        self.transition = TransitionSettings(
-            style=next_style, fade_seconds=self.transition.fade_seconds
-        )
-        return self.transition
-
-    def adjust_fade_seconds(self, delta: float) -> TransitionSettings:
-        self.transition = TransitionSettings(
-            style=self.transition.style,
-            fade_seconds=self.transition.fade_seconds + delta,
-        ).clamped()
-        return self.transition
 
 
 def _make_app(monkeypatch, tmp_path, playback) -> tuple[tui.BesterYTMApp, list[str]]:

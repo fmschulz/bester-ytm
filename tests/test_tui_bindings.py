@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 from dataclasses import replace
 
 import pytest
+from fakes import FakePlayback, FakeStatic
 from textual.binding import Binding
 
 from bester_ytm.playback import PlaybackStatus
@@ -94,31 +97,10 @@ def test_every_wired_button_exists_in_the_layout(monkeypatch) -> None:
 
 
 def test_volume_buttons_send_playback_commands() -> None:
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.volume = 50
-            self.muted = False
-            self.queue: list[str] = []
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(
-                running=True,
-                current_video_id="v1",
-                volume=self.volume,
-                muted=self.muted,
-            )
-
-        def change_volume(self, delta: float) -> PlaybackStatus:
-            self.volume += int(delta)
-            return self.status()
-
-        def toggle_mute(self) -> PlaybackStatus:
-            self.muted = not self.muted
-            return self.status()
-
     async def run_flow() -> None:
         app = BesterYTMApp()
-        app.playback = FakePlayback()  # type: ignore[assignment]
+        app.playback = FakePlayback("v1")  # type: ignore[assignment]
+        app.playback.volume = 50
         async with app.run_test() as pilot:
             await pilot.click("#volume-down-button")
             await pilot.pause()
@@ -171,31 +153,18 @@ def test_punctuation_keys_trigger_bound_actions(monkeypatch) -> None:
 
 
 def test_transport_reflects_playing_paused_and_idle(monkeypatch) -> None:
-    class FakeWidget:
+    class FakeWidget(FakeStatic):
         def __init__(self) -> None:
-            self.value: object = ""
+            super().__init__()
             self.label = ""
-
-        def update(self, value: object) -> None:
-            self.value = value
 
         def show(self, *args, **kwargs) -> None:
             self.value = (args, kwargs)
 
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.current = PlaybackStatus(
-                running=True,
-                current_video_id="v1",
-                position_seconds=15,
-                duration_seconds=60,
-                volume=55,
-            )
-            self.queue = []
-
-        def status(self) -> PlaybackStatus:
-            return self.current
-
+    playback = FakePlayback()
+    playback.current = PlaybackStatus(
+        running=True, current_video_id="v1", position_seconds=15, duration_seconds=60, volume=55
+    )
     widgets = {
         name: FakeWidget()
         for name in (
@@ -210,7 +179,7 @@ def test_transport_reflects_playing_paused_and_idle(monkeypatch) -> None:
         )
     }
     app = BesterYTMApp()
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = playback  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: work.close())
 

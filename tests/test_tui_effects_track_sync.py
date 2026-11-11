@@ -2,21 +2,12 @@
 
 from __future__ import annotations
 
+from fakes import FakePlayback, FakeStatic
+
 from bester_ytm import tui
-from bester_ytm.playback import PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.stores import FavoritesStore
 from bester_ytm.tui_player import FAVORITE_GLYPH
-
-
-class FakeStatic:
-    def __init__(self) -> None:
-        self.value = ""
-        self.update_count = 0
-
-    def update(self, value: str) -> None:
-        self.value = value
-        self.update_count += 1
 
 
 class FakeButton:
@@ -29,19 +20,6 @@ class FakeButton:
             self.classes.add(name)
         else:
             self.classes.discard(name)
-
-
-class FakePlayback:
-    def __init__(self, current: str | None) -> None:
-        self.current_video_id = current
-        self.queue: list[str] = ["v2", "v3"]
-
-    def status(self) -> PlaybackStatus:
-        return PlaybackStatus(
-            running=self.current_video_id is not None,
-            current_video_id=self.current_video_id,
-            queue_size=len(self.queue),
-        )
 
 
 def _make_app(monkeypatch, tmp_path, playback) -> tuple[tui.BesterYTMApp, dict, list[str]]:
@@ -64,7 +42,7 @@ def _make_app(monkeypatch, tmp_path, playback) -> tuple[tui.BesterYTMApp, dict, 
 
 
 def test_track_change_updates_now_playing_label(monkeypatch, tmp_path) -> None:
-    playback = FakePlayback("v1")
+    playback = FakePlayback("v1", ["v2", "v3"])
     app, widgets, _ = _make_app(monkeypatch, tmp_path, playback)
     app._refresh_playback()
     assert widgets["#track"].value == "One  A"
@@ -76,7 +54,7 @@ def test_track_change_updates_now_playing_label(monkeypatch, tmp_path) -> None:
 
 
 def test_tick_with_unchanged_track_does_not_rerender_label(monkeypatch, tmp_path) -> None:
-    app, widgets, _ = _make_app(monkeypatch, tmp_path, FakePlayback("v1"))
+    app, widgets, _ = _make_app(monkeypatch, tmp_path, FakePlayback("v1", ["v2", "v3"]))
 
     app._refresh_playback()  # first tick syncs the newly playing track
     renders = widgets["#track"].update_count
@@ -87,7 +65,7 @@ def test_tick_with_unchanged_track_does_not_rerender_label(monkeypatch, tmp_path
 
 
 def test_player_star_fills_for_a_faved_track(monkeypatch, tmp_path) -> None:
-    app, widgets, _ = _make_app(monkeypatch, tmp_path, FakePlayback("v1"))
+    app, widgets, _ = _make_app(monkeypatch, tmp_path, FakePlayback("v1", ["v2", "v3"]))
     FavoritesStore().toggle(app.candidates_by_video_id["v1"])
 
     app._refresh_playback()
@@ -100,7 +78,7 @@ def test_player_star_fills_for_a_faved_track(monkeypatch, tmp_path) -> None:
 
 def test_corrupt_favorites_store_degrades_to_status_message(monkeypatch, tmp_path) -> None:
     """A corrupt favorites.json surfaces its actionable error instead of crashing the tick."""
-    app, widgets, statuses = _make_app(monkeypatch, tmp_path, FakePlayback("v1"))
+    app, widgets, statuses = _make_app(monkeypatch, tmp_path, FakePlayback("v1", ["v2", "v3"]))
     store = FavoritesStore()
     store.path.parent.mkdir(parents=True, exist_ok=True)
     store.path.write_text("{broken", encoding="utf-8")

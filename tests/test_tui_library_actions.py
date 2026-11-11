@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+from fakes import FakeInput, FakeListView, FakePlayback, FakeStatic
+
 from bester_ytm import tui, tui_builder
 from bester_ytm.playback import PlaybackError, PlaybackStatus
 from bester_ytm.playlist_builder import PlaylistBuildError
@@ -10,50 +12,6 @@ from bester_ytm.playlist_plan import PlaylistPlan, SongCandidate
 from bester_ytm.search_query import SearchItem, search_item_from_song
 from bester_ytm.stores import LocalPlaylistStore
 from bester_ytm.ytm_client import PlaylistSnapshot, YTMClientError
-
-
-class FakeListView:
-    def __init__(self) -> None:
-        self.items: list[object] = []
-        self.highlighted_child: object | None = None
-
-    async def clear(self) -> None:
-        self.items.clear()
-
-    async def append(self, item) -> None:
-        self.items.append(item)
-
-    def focus(self) -> None:
-        pass
-
-
-class FakeStatic:
-    def __init__(self, value: str = "") -> None:
-        self.value = value
-
-    def update(self, value: str) -> None:
-        self.value = value
-
-
-class FakeInput:
-    def __init__(self, value: str = "") -> None:
-        self.value = value
-
-
-class FakePlayback:
-    def __init__(self) -> None:
-        self.queue: list[str] = []
-        self.current_video_id: str | None = None
-
-    def status(self) -> PlaybackStatus:
-        return PlaybackStatus(
-            running=bool(self.current_video_id),
-            current_video_id=self.current_video_id,
-            queue_size=len(self.queue),
-        )
-
-    def replace_queue(self, video_ids: list[str]) -> None:
-        self.queue = list(video_ids)
 
 
 def _make_app(monkeypatch, tmp_path, widgets=None) -> tuple[tui.BesterYTMApp, dict, list[str]]:
@@ -705,7 +663,7 @@ def test_current_video_id_falls_back_to_candidate_then_status(monkeypatch, tmp_p
     app.current_candidate = SongCandidate(video_id="v5", title="Five")
     assert app._current_video_id() == "v5"
 
-    class FailingPlayback:
+    class FailingPlayback(FakePlayback):
         def status(self) -> PlaybackStatus:
             raise PlaybackError("ipc down")
 

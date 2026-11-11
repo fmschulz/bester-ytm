@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 
+from fakes import FakePlayback
+
 from bester_ytm import tui
-from bester_ytm.playback import PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.search_query import SearchItem
 from bester_ytm.tui_album import AlbumTree
@@ -53,33 +54,6 @@ class FakeClient:
     def get_album(self, browse_id: str) -> PlaylistSnapshot:
         self.album_calls.append(browse_id)
         return ALBUMS[browse_id]
-
-
-class FakePlayback:
-    def __init__(self) -> None:
-        self.queue: list[str] = []
-        self.current_video_id: str | None = None
-        self.running = False
-
-    def status(self) -> PlaybackStatus:
-        return PlaybackStatus(
-            running=self.running,
-            current_video_id=self.current_video_id if self.running else None,
-            queue_size=len(self.queue),
-        )
-
-    def replace_queue(self, video_ids: list[str]) -> None:
-        self.queue = list(video_ids)
-        self.running = False
-        self.current_video_id = None
-
-    def enqueue(self, video_ids: list[str]) -> None:
-        self.queue.extend(video_ids)
-
-    def play_queue(self) -> PlaybackStatus:
-        self.current_video_id = self.queue.pop(0)
-        self.running = True
-        return self.status()
 
 
 def _labels(node) -> list[str]:

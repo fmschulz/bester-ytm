@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 
+from fakes import FakeListView, FakePlayback, FakeStatic
+
 from bester_ytm import tui
-from bester_ytm.playback import PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.search_query import search_item_from_song
 
@@ -12,68 +15,10 @@ class FakeResultItem:
         self.marked = False
 
 
-class FakeResults:
-    def __init__(self, items) -> None:
-        self.children = items
-        self.highlighted_child = items[0] if items else None
-
-    async def clear(self) -> None:
-        self.children = []
-
-
-class FakeQueueView:
-    def __init__(self) -> None:
-        self.items = []
-
-    async def clear(self) -> None:
-        self.items.clear()
-
-    async def append(self, item) -> None:
-        self.items.append(item)
-
-
-class FakeStatic:
-    def __init__(self) -> None:
-        self.value = ""
-
-    def update(self, value: str) -> None:
-        self.value = value
-
-
-class FakePlayback:
-    def __init__(self, running: bool = False) -> None:
-        self.running = running
-        self.queue: list[str] = []
-        self.current_video_id: str | None = "now" if running else None
-        self.replaced: list[str] | None = None
-        self.enqueued: list[str] = []
-
-    def status(self) -> PlaybackStatus:
-        return PlaybackStatus(
-            running=self.running,
-            current_video_id=self.current_video_id,
-            queue_size=len(self.queue),
-        )
-
-    def enqueue(self, video_ids: list[str]) -> None:
-        self.enqueued.extend(video_ids)
-        self.queue.extend(video_ids)
-
-    def replace_queue(self, video_ids: list[str]) -> None:
-        self.replaced = list(video_ids)
-        self.queue = list(video_ids)
-        self.current_video_id = None
-
-    def play_queue(self) -> PlaybackStatus:
-        self.running = True
-        self.current_video_id = self.queue.pop(0)
-        return self.status()
-
-
 def _make_app(monkeypatch, results, playback):
     widgets = {
         "#results": results,
-        "#queue": FakeQueueView(),
+        "#queue": FakeListView(),
         "#track": FakeStatic(),
         "#status": FakeStatic(),
     }
@@ -88,7 +33,7 @@ def _make_app(monkeypatch, results, playback):
 
 def test_toggle_select_marks_and_unmarks_highlighted_result(monkeypatch) -> None:
     items = [FakeResultItem("v1", "One"), FakeResultItem("v2", "Two")]
-    app, _ = _make_app(monkeypatch, FakeResults(items), FakePlayback())
+    app, _ = _make_app(monkeypatch, FakeListView(items), FakePlayback())
 
     app.action_toggle_select()
     assert app.selected_result_video_ids == {"v1"}
@@ -101,7 +46,7 @@ def test_toggle_select_marks_and_unmarks_highlighted_result(monkeypatch) -> None
 
 def test_space_toggles_highlighted_result_when_results_are_focused(monkeypatch) -> None:
     items = [FakeResultItem("v1", "One")]
-    app, _ = _make_app(monkeypatch, FakeResults(items), FakePlayback())
+    app, _ = _make_app(monkeypatch, FakeListView(items), FakePlayback())
     monkeypatch.setattr(app, "_focus_context", lambda: "results")
 
     asyncio.run(app.action_pause_resume())
@@ -118,7 +63,7 @@ def test_shift_space_range_selects_from_anchor_to_highlight(monkeypatch) -> None
         FakeResultItem("v3", "Three"),
         FakeResultItem("v4", "Four"),
     ]
-    results = FakeResults(items)
+    results = FakeListView(items)
     app, _ = _make_app(monkeypatch, results, FakePlayback())
 
     app.action_toggle_select()
@@ -137,7 +82,7 @@ def test_shift_click_range_selects_up_from_anchor(monkeypatch) -> None:
         FakeResultItem("v3", "Three"),
         FakeResultItem("v4", "Four"),
     ]
-    results = FakeResults(items)
+    results = FakeListView(items)
     results.highlighted_child = items[3]
     app, _ = _make_app(monkeypatch, results, FakePlayback())
     app.action_toggle_select()
@@ -189,7 +134,7 @@ def test_enter_queues_selection_in_display_order_and_plays(monkeypatch) -> None:
         FakeResultItem("v3", "Three"),
     ]
     playback = FakePlayback(running=False)
-    app, widgets = _make_app(monkeypatch, FakeResults(items), playback)
+    app, widgets = _make_app(monkeypatch, FakeListView(items), playback)
     # Select out of order: third first, then first.
     app.selected_result_video_ids = {"v3", "v1"}
 
@@ -204,8 +149,8 @@ def test_enter_queues_selection_in_display_order_and_plays(monkeypatch) -> None:
 
 def test_enter_appends_selection_while_playing(monkeypatch) -> None:
     items = [FakeResultItem("v1", "One"), FakeResultItem("v2", "Two")]
-    playback = FakePlayback(running=True)
-    app, widgets = _make_app(monkeypatch, FakeResults(items), playback)
+    playback = FakePlayback("now", running=True)
+    app, widgets = _make_app(monkeypatch, FakeListView(items), playback)
     app.playlist_video_ids = ["now"]
     app.selected_result_video_ids = {"v1", "v2"}
 
@@ -222,7 +167,7 @@ def test_enter_appends_selection_to_loaded_but_idle_playlist(monkeypatch) -> Non
     items = [FakeResultItem("v1", "One"), FakeResultItem("v2", "Two")]
     playback = FakePlayback(running=False)
     playback.queue = ["p1", "p2"]
-    app, widgets = _make_app(monkeypatch, FakeResults(items), playback)
+    app, widgets = _make_app(monkeypatch, FakeListView(items), playback)
     app.playlist_video_ids = ["p1", "p2"]
     app.playlist_title = "AI Mix"
     app.selected_result_video_ids = {"v1", "v2"}
@@ -236,7 +181,7 @@ def test_enter_appends_selection_to_loaded_but_idle_playlist(monkeypatch) -> Non
 
 
 def test_toggle_select_outside_results_shows_hint(monkeypatch) -> None:
-    app, widgets = _make_app(monkeypatch, FakeResults([]), FakePlayback())
+    app, widgets = _make_app(monkeypatch, FakeListView([]), FakePlayback())
 
     app.action_toggle_select()
 

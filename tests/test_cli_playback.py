@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from pathlib import Path
 
+from fakes import FakePlayback
 from typer.testing import CliRunner
 
 from bester_ytm import cli_play
@@ -14,18 +17,18 @@ from bester_ytm.transitions import (
 
 
 class FakeProcess:
-    def __init__(self, controller: "FakeController") -> None:
+    def __init__(self, controller: FakeController) -> None:
         self.controller = controller
 
     def wait(self) -> None:
         self.controller.waits += 1
 
 
-class FakeController:
+class FakeController(FakePlayback):
     transition = TransitionSettings()
 
     def __init__(self) -> None:
-        self.queue = ["second", "third"]
+        super().__init__(queue=["second", "third"])
         self.process = FakeProcess(self)
         self.waits = 0
         self.next_calls = 0
@@ -35,13 +38,11 @@ class FakeController:
         self.waits += 1
         return PlaybackStatus(running=False)
 
-    def consume_transition_error(self) -> None:
-        return None
-
-    def next(self) -> None:
+    def next(self) -> PlaybackStatus:
         self.next_calls += 1
         self.queue.pop(0)
         self.process = FakeProcess(self)
+        return PlaybackStatus(running=False)
 
     def stop(self) -> None:
         self.stop_calls += 1
@@ -68,11 +69,11 @@ class PollingProcess:
         return self.polls.pop(0) if self.polls else 0
 
 
-class CrossfadeController:
+class CrossfadeController(FakePlayback):
     transition = TransitionSettings(style=TransitionStyle.CROSSFADE, fade_seconds=6.0)
 
     def __init__(self) -> None:
-        self.queue = ["second"]
+        super().__init__(queue=["second"])
         self.process: PollingProcess | None = PollingProcess([None, None, 0])
         self.tick_calls = 0
         self.next_calls = 0
@@ -86,10 +87,11 @@ class CrossfadeController:
     def consume_transition_error(self) -> str | None:
         return self.transition_errors.pop(0) if self.transition_errors else None
 
-    def next(self) -> None:
+    def next(self) -> PlaybackStatus:
         self.next_calls += 1
         self.queue.pop(0)
         self.process = PollingProcess([0])
+        return PlaybackStatus(running=False)
 
     def stop(self) -> None:
         self.stop_calls += 1
@@ -149,30 +151,15 @@ def test_play_playlist_constructs_controller_with_transition_flags(
 
     created: list[object] = []
 
-    class FakePlaybackController:
+    class FakePlaybackController(FakePlayback):
         def __init__(self, transition: TransitionSettings | None = None) -> None:
+            super().__init__()
             self.transition = transition
             self.process = None
-            self.queue: list[str] = []
             created.append(self)
-
-        def enqueue(self, video_ids: list[str]) -> None:
-            self.queue.extend(video_ids)
-
-        def play_queue(self) -> None:
-            self.queue.pop(0)
-
-        def next(self) -> None:
-            self.queue.pop(0)
 
         def status(self) -> PlaybackStatus:
             return PlaybackStatus(running=False)
-
-        def consume_transition_error(self) -> None:
-            return None
-
-        def stop(self) -> None:
-            self.process = None
 
     monkeypatch.setattr(cli_play.time, "sleep", lambda seconds: None)
     monkeypatch.setattr(cli_play, "YTMClient", FakeClient)

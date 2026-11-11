@@ -4,6 +4,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from fakes import FakeStatic
 
 from bester_ytm import tui
 from bester_ytm.playlist_plan import SongCandidate
@@ -38,14 +39,6 @@ def test_delete_removes_file_and_returns_playlist(store: LocalPlaylistStore) -> 
     assert not store.path_for_id("yahoo").exists()
     with pytest.raises(FileNotFoundError, match="No local playlist named 'yahoo'"):
         store.delete("yahoo")
-
-
-class FakeStatic:
-    def __init__(self) -> None:
-        self.value = ""
-
-    def update(self, value: str) -> None:
-        self.value = value
 
 
 class FakeResultItem:

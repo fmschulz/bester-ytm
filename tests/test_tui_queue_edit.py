@@ -3,54 +3,11 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from fakes import FakeListView, FakePlayback, FakeStatic
 
-from bester_ytm.playback import PlaybackStatus
 from bester_ytm.playlist_plan import PlannedTrack, PlaylistPlan, SongCandidate
 from bester_ytm.stores import LocalPlaylistStore
 from bester_ytm.tui import BesterYTMApp
-
-
-class FakeStatic:
-    def __init__(self) -> None:
-        self.value = ""
-
-    def update(self, value: str) -> None:
-        self.value = value
-
-
-class FakeListView:
-    def __init__(self) -> None:
-        self.items = []
-
-    async def clear(self) -> None:
-        self.items.clear()
-
-    async def append(self, item) -> None:
-        self.items.append(item)
-
-
-class FakePlayback:
-    def __init__(self, current: str | None = None, queue: list[str] | None = None) -> None:
-        self.current_video_id = current
-        self.queue = queue or []
-        self.enqueued: list[str] = []
-        self.replaced: list[str] | None = None
-
-    def status(self) -> PlaybackStatus:
-        return PlaybackStatus(
-            running=self.current_video_id is not None,
-            current_video_id=self.current_video_id,
-            queue_size=len(self.queue),
-        )
-
-    def enqueue(self, video_ids: list[str]) -> None:
-        self.enqueued.extend(video_ids)
-        self.queue.extend(video_ids)
-
-    def replace_queue(self, video_ids: list[str]) -> None:
-        self.replaced = list(video_ids)
-        self.queue = list(video_ids)
-        self.current_video_id = None
 
 
 def _candidate(video_id: str) -> SongCandidate:

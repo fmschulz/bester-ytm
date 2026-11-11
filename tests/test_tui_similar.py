@@ -2,45 +2,12 @@ from __future__ import annotations
 
 import asyncio
 
+from fakes import FakeListView, FakePlayback, FakeStatic
+
 from bester_ytm import tui_similar
 from bester_ytm.intelligence.llm import IntelligenceError, IntelligenceSettings
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.tui import BesterYTMApp
-
-
-class FakeStatic:
-    def __init__(self) -> None:
-        self.value = ""
-
-    def update(self, value: str) -> None:
-        self.value = value
-
-
-class FakeListView:
-    def __init__(self) -> None:
-        self.items = []
-
-    async def clear(self) -> None:
-        self.items.clear()
-
-    async def append(self, item) -> None:
-        self.items.append(item)
-
-
-class FakePlayback:
-    def __init__(self, current: str | None, queue: list[str]) -> None:
-        self.current_video_id = current
-        self.queue = queue
-        self.enqueued: list[str] = []
-
-    def enqueue(self, video_ids: list[str]) -> None:
-        self.enqueued.extend(video_ids)
-        self.queue.extend(video_ids)
-
-    def status(self):
-        from bester_ytm.playback import PlaybackStatus
-
-        return PlaybackStatus(running=False, current_video_id=self.current_video_id)
 
 
 class FakeTimer:

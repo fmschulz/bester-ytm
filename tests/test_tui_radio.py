@@ -1,49 +1,14 @@
+from __future__ import annotations
+
 import asyncio
+
+from fakes import FakeListView, FakePlayback
 
 from bester_ytm import tui, tui_radio
 from bester_ytm.playback import PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.radio import RadioNowPlaying, station_candidate, stations
 from bester_ytm.stores import FavoritesStore
-
-
-class FakeListView:
-    def __init__(self) -> None:
-        self.items: list[object] = []
-        self.highlighted_child: object | None = None
-
-    async def clear(self) -> None:
-        self.items.clear()
-
-    async def append(self, item) -> None:
-        self.items.append(item)
-
-    def focus(self) -> None:
-        pass
-
-
-class FakePlayback:
-    def __init__(self) -> None:
-        self.queue: list[str] = []
-        self.current_video_id: str | None = None
-
-    def enqueue(self, video_ids: list[str]) -> None:
-        self.queue.extend(video_ids)
-
-    def replace_queue(self, video_ids: list[str]) -> None:
-        self.queue = list(video_ids)
-        self.current_video_id = None
-
-    def play_queue(self) -> PlaybackStatus:
-        self.current_video_id = self.queue.pop(0)
-        return self.status()
-
-    def status(self) -> PlaybackStatus:
-        return PlaybackStatus(
-            running=bool(self.current_video_id),
-            current_video_id=self.current_video_id,
-            queue_size=len(self.queue),
-        )
 
 
 class FakeYTMClient:

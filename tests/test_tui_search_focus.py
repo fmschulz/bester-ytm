@@ -4,26 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
+from fakes import FakeListView
 from textual.widgets import Input, TextArea
 
 from bester_ytm import tui
 from bester_ytm.playlist_plan import SongCandidate
 from bester_ytm.search_query import SearchItem, search_item_from_song
-
-
-class FakeListView:
-    def __init__(self) -> None:
-        self.items: list[object] = []
-        self.focus_calls = 0
-
-    async def clear(self) -> None:
-        self.items.clear()
-
-    async def append(self, item) -> None:
-        self.items.append(item)
-
-    def focus(self) -> None:
-        self.focus_calls += 1
 
 
 class StubInput(Input):

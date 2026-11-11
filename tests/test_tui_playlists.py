@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 from types import SimpleNamespace
 
 import pytest
+from fakes import FakeInput, FakeListView, FakePlayback, FakeStatic
 from rich.cells import cell_len
 from textual.widgets import ListView
 
@@ -51,75 +54,7 @@ def _inline_workers(app, monkeypatch) -> None:
     monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
 
 
-class FakeListView:
-    def __init__(self) -> None:
-        self.items = []
-        self.index = 0
-
-    @property
-    def highlighted_child(self):
-        if not self.items:
-            return None
-        return self.items[self.index]
-
-    async def clear(self) -> None:
-        self.items.clear()
-        self.index = 0
-
-    async def append(self, item) -> None:
-        self.items.append(item)
-
-    def focus(self) -> None:
-        pass
-
-
-class FakeStatic:
-    def __init__(self, value: str = "") -> None:
-        self.value = value
-
-    def update(self, value: str) -> None:
-        self.value = value
-
-
-class FakeInput:
-    def __init__(self, value: str = "") -> None:
-        self.value = value
-
-
-class FakeQueuePlayback:
-    def __init__(self) -> None:
-        self.queue = []
-        self.current_video_id = None
-
-    def status(self) -> PlaybackStatus:
-        return PlaybackStatus(
-            running=bool(self.current_video_id),
-            current_video_id=self.current_video_id,
-            queue_size=len(self.queue),
-        )
-
-    def replace_queue(self, video_ids: list[str]) -> None:
-        self.queue = list(video_ids)
-
-    def enqueue(self, video_ids: list[str]) -> None:
-        self.queue.extend(video_ids)
-
-    def play_queue(self) -> PlaybackStatus:
-        self.current_video_id = self.queue.pop(0)
-        return self.status()
-
-
 def test_tui_show_playlists_uses_authenticated_library(monkeypatch, tmp_path) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
     class FakeClient:
         def __init__(self, authenticated: bool = True) -> None:
             assert authenticated is True
@@ -159,16 +94,6 @@ def test_tui_show_playlists_uses_authenticated_library(monkeypatch, tmp_path) ->
 
 
 def test_tui_show_playlists_includes_saved_local_playlists(monkeypatch, tmp_path) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
     class FakeClient:
         def __init__(self, authenticated: bool = True) -> None:
             pass
@@ -206,16 +131,6 @@ def test_tui_show_playlists_includes_saved_local_playlists(monkeypatch, tmp_path
 
 
 def test_tui_show_playlists_shows_locals_when_youtube_unavailable(monkeypatch, tmp_path) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
     class FailingClient:
         def __init__(self, authenticated: bool = True) -> None:
             pass
@@ -250,40 +165,6 @@ def test_tui_show_playlists_shows_locals_when_youtube_unavailable(monkeypatch, t
 
 
 def test_tui_selecting_playlist_loads_named_tracks(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-            self.highlighted_child = None
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = ""
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = []
-            self.history = []
-            self.current_video_id = None
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(
-                running=bool(self.current_video_id),
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
-        def replace_queue(self, video_ids: list[str]) -> None:
-            self.queue = list(video_ids)
-
     class FakeClient:
         def __init__(self, authenticated: bool = True) -> None:
             assert authenticated is True
@@ -340,7 +221,7 @@ def test_tui_selecting_playlist_reports_load_error(monkeypatch) -> None:
     widgets = {"#results": results, "#queue": FakeListView(), "#status": status}
 
     app = tui.BesterYTMApp()
-    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(tui_playlists, "YTMClient", FailingClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     workers = _capture_workers(app, monkeypatch)
@@ -378,7 +259,7 @@ def test_tui_stale_playlist_load_never_stomps_playback_started_meanwhile(
     widgets = {"#results": results, "#queue": queue, "#track": track, "#status": status}
 
     app = tui.BesterYTMApp()
-    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(tui_playlists, "YTMClient", SlowClient)
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     workers = _capture_workers(app, monkeypatch)
@@ -413,7 +294,7 @@ def test_tui_playlist_apply_rechecks_load_id_after_scheduling(monkeypatch) -> No
     widgets = {"#queue": FakeListView(), "#status": FakeStatic()}
 
     app = tui.BesterYTMApp()
-    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     workers = _capture_workers(app, monkeypatch)
 
@@ -427,47 +308,6 @@ def test_tui_playlist_apply_rechecks_load_id_after_scheduling(monkeypatch) -> No
 
 
 def test_tui_space_on_selected_playlist_loads_and_starts_queue(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-            self.highlighted_child = None
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = ""
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = []
-            self.current_video_id = None
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(
-                running=bool(self.current_video_id),
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
-        def replace_queue(self, video_ids: list[str]) -> None:
-            self.queue = list(video_ids)
-
-        def play_queue(self) -> PlaybackStatus:
-            self.current_video_id = self.queue.pop(0)
-            return PlaybackStatus(
-                running=True,
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
     class FakeClient:
         def __init__(self, authenticated: bool = True) -> None:
             assert authenticated is True
@@ -511,54 +351,13 @@ def test_tui_space_on_selected_playlist_loads_and_starts_queue(monkeypatch) -> N
 
 
 def test_tui_queue_item_selection_jumps_to_that_song(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = ""
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = ["v2", "v3"]
-            self.current_video_id = "v1"
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(
-                running=bool(self.current_video_id),
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
-        def replace_queue(self, video_ids: list[str]) -> None:
-            self.queue = list(video_ids)
-            self.current_video_id = None
-
-        def play_queue(self) -> PlaybackStatus:
-            self.current_video_id = self.queue.pop(0)
-            return PlaybackStatus(
-                running=True,
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
     queue = FakeListView()
     track = FakeStatic()
     status = FakeStatic()
     widgets = {"#queue": queue, "#track": track, "#status": status}
 
     app = tui.BesterYTMApp()
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback("v1", ["v2", "v3"])  # type: ignore[assignment]
     app.playlist_video_ids = ["v1", "v2", "v3"]
     app.candidates_by_video_id = {
         "v1": SongCandidate(video_id="v1", title="One", artists=["Artist A"]),
@@ -582,50 +381,13 @@ def test_tui_queue_item_selection_jumps_to_that_song(monkeypatch) -> None:
 
 
 def test_tui_auto_advances_when_playing_track_finishes(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = ""
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = ["v2"]
-            self.current_video_id = "v1"
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(
-                running=self.current_video_id == "v2",
-                current_video_id=self.current_video_id if self.current_video_id == "v2" else None,
-                queue_size=len(self.queue),
-            )
-
-        def next(self) -> PlaybackStatus:
-            self.current_video_id = self.queue.pop(0)
-            return PlaybackStatus(
-                running=True,
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
     queue = FakeListView()
     track = FakeStatic()
     status = FakeStatic()
     widgets = {"#queue": queue, "#track": track, "#status": status}
 
     app = tui.BesterYTMApp()
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback(queue=["v2"])  # type: ignore[assignment]
     app.playback_was_active = True
     app.playlist_video_ids = ["v1", "v2"]
     app.candidates_by_video_id = {
@@ -655,44 +417,11 @@ def test_tui_auto_advances_when_playing_track_finishes(monkeypatch) -> None:
 
 
 def test_tui_auto_advance_keeps_queue_on_startup_failure(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = ""
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = ["bad", "v3"]
-            self.current_video_id = None
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(
-                running=self.current_video_id == "v3",
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
+    class StartupFailurePlayback(FakePlayback):
         def next(self) -> PlaybackStatus:
             if self.queue[0] == "bad":
                 raise PlaybackError("mpv exited before playback started")
-            self.current_video_id = self.queue.pop(0)
-            return PlaybackStatus(
-                running=True,
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
+            return super().next()
 
     queue = FakeListView()
     track = FakeStatic()
@@ -700,7 +429,7 @@ def test_tui_auto_advance_keeps_queue_on_startup_failure(monkeypatch) -> None:
     widgets = {"#queue": queue, "#track": track, "#status": status}
 
     app = tui.BesterYTMApp()
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = StartupFailurePlayback(queue=["bad", "v3"])  # type: ignore[assignment]
     app.playback_was_active = True
     app.auto_advance_pending = True
     app.playlist_video_ids = ["bad", "v3"]
@@ -719,31 +448,7 @@ def test_tui_auto_advance_keeps_queue_on_startup_failure(monkeypatch) -> None:
 
 
 def test_tui_auto_advance_reports_error_when_no_track_is_playable(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = ""
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = ["bad1", "bad2"]
-            self.current_video_id = None
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(running=False, queue_size=len(self.queue))
-
+    class MissingPlayerPlayback(FakePlayback):
         def next(self) -> PlaybackStatus:
             raise PlaybackError("mpv is not installed or not on PATH")
 
@@ -754,7 +459,7 @@ def test_tui_auto_advance_reports_error_when_no_track_is_playable(monkeypatch) -
     }
 
     app = tui.BesterYTMApp()
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = MissingPlayerPlayback(queue=["bad1", "bad2"])  # type: ignore[assignment]
     app.playback_was_active = True
     app.auto_advance_pending = True
     app.playlist_video_ids = []
@@ -769,18 +474,12 @@ def test_tui_auto_advance_reports_error_when_no_track_is_playable(monkeypatch) -
 
 
 def test_tui_auto_advance_resets_pending_flag_on_unexpected_error(monkeypatch) -> None:
-    class FakePlayback:
-        queue = ["v2"]
-        current_video_id = None
-
+    class UnexpectedFailurePlayback(FakePlayback):
         def next(self) -> PlaybackStatus:
             raise RuntimeError("widget tree exploded")
 
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(running=False)
-
     app = tui.BesterYTMApp()
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = UnexpectedFailurePlayback(queue=["v2"])  # type: ignore[assignment]
     app.auto_advance_pending = True
 
     with pytest.raises(RuntimeError, match="widget tree exploded"):
@@ -790,42 +489,13 @@ def test_tui_auto_advance_resets_pending_flag_on_unexpected_error(monkeypatch) -
 
 
 def test_tui_shuffle_keeps_current_track_and_shuffles_upcoming(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = ""
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = ["v2", "v3"]
-            self.current_video_id = "v1"
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(
-                running=True,
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
     queue = FakeListView()
     track = FakeStatic()
     status = FakeStatic()
     widgets = {"#queue": queue, "#track": track, "#status": status}
 
     app = tui.BesterYTMApp()
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback("v1", ["v2", "v3"])  # type: ignore[assignment]
     app.playlist_video_ids = ["v1", "v2", "v3"]
     app.candidates_by_video_id = {
         "v1": SongCandidate(video_id="v1", title="One", artists=["Artist A"]),
@@ -849,45 +519,6 @@ def test_tui_shuffle_keeps_current_track_and_shuffles_upcoming(monkeypatch) -> N
 
 
 def test_tui_search_result_replaces_loaded_queue_before_playing(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-            self.highlighted_child = None
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = ""
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = ["playlist-v1"]
-            self.current_video_id = None
-            self.replaced_with = None
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(running=False, current_video_id=None, queue_size=len(self.queue))
-
-        def replace_queue(self, video_ids: list[str]) -> None:
-            self.replaced_with = list(video_ids)
-            self.queue = list(video_ids)
-
-        def play_queue(self) -> PlaybackStatus:
-            self.current_video_id = self.queue.pop(0)
-            return PlaybackStatus(
-                running=True,
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
     candidate = SongCandidate(video_id="search-v1", title="Search Song", artists=["Artist"])
     results = FakeListView()
     results.highlighted_child = SimpleNamespace(candidate=candidate)
@@ -897,12 +528,12 @@ def test_tui_search_result_replaces_loaded_queue_before_playing(monkeypatch) -> 
     widgets = {"#results": results, "#queue": queue, "#track": track, "#status": status}
 
     app = tui.BesterYTMApp()
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback(queue=["playlist-v1"])  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
 
     asyncio.run(app.action_play_selected())
 
-    assert app.playback.replaced_with == ["search-v1"]
+    assert app.playback.replaced == ["search-v1"]
     assert app.playback.current_video_id == "search-v1"
     assert app.playback.queue == []
     assert track.value == "Search Song  Artist"
@@ -910,43 +541,18 @@ def test_tui_search_result_replaces_loaded_queue_before_playing(monkeypatch) -> 
 
 
 def test_tui_playback_error_clears_stale_track(monkeypatch) -> None:
-    class FakeListView:
-        def __init__(self) -> None:
-            self.items = []
-
-        async def clear(self) -> None:
-            self.items.clear()
-
-        async def append(self, item) -> None:
-            self.items.append(item)
-
-    class FakeStatic:
-        def __init__(self) -> None:
-            self.value = "Old Track"
-
-        def update(self, value: str) -> None:
-            self.value = value
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = ["v2"]
-
+    class NextFailurePlayback(FakePlayback):
         def next(self) -> PlaybackStatus:
-            from bester_ytm.playback import PlaybackError
-
             raise PlaybackError("mpv failed")
 
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(running=False, current_video_id=None, queue_size=len(self.queue))
-
     queue = FakeListView()
-    track = FakeStatic()
-    status = FakeStatic()
+    track = FakeStatic("Old Track")
+    status = FakeStatic("Old Track")
     widgets = {"#queue": queue, "#track": track, "#status": status}
 
     app = tui.BesterYTMApp()
     app.current_candidate = SongCandidate(video_id="old", title="Old Track")
-    app.playback = FakePlayback()  # type: ignore[assignment]
+    app.playback = NextFailurePlayback(queue=["v2"])  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
 
     asyncio.run(app.action_next_track())
@@ -959,29 +565,6 @@ def test_tui_playback_error_clears_stale_track(monkeypatch) -> None:
 
 def test_tui_keyboard_playlist_flow_loads_and_starts_queue(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
-
-    class FakePlayback:
-        def __init__(self) -> None:
-            self.queue = []
-            self.current_video_id = None
-
-        def status(self) -> PlaybackStatus:
-            return PlaybackStatus(
-                running=bool(self.current_video_id),
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
-
-        def replace_queue(self, video_ids: list[str]) -> None:
-            self.queue = list(video_ids)
-
-        def play_queue(self) -> PlaybackStatus:
-            self.current_video_id = self.queue.pop(0)
-            return PlaybackStatus(
-                running=True,
-                current_video_id=self.current_video_id,
-                queue_size=len(self.queue),
-            )
 
     class FakeClient:
         def __init__(self, authenticated: bool = True) -> None:
@@ -1081,7 +664,7 @@ def test_tui_artist_albums_list_loads_album_into_queue(monkeypatch, tmp_path) ->
 
     app = tui.BesterYTMApp()
     app.client = FakeClient()  # type: ignore[assignment]
-    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
     workers = _capture_workers(app, monkeypatch)
 
@@ -1126,7 +709,7 @@ def test_tui_playlist_query_lists_and_loads_local_playlists(monkeypatch, tmp_pat
     }
 
     app = tui.BesterYTMApp()
-    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback()  # type: ignore[assignment]
     monkeypatch.setattr(app, "query_one", lambda selector, widget_type=None: widgets[selector])
 
     asyncio.run(app._search("playlist:"))
@@ -1164,7 +747,7 @@ def test_tui_favorite_and_local_playlist_controls_target_highlighted_queue_song(
     }
 
     app = tui.BesterYTMApp()
-    app.playback = FakeQueuePlayback()  # type: ignore[assignment]
+    app.playback = FakePlayback()  # type: ignore[assignment]
     app.playlist_video_ids = ["v1", "v2"]
     app.candidates_by_video_id = {
         "v1": SongCandidate(video_id="v1", title="Against", artists=["Sepultura"]),

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
+
+from fakes import FakeListView, FakePlayback, FakeStatic
+from textual.widgets import ListItem
 
 from bester_ytm import tui
-from bester_ytm.playback import PlaybackStatus
 from bester_ytm.playlist_plan import SongCandidate
 
 
@@ -13,58 +16,20 @@ def _item_label(item) -> str:
     return str(item.label)
 
 
-class FakeListView:
-    """Queue stub that honors `.index`, like Textual's ListView cursor."""
-
-    def __init__(self) -> None:
-        self.items: list = []
-        self.index = 0
-
-    @property
-    def highlighted_child(self):
-        if not self.items or self.index is None:
-            return None
-        return self.items[self.index]
-
-    async def clear(self) -> None:
-        self.items.clear()
-        self.index = 0
-
-    async def append(self, item) -> None:
-        self.items.append(item)
-
-
-class YieldingFakeListView(FakeListView):
-    """clear/append yield to the event loop so concurrent renders genuinely interleave."""
+class YieldingFakeListView(FakeListView[ListItem]):
+    """Yield at each mount so concurrent renders can interleave."""
 
     async def clear(self) -> None:
         await asyncio.sleep(0)
         await super().clear()
 
-    async def append(self, item) -> None:
+    async def append(self, item: ListItem) -> None:
         await asyncio.sleep(0)
         await super().append(item)
 
-
-class FakeStatic:
-    def __init__(self) -> None:
-        self.value = ""
-
-    def update(self, value: str) -> None:
-        self.value = value
-
-
-class FakePlayback:
-    def __init__(self, current: str | None, queue: list[str]) -> None:
-        self.current_video_id = current
-        self.queue = list(queue)
-
-    def status(self) -> PlaybackStatus:
-        return PlaybackStatus(
-            running=self.current_video_id is not None,
-            current_video_id=self.current_video_id,
-            queue_size=len(self.queue),
-        )
+    async def extend(self, items: Iterable[ListItem]) -> None:
+        await asyncio.sleep(0)
+        await super().extend(items)
 
 
 def _make_app(monkeypatch, playback, queue) -> tuple[tui.BesterYTMApp, list]:
@@ -174,6 +139,39 @@ def test_concurrent_renders_do_not_duplicate_rows(monkeypatch) -> None:
     asyncio.run(drive())
 
     assert [item.video_id for item in queue.items] == ["v1", "v2", "v3"]
+
+
+def test_pending_render_uses_latest_rows_and_requested_cursor(monkeypatch) -> None:
+    queue = FakeListView()
+    app, _ = _make_app(monkeypatch, FakePlayback("v1", ["v2", "v3"]), queue)
+    app.playlist_video_ids = ["v1", "v2", "v3"]
+
+    async def drive() -> None:
+        mounted = asyncio.Event()
+        resume = asyncio.Event()
+
+        async def extend(items: Iterable[ListItem]) -> None:
+            await FakeListView.extend(queue, items)
+            if not mounted.is_set():
+                mounted.set()
+                await resume.wait()
+
+        monkeypatch.setattr(queue, "extend", extend)
+        first = asyncio.create_task(app._render_queue())
+        await mounted.wait()
+        app.playlist_video_ids = ["v1", "v3"]
+        await app._render_queue(focus_video_id="v3")
+        assert app._queue_render_active
+        assert app._queue_render_pending
+        resume.set()
+        await first
+
+    asyncio.run(drive())
+
+    assert [item.video_id for item in queue.items] == ["v1", "v3"]
+    assert queue.highlighted_child.video_id == "v3"
+    assert app._queue_render_active is False
+    assert app._queue_render_pending is False
 
 
 def test_move_queue_track_keeps_cursor_on_moved_track(monkeypatch) -> None:
