@@ -120,9 +120,7 @@ def test_play_and_wait_reports_transition_errors(monkeypatch, capsys) -> None:
     assert "Mix failed; using cut: deck B died" in capsys.readouterr().out
 
 
-def test_effective_transition_settings_flags_override_config(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_effective_transition_settings_flags_override_config(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
 
     assert _effective_transition_settings(None, None) == DEFAULT_APP_SETTINGS
@@ -185,6 +183,4 @@ def test_play_playlist_constructs_controller_with_transition_flags(
     )
 
     assert result.exit_code == 0
-    assert created[0].transition == TransitionSettings(
-        style=TransitionStyle.CUT, fade_seconds=8.0
-    )
+    assert created[0].transition == TransitionSettings(style=TransitionStyle.CUT, fade_seconds=8.0)

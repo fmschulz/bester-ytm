@@ -142,9 +142,7 @@ def test_play_selected_reports_playback_error(monkeypatch, tmp_path) -> None:
 def test_play_selected_routes_to_focused_queue_item(monkeypatch, tmp_path) -> None:
     playback = FakeTransport(running=True, current="v1")
     app, _, statuses = _make_app(monkeypatch, tmp_path, playback)
-    focused = SimpleNamespace(
-        id="queue", highlighted_child=SimpleNamespace(video_id="v1")
-    )
+    focused = SimpleNamespace(id="queue", highlighted_child=SimpleNamespace(video_id="v1"))
     monkeypatch.setattr(tui.BesterYTMApp, "focused", focused, raising=False)
 
     asyncio.run(app.action_play_selected())

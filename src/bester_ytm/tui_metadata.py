@@ -154,19 +154,14 @@ class TrackMetadataActions:
             await self._delete_youtube_playlist(item, str(playlist_id))
             return
         self._set_status(
-            "d deletes the highlighted playlist (local or YouTube) "
-            "after a confirming second press."
+            "d deletes the highlighted playlist (local or YouTube) after a confirming second press."
         )
 
-    async def _delete_local_playlist(
-        self, item: object, playlist_id: str, title: str
-    ) -> None:
+    async def _delete_local_playlist(self, item: object, playlist_id: str, title: str) -> None:
         name = title or playlist_id
         if self._pending_playlist_delete != playlist_id:
             self._pending_playlist_delete = playlist_id
-            self._set_status(
-                f"Press d again to permanently delete local playlist {name!r}."
-            )
+            self._set_status(f"Press d again to permanently delete local playlist {name!r}.")
             return
         self._pending_playlist_delete = None
         try:

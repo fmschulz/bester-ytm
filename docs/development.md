@@ -8,10 +8,11 @@ uv run bester-ytm                # run the TUI from the working tree
 uv run pytest -q                 # tests: no network, no mpv, no sleeps
 uv run pytest -q --cov=bester_ytm --cov-report=term   # coverage report
 uv run ruff check .              # lint
+uv run ruff format --check .     # format (fix: uv run ruff format .)
 uv run mypy src                  # type check
 ```
 
-CI runs lint, the type check, and the tests with an 80% coverage gate
+CI runs lint, the format check, the type check, and the tests with an 80% coverage gate
 (`--cov-fail-under=80`) on every push and pull request, on Python 3.11 and
 3.13. Contribution rules are in
 [CONTRIBUTING.md](https://github.com/fmschulz/bester-ytm/blob/main/CONTRIBUTING.md).

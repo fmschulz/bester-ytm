@@ -165,9 +165,7 @@ def test_punctuation_keys_trigger_bound_actions(monkeypatch) -> None:
                 calls.clear()
                 await pilot.press(character)
                 await pilot.pause()
-                assert calls == [action], (
-                    f"key {character!r} did not trigger action_{action}"
-                )
+                assert calls == [action], f"key {character!r} did not trigger action_{action}"
 
     asyncio.run(run_flow())
 

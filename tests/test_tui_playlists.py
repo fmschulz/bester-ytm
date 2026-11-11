@@ -140,9 +140,11 @@ def test_tui_show_playlists_uses_authenticated_library(monkeypatch, tmp_path) ->
 
     monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
     monkeypatch.setattr(
-        app, "query_one",
-        lambda selector, widget_type=None: list_view
-        if selector in ("#results", "#search") else None,
+        app,
+        "query_one",
+        lambda selector, widget_type=None: (
+            list_view if selector in ("#results", "#search") else None
+        ),
     )
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
@@ -183,9 +185,11 @@ def test_tui_show_playlists_includes_saved_local_playlists(monkeypatch, tmp_path
     statuses: list[str] = []
     monkeypatch.setattr(tui_playlists, "YTMClient", FakeClient)
     monkeypatch.setattr(
-        app, "query_one",
-        lambda selector, widget_type=None: list_view
-        if selector in ("#results", "#search") else None,
+        app,
+        "query_one",
+        lambda selector, widget_type=None: (
+            list_view if selector in ("#results", "#search") else None
+        ),
     )
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
@@ -201,9 +205,7 @@ def test_tui_show_playlists_includes_saved_local_playlists(monkeypatch, tmp_path
     assert statuses[-1] == "1 local + 1 YouTube playlist(s)."
 
 
-def test_tui_show_playlists_shows_locals_when_youtube_unavailable(
-    monkeypatch, tmp_path
-) -> None:
+def test_tui_show_playlists_shows_locals_when_youtube_unavailable(monkeypatch, tmp_path) -> None:
     class FakeListView:
         def __init__(self) -> None:
             self.items = []
@@ -230,9 +232,11 @@ def test_tui_show_playlists_shows_locals_when_youtube_unavailable(
     statuses: list[str] = []
     monkeypatch.setattr(tui_playlists, "YTMClient", FailingClient)
     monkeypatch.setattr(
-        app, "query_one",
-        lambda selector, widget_type=None: list_view
-        if selector in ("#results", "#search") else None,
+        app,
+        "query_one",
+        lambda selector, widget_type=None: (
+            list_view if selector in ("#results", "#search") else None
+        ),
     )
     monkeypatch.setattr(app, "_set_status", statuses.append)
     workers = _capture_workers(app, monkeypatch)
@@ -242,9 +246,7 @@ def test_tui_show_playlists_shows_locals_when_youtube_unavailable(
 
     assert len(list_view.items) == 1
     assert list_view.items[0].playlist_id == "ai-mix"
-    assert statuses[-1] == (
-        "1 local playlist(s). YouTube library unavailable: not logged in"
-    )
+    assert statuses[-1] == ("1 local playlist(s). YouTube library unavailable: not logged in")
 
 
 def test_tui_selecting_playlist_loads_named_tracks(monkeypatch) -> None:

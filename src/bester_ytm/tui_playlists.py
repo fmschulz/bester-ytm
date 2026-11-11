@@ -49,9 +49,7 @@ class PlaylistLoadActions:
         try:
             playlists = YTMClient(authenticated=True).list_playlists(limit=25)
         except (ConfigError, YTMClientError) as exc:
-            self.call_from_thread(
-                self._finish_show_playlists_error, local_items, str(exc), load_id
-            )
+            self.call_from_thread(self._finish_show_playlists_error, local_items, str(exc), load_id)
             return
         self.call_from_thread(self._finish_show_playlists, local_items, playlists, load_id)
 
@@ -93,9 +91,7 @@ class PlaylistLoadActions:
             row = LibraryPlaylistRow(playlist.playlist_id, title, playlist.track_count)
             await results.append(row)
         self._focus_first_result(results, bool(local_items or playlists))
-        self._set_status(
-            f"{len(local_items)} local + {len(playlists)} YouTube playlist(s)."
-        )
+        self._set_status(f"{len(local_items)} local + {len(playlists)} YouTube playlist(s).")
 
     async def action_toggle_playback(self) -> None:
         """Transport starts deferred playlist loads once their tracks arrive."""
@@ -109,9 +105,7 @@ class PlaylistLoadActions:
         """Queue or playback state the user builds cancels any in-flight deferred load."""
         self._queue_load_id += 1
 
-    async def _load_playlist_queue(
-        self, playlist_id: str, *, authenticated: bool = True
-    ) -> bool:
+    async def _load_playlist_queue(self, playlist_id: str, *, authenticated: bool = True) -> bool:
         """Start fetching playlist tracks off the UI thread; returns False (deferred)."""
         self._set_status("Loading playlist tracks...")
         self._queue_load_id += 1

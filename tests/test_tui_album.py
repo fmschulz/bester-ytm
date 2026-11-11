@@ -34,10 +34,20 @@ class FakeClient:
 
     def structured_search(self, parsed, limit: int = 25) -> list[SearchItem]:
         return [
-            SearchItem(item_type="album", title="Master of Puppets", subtitle="Metallica",
-                       browse_id="b1", year="1986"),
-            SearchItem(item_type="album", title="Ride the Lightning", subtitle="Metallica",
-                       browse_id="b2", year="1984"),
+            SearchItem(
+                item_type="album",
+                title="Master of Puppets",
+                subtitle="Metallica",
+                browse_id="b1",
+                year="1986",
+            ),
+            SearchItem(
+                item_type="album",
+                title="Ride the Lightning",
+                subtitle="Metallica",
+                browse_id="b2",
+                year="1984",
+            ),
         ]
 
     def get_album(self, browse_id: str) -> PlaylistSnapshot:
@@ -180,9 +190,7 @@ def test_select_song_then_add_queues_only_that_song(monkeypatch, tmp_path) -> No
     asyncio.run(run())
 
 
-def test_album_space_shift_space_and_enter_queue_selected_range(
-    monkeypatch, tmp_path
-) -> None:
+def test_album_space_shift_space_and_enter_queue_selected_range(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
 
@@ -231,9 +239,7 @@ def test_album_space_shift_space_and_enter_queue_selected_range(
     asyncio.run(run())
 
 
-def test_enter_expands_collapsed_album_while_selection_is_active(
-    monkeypatch, tmp_path
-) -> None:
+def test_enter_expands_collapsed_album_while_selection_is_active(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
 
@@ -497,9 +503,7 @@ def test_play_on_collapsed_album_defers_then_plays(monkeypatch, tmp_path) -> Non
     asyncio.run(run())
 
 
-def test_toggle_select_on_collapsed_album_defers_then_selects(
-    monkeypatch, tmp_path
-) -> None:
+def test_toggle_select_on_collapsed_album_defers_then_selects(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
 
@@ -632,9 +636,7 @@ def test_stale_album_expansion_does_not_touch_newer_results(monkeypatch, tmp_pat
     asyncio.run(run())
 
 
-def test_deferred_add_error_clears_pending_and_allows_retry(
-    monkeypatch, tmp_path
-) -> None:
+def test_deferred_add_error_clears_pending_and_allows_retry(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
 

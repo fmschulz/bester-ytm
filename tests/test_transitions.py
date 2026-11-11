@@ -146,9 +146,7 @@ class FakeHost:
         self.muted = False
         self.master_volume = 100.0
         self.active_deck = "A"
-        self.transition = TransitionSettings(
-            style=TransitionStyle.CROSSFADE, fade_seconds=6.0
-        )
+        self.transition = TransitionSettings(style=TransitionStyle.CROSSFADE, fade_seconds=6.0)
         self.last_transition_error: str | None = None
 
     def _mpv_path(self) -> str:
@@ -680,9 +678,7 @@ def test_spawn_prebuffer_deck_command_and_socket(monkeypatch) -> None:
     assert "--ytdl-format=bestaudio[protocol^=m3u8]/worst[protocol^=m3u8]/bestaudio" in cmd
     assert '--ytdl-raw-options=extractor-args="youtube:player_client=default,web_embedded"' in cmd
     assert cmd[-1] == "https://music.youtube.com/watch?v=vid123"
-    assert any(
-        arg.startswith("--input-ipc-server=") and "deck-b" in arg for arg in cmd
-    )
+    assert any(arg.startswith("--input-ipc-server=") and "deck-b" in arg for arg in cmd)
     assert kwargs["stdin"] is subprocess.DEVNULL
     assert kwargs["stdout"] is subprocess.DEVNULL
     assert kwargs["stderr"] is subprocess.DEVNULL
@@ -714,9 +710,7 @@ class FakeProbeClient:
 
 def test_deck_refresh_readiness_requires_socket_and_duration(tmp_path) -> None:
     socket_path = tmp_path / "deck.sock"
-    deck = Deck(
-        name="A", video_id="v", process=FakeProcess(), ipc_socket=socket_path
-    )
+    deck = Deck(name="A", video_id="v", process=FakeProcess(), ipc_socket=socket_path)
 
     assert deck.refresh_readiness() is False
 
@@ -733,9 +727,7 @@ def test_deck_refresh_readiness_requires_socket_and_duration(tmp_path) -> None:
 def make_stubborn_deck(tmp_path: Path, name: str = "A") -> Deck:
     socket_path = tmp_path / f"deck-{name.lower()}.sock"
     socket_path.touch()
-    return Deck(
-        name=name, video_id="v", process=StubbornProcess(), ipc_socket=socket_path
-    )
+    return Deck(name=name, video_id="v", process=StubbornProcess(), ipc_socket=socket_path)
 
 
 def test_reaper_retire_never_waits_and_frees_socket_immediately(tmp_path) -> None:

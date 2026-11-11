@@ -168,9 +168,7 @@ def ensure_required_headers(headers_raw: str) -> str:
     the hash itself is recomputed from the SAPISID cookie on every request.
     """
     names = {
-        line.split(":", 1)[0].strip().lower()
-        for line in headers_raw.splitlines()
-        if ":" in line
+        line.split(":", 1)[0].strip().lower() for line in headers_raw.splitlines() if ":" in line
     }
     extra: list[str] = []
     if "x-goog-authuser" not in names:

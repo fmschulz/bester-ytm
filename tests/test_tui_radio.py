@@ -216,7 +216,6 @@ def test_local_fav_never_submits_ytm_ratings(monkeypatch, tmp_path) -> None:
     _drain(workers)
 
 
-
 def test_local_fav_skips_ytm_sync_when_logged_out(monkeypatch, tmp_path) -> None:
     app, _, _, _, workers = _make_app(monkeypatch, tmp_path)
     app.current_candidate = SongCandidate(video_id="v1", title="Myth")
@@ -224,7 +223,6 @@ def test_local_fav_skips_ytm_sync_when_logged_out(monkeypatch, tmp_path) -> None
 
     app.action_toggle_favorite()
     _drain(workers)
-
 
 
 def test_stale_poll_result_does_not_delay_next_station(monkeypatch, tmp_path) -> None:

@@ -53,9 +53,7 @@ class QueueEditActions:
             name_input.value = plan.name
         await self._render_queue()
         await self._refresh_local_playlist_library(playlist.id)
-        self._set_status(
-            f"{message} Created local playlist {plan.name!r}; {verb} {EDIT_HINT}"
-        )
+        self._set_status(f"{message} Created local playlist {plan.name!r}; {verb} {EDIT_HINT}")
 
     async def action_new_playlist(self) -> None:
         """Start a fresh playlist: clear the queue, detach the active one, name it next."""
@@ -80,9 +78,7 @@ class QueueEditActions:
                 focus()
         await self._render_queue()
         kept = " The playing track keeps playing." if is_playing else ""
-        self._set_status(
-            f"New playlist started.{kept} Add tracks with a, name it, then Save (w)."
-        )
+        self._set_status(f"New playlist started.{kept} Add tracks with a, name it, then Save (w).")
 
     async def action_clear_queue(self) -> None:
         if not self.playlist_video_ids and not self.playback.queue:

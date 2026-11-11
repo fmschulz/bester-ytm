@@ -122,9 +122,7 @@ def test_play_video_with_seconds_stops_after_duration(
 
 
 def test_enqueue_and_replace_queue_manage_state() -> None:
-    controller = PlaybackController(
-        current_video_id="old", queue=["a"], history=["h"], paused=True
-    )
+    controller = PlaybackController(current_video_id="old", queue=["a"], history=["h"], paused=True)
 
     controller.enqueue(["b", "c"])
     assert controller.queue == ["a", "b", "c"]
@@ -273,9 +271,7 @@ def test_transport_controls_skip_ipc_while_signal_paused(
     assert controller.master_volume == 40.0
 
 
-def test_stop_clears_signal_pause_flag(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_stop_clears_signal_pause_flag(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     controller, _ = _signal_paused_controller(monkeypatch, tmp_path)
 
     controller.stop()
@@ -285,9 +281,7 @@ def test_stop_clears_signal_pause_flag(
 
 def test_transport_controls_noop_without_process(monkeypatch: pytest.MonkeyPatch) -> None:
     controller = PlaybackController()
-    monkeypatch.setattr(
-        controller, "_send_ipc", lambda payload: pytest.fail("must not send IPC")
-    )
+    monkeypatch.setattr(controller, "_send_ipc", lambda payload: pytest.fail("must not send IPC"))
 
     assert controller.seek_relative(10).running is False
     assert controller.seek_absolute(5).running is False
@@ -325,9 +319,7 @@ def test_ipc_helpers_require_configured_socket() -> None:
         controller._send_ipc({"command": ["stop"]})
 
 
-def test_ipc_helpers_translate_mpv_errors(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_ipc_helpers_translate_mpv_errors(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     class FakeClient:
         def __init__(self, socket_path: Path) -> None:
             self.socket_path = socket_path
@@ -589,6 +581,7 @@ def test_mute_is_remembered_when_the_status_read_after_it_fails(
         current_video_id="v1",
         ipc_socket=tmp_path / "mpv.sock",
     )
+
     def failing_read(name: str) -> object:
         raise PlaybackError("mpv IPC command failed: timed out")
 

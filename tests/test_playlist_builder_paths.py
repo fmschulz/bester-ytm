@@ -64,9 +64,7 @@ def test_build_from_favorites_requires_seed_lines(tmp_path: Path) -> None:
     favs.write_text("# only a heading\n", encoding="utf-8")
 
     with pytest.raises(PlaylistBuildError, match="No seed tracks found"):
-        PlaylistBuilder(client=ScriptedClient()).build_from_favorites(
-            favs, name="Mix", count=1
-        )
+        PlaylistBuilder(client=ScriptedClient()).build_from_favorites(favs, name="Mix", count=1)
 
 
 def test_build_from_text_validates_count_and_seeds() -> None:

@@ -11,7 +11,9 @@ from bester_ytm.intelligence.station_finder import (
 )
 from bester_ytm.tui_radio import parse_add_station_request
 
-STATION_JSON = '{"key": "wfmu", "name": "WFMU", "stream_url": "https://stream.wfmu.org/freeform-128k"}'
+STATION_JSON = (
+    '{"key": "wfmu", "name": "WFMU", "stream_url": "https://stream.wfmu.org/freeform-128k"}'
+)
 
 
 def test_station_prompt_demands_direct_stream_json() -> None:

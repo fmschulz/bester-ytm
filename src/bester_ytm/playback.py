@@ -193,9 +193,7 @@ class PlaybackController:
             try:
                 self._send_ipc({"command": ["cycle", "pause"]})
             except PlaybackError:
-                self.process.send_signal(
-                    signal.SIGSTOP if not self.paused else signal.SIGCONT
-                )
+                self.process.send_signal(signal.SIGSTOP if not self.paused else signal.SIGCONT)
                 self._paused_via_signal = not self.paused
         self.paused = not self.paused
         return self.status()
@@ -407,9 +405,7 @@ class PlaybackController:
         if style is TransitionStyle.CUT and self._engine is not None:
             self._engine.snap()
             self._engine.discard_idle_deck()
-        self.transition = TransitionSettings(
-            style=style, fade_seconds=self.transition.fade_seconds
-        )
+        self.transition = TransitionSettings(style=style, fade_seconds=self.transition.fade_seconds)
         return self.transition
 
     def cycle_transition_style(self) -> TransitionSettings:

@@ -174,9 +174,7 @@ def test_load_search_item_requires_ids(monkeypatch, tmp_path) -> None:
 
     assert asyncio.run(app._load_search_item(SearchItem(item_type="album", title="A")))
     assert asyncio.run(app._load_search_item(SearchItem(item_type="playlist", title="P")))
-    assert asyncio.run(
-        app._load_search_item(SearchItem(item_type="local_playlist", title="L"))
-    )
+    assert asyncio.run(app._load_search_item(SearchItem(item_type="local_playlist", title="L")))
     assert statuses == [
         "Album result has no browse id.",
         "Playlist result has no playlist id.",
@@ -184,9 +182,7 @@ def test_load_search_item_requires_ids(monkeypatch, tmp_path) -> None:
     ]
 
 
-def test_load_search_item_loads_remote_playlist_off_the_ui_thread(
-    monkeypatch, tmp_path
-) -> None:
+def test_load_search_item_loads_remote_playlist_off_the_ui_thread(monkeypatch, tmp_path) -> None:
     class PlaylistClient:
         def get_playlist(self, playlist_id: str) -> PlaylistSnapshot:
             assert playlist_id == "PL1"
@@ -368,9 +364,7 @@ def test_remove_from_playlist_guards(monkeypatch, tmp_path) -> None:
 
     app.selected_queue_video_id = "v1"
     asyncio.run(app.action_remove_from_playlist())
-    assert statuses[-1] == (
-        "Load a playlist first (Ctrl+P); Remove drops the highlighted track."
-    )
+    assert statuses[-1] == ("Load a playlist first (Ctrl+P); Remove drops the highlighted track.")
 
 
 def test_remove_reports_missing_playlist_file(monkeypatch, tmp_path) -> None:
@@ -494,9 +488,7 @@ def test_toggle_favorite_targets_the_highlighted_result(monkeypatch, tmp_path) -
     assert FavoritesStore().ids() == {"v2"}
 
 
-def test_toggle_favorite_ignores_remembered_queue_row_when_unfocused(
-    monkeypatch, tmp_path
-) -> None:
+def test_toggle_favorite_ignores_remembered_queue_row_when_unfocused(monkeypatch, tmp_path) -> None:
     from bester_ytm.stores import FavoritesStore
 
     app, _, statuses = _make_app(monkeypatch, tmp_path)
@@ -517,12 +509,8 @@ def test_favs_query_lists_favorites_with_marker(monkeypatch, tmp_path) -> None:
     from bester_ytm.stores import FavoritesStore
 
     app, widgets, statuses = _make_app(monkeypatch, tmp_path)
-    FavoritesStore().toggle(
-        SongCandidate(video_id="v1", title="Myth", artists=["Beach House"])
-    )
-    FavoritesStore().toggle(
-        SongCandidate(video_id="v2", title="Territory", artists=["Sepultura"])
-    )
+    FavoritesStore().toggle(SongCandidate(video_id="v1", title="Myth", artists=["Beach House"]))
+    FavoritesStore().toggle(SongCandidate(video_id="v2", title="Territory", artists=["Sepultura"]))
 
     asyncio.run(app._search("favs:sepul"))
 
@@ -646,14 +634,10 @@ def test_build_playlist_from_pasted_text(monkeypatch, tmp_path) -> None:
 
     assert FakeBuilder.last == {"text": "Beach House - Myth", "brief": ""}
     assert statuses[0] == "Building playlist..."
-    assert statuses[-1] == (
-        "plan saved: plan-1.json (0/30 resolved). No resolved tracks to queue."
-    )
+    assert statuses[-1] == ("plan saved: plan-1.json (0/30 resolved). No resolved tracks to queue.")
 
 
-def test_build_playlist_imports_favorites_when_builder_empty(
-    monkeypatch, tmp_path
-) -> None:
+def test_build_playlist_imports_favorites_when_builder_empty(monkeypatch, tmp_path) -> None:
     favs = tmp_path / "favs.md"
     favs.write_text("- Beach House - Myth\n", encoding="utf-8")
     widgets = _builder_widgets("")
@@ -684,9 +668,7 @@ def test_build_playlist_reports_build_errors(monkeypatch, tmp_path) -> None:
     assert statuses[-1] == "no seeds found"
 
 
-def test_build_playlist_from_brief_runs_in_background_with_feedback(
-    monkeypatch, tmp_path
-) -> None:
+def test_build_playlist_from_brief_runs_in_background_with_feedback(monkeypatch, tmp_path) -> None:
     from bester_ytm.intelligence.llm import IntelligenceSettings
 
     class FakeBriefBuilder:
@@ -704,9 +686,7 @@ def test_build_playlist_from_brief_runs_in_background_with_feedback(
 
     _run_build(app, monkeypatch)
 
-    assert statuses[0] == (
-        "Building playlist from brief via codex (this can take a minute)..."
-    )
+    assert statuses[0] == ("Building playlist from brief via codex (this can take a minute)...")
     assert FakeBriefBuilder.last["count"] == 10
     assert FakeBriefBuilder.last["brief"] == brief
     assert "plan saved: plan-1.json (0/10 resolved)" in statuses[-1]
@@ -715,16 +695,12 @@ def test_build_playlist_from_brief_runs_in_background_with_feedback(
 def test_highlighted_queue_video_id_prefers_focused_queue(monkeypatch, tmp_path) -> None:
     app, widgets, _ = _make_app(monkeypatch, tmp_path)
     widgets["#queue"].highlighted_child = SimpleNamespace(video_id="v9")
-    monkeypatch.setattr(
-        tui.BesterYTMApp, "focused", SimpleNamespace(id="queue"), raising=False
-    )
+    monkeypatch.setattr(tui.BesterYTMApp, "focused", SimpleNamespace(id="queue"), raising=False)
 
     assert app._highlighted_queue_video_id() == "v9"
 
 
-def test_current_video_id_falls_back_to_candidate_then_status(
-    monkeypatch, tmp_path
-) -> None:
+def test_current_video_id_falls_back_to_candidate_then_status(monkeypatch, tmp_path) -> None:
     app, _, _ = _make_app(monkeypatch, tmp_path)
     app.current_candidate = SongCandidate(video_id="v5", title="Five")
     assert app._current_video_id() == "v5"
@@ -738,9 +714,7 @@ def test_current_video_id_falls_back_to_candidate_then_status(
     assert app._current_video_id() is None
 
 
-def test_current_candidate_falls_back_to_highlighted_result(
-    monkeypatch, tmp_path
-) -> None:
+def test_current_candidate_falls_back_to_highlighted_result(monkeypatch, tmp_path) -> None:
     app, widgets, _ = _make_app(monkeypatch, tmp_path)
     unregistered = SongCandidate(video_id="v7", title="Seven")
     widgets["#results"].highlighted_child = SimpleNamespace(candidate=unregistered)

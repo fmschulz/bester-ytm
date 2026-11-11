@@ -53,9 +53,7 @@ def test_auth_login_rejects_conflicting_sources(
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
 
-    result = CliRunner().invoke(
-        app, ["auth", "login", "--browser", "firefox", "--paste"]
-    )
+    result = CliRunner().invoke(app, ["auth", "login", "--browser", "firefox", "--paste"])
 
     assert result.exit_code == 1
     assert "only one of" in result.output
@@ -100,9 +98,7 @@ def test_auth_login_browser_warns_when_oauth_token_takes_precedence(
     assert "takes" in result.output and "precedence" in result.output
 
 
-def test_auth_login_reports_config_errors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_auth_login_reports_config_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
 
     def failing(self, headers_raw=None, **kwargs) -> Path:

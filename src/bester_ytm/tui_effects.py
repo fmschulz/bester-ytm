@@ -119,11 +119,7 @@ class PlaybackRenderer:
         if status.running:
             self.playback_was_active = True
             return False
-        if (
-            self.playback_was_active
-            and self.playback.queue
-            and not self.auto_advance_pending
-        ):
+        if self.playback_was_active and self.playback.queue and not self.auto_advance_pending:
             self.auto_advance_pending = True
             self.run_worker(
                 self._auto_advance(),

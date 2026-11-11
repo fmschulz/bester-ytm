@@ -358,9 +358,7 @@ def test_queue_edit_bindings(key: str, action: str) -> None:
     from textual.binding import Binding
 
     actions = {
-        (b.key if isinstance(b, Binding) else b[0]): (
-            b.action if isinstance(b, Binding) else b[1]
-        )
+        (b.key if isinstance(b, Binding) else b[0]): (b.action if isinstance(b, Binding) else b[1])
         for b in BesterYTMApp.BINDINGS
     }
     assert actions[key] == action

@@ -19,9 +19,7 @@ class SelectionActions:
     def action_range_select(self) -> None:
         if self._range_select_highlighted_result():
             return
-        self._set_status(
-            "Shift+space or shift+click extends selection from the first marked song."
-        )
+        self._set_status("Shift+space or shift+click extends selection from the first marked song.")
 
     def action_toggle_select(self) -> None:
         if self._album_tree_active():
@@ -129,9 +127,7 @@ class SelectionActions:
         if results is None:
             return []
         return [
-            item
-            for item in list(results.children)
-            if self._selection_candidate(item) is not None
+            item for item in list(results.children) if self._selection_candidate(item) is not None
         ]
 
     def _selection_item_index(self, items: list[object], video_id: str | None) -> int | None:

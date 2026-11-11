@@ -52,16 +52,13 @@ class AlbumQueueActions:
     def _toggle_album_node(self, node: TreeNode) -> None:
         candidates = self._album_songs(node)
         select_all = not (
-            candidates
-            and all(c.video_id in self.selected_result_video_ids for c in candidates)
+            candidates and all(c.video_id in self.selected_result_video_ids for c in candidates)
         )
         for candidate in candidates:
             self._mark_selected(candidate.video_id, select_all)
         for child in self._song_children(node):
             song = self._song_candidate(child)
-            child.set_label(
-                self._song_label(song, song.video_id in self.selected_result_video_ids)
-            )
+            child.set_label(self._song_label(song, song.video_id in self.selected_result_video_ids))
         node.set_label(self._album_label(_node_data(node)["item"], select_all and bool(candidates)))
 
     def _refresh_album_marker(self, node: TreeNode) -> None:
@@ -171,9 +168,7 @@ class AlbumQueueActions:
         if candidates is None:
             return  # deferred: the album is loading; its tracks queue when they land
         if not candidates:
-            self._set_status(
-                "Nothing to add. Highlight a song or album row, or mark rows with x."
-            )
+            self._set_status("Nothing to add. Highlight a song or album row, or mark rows with x.")
             return
         await self._add_candidates_to_queue(candidates)
 

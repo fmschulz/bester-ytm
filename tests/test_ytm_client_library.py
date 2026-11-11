@@ -241,9 +241,7 @@ def test_create_playlist_without_oauth_handles_dict_and_failures() -> None:
                 raise self.result
             return self.result
 
-    created = _client(Creator({"playlistId": "PL9"})).create_playlist(
-        "Mix", "", "private", ["v1"]
-    )
+    created = _client(Creator({"playlistId": "PL9"})).create_playlist("Mix", "", "private", ["v1"])
     assert created == "PL9"
 
     with pytest.raises(YTMClientError, match="did not return a playlist id"):

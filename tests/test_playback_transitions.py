@@ -67,9 +67,7 @@ class FakeEngine:
 
 
 def crossfade_settings(fade_seconds: float = 6.0) -> TransitionSettings:
-    return TransitionSettings(
-        style=TransitionStyle.CROSSFADE, fade_seconds=fade_seconds
-    )
+    return TransitionSettings(style=TransitionStyle.CROSSFADE, fade_seconds=fade_seconds)
 
 
 def make_controller(**kwargs) -> tuple[PlaybackController, FakeEngine]:
@@ -108,9 +106,7 @@ def test_next_quick_mix_uses_short_fade_when_configured(monkeypatch) -> None:
         transition=crossfade_settings(fade_seconds=1.5),
         engine_kwargs={"can_mix": True},
     )
-    monkeypatch.setattr(
-        controller, "play_queue", lambda: pytest.fail("must quick mix")
-    )
+    monkeypatch.setattr(controller, "play_queue", lambda: pytest.fail("must quick mix"))
 
     controller.next()
 
@@ -216,9 +212,7 @@ def test_set_volume_stores_master_and_sends_when_not_mixing(monkeypatch) -> None
     controller = PlaybackController(process=RunningProcess())
     commands: list[dict[str, object]] = []
     monkeypatch.setattr(controller, "_send_ipc", commands.append)
-    monkeypatch.setattr(
-        controller, "status", lambda: PlaybackStatus(running=True)
-    )
+    monkeypatch.setattr(controller, "status", lambda: PlaybackStatus(running=True))
 
     controller.set_volume(150.0)
 

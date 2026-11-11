@@ -28,9 +28,7 @@ def _similarity(left: str, right: str) -> float:
 
 # Terms whose plural forms also mark a variant ("The Remixes", "Acoustic Covers").
 # "live" is excluded: "lives" is a different word ("Nine Lives").
-_PLURAL_VARIANT_TERMS = frozenset(
-    {"cover", "demo", "instrumental", "remaster", "remix", "tribute"}
-)
+_PLURAL_VARIANT_TERMS = frozenset({"cover", "demo", "instrumental", "remaster", "remix", "tribute"})
 
 
 def _variant_pattern(term: str) -> re.Pattern[str]:

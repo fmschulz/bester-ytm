@@ -102,9 +102,7 @@ def file_mode(path: Path) -> int:
 def require_private_file(path: Path) -> None:
     mode = file_mode(path)
     if mode & 0o077:
-        raise ConfigError(
-            f"{path} is too permissive ({mode:o}); run chmod 600 {path}"
-        )
+        raise ConfigError(f"{path} is too permissive ({mode:o}); run chmod 600 {path}")
 
 
 def load_json_file(path: Path) -> dict[str, Any]:
@@ -129,9 +127,7 @@ def load_oauth_client(path: Path | None = None) -> tuple[str, str]:
     client_id = str(payload.get("client_id") or "").strip()
     client_secret = str(payload.get("client_secret") or "").strip()
     if not client_id or not client_secret:
-        raise ConfigError(
-            f"{client_path} must contain client_id and client_secret fields"
-        )
+        raise ConfigError(f"{client_path} must contain client_id and client_secret fields")
     require_private_file(client_path)
     return client_id, client_secret
 
@@ -190,9 +186,7 @@ def load_config_document(path: Path) -> dict[str, Any]:
         return {}
 
 
-def rewrite_config_sections(
-    updates: dict[str, dict[str, Any]], path: Path | None = None
-) -> Path:
+def rewrite_config_sections(updates: dict[str, dict[str, Any]], path: Path | None = None) -> Path:
     """Merge updates into config.toml, preserving every other app section and key."""
     config_path = path or get_paths().config_file
     document = _existing_rewritable_document(config_path)
@@ -234,9 +228,7 @@ def _existing_rewritable_document(config_path: Path) -> dict[str, dict[str, Any]
             f"({', '.join(sorted(unknown))}); edit the file manually"
         )
     return {
-        section: dict(values)
-        for section, values in existing.items()
-        if isinstance(values, dict)
+        section: dict(values) for section, values in existing.items() if isinstance(values, dict)
     }
 
 
@@ -288,8 +280,7 @@ def _toml_scalar(path: Path, dotted_key: str, value: Any) -> str:
     if isinstance(value, str):
         return json.dumps(value)
     raise ConfigError(
-        f"{path}: {dotted_key} has a value this app cannot rewrite; "
-        "edit the file manually"
+        f"{path}: {dotted_key} has a value this app cannot rewrite; edit the file manually"
     )
 
 
@@ -314,9 +305,7 @@ def _parse_transition_style(path: Path, section: dict[str, Any]) -> TransitionSt
             return TransitionStyle(value)
         except ValueError:
             pass
-    raise ConfigError(
-        f"{path}: playback.transition must be cut or crossfade (got {value!r})"
-    )
+    raise ConfigError(f"{path}: playback.transition must be cut or crossfade (got {value!r})")
 
 
 def _parse_fade_seconds(path: Path, section: dict[str, Any]) -> float:

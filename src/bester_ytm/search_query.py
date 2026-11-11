@@ -6,9 +6,7 @@ from pydantic import BaseModel
 
 from .playlist_plan import SongCandidate
 
-SearchKind = Literal[
-    "free", "song", "artist", "album", "playlist", "favorites", "local", "radio"
-]
+SearchKind = Literal["free", "song", "artist", "album", "playlist", "favorites", "local", "radio"]
 SearchView = Literal["songs", "albums", "playlists"]
 SearchItemType = Literal["song", "album", "playlist", "local_playlist", "radio"]
 

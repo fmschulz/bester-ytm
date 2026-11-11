@@ -98,9 +98,7 @@ def test_brief_uses_the_ai_provided_playlist_name(monkeypatch) -> None:
 
 
 def test_brief_with_heuristic_provider_searches_the_subject(monkeypatch) -> None:
-    client = FakeClient(
-        results={"sepultura": [_candidate("v1", "Territory", "Sepultura")]}
-    )
+    client = FakeClient(results={"sepultura": [_candidate("v1", "Territory", "Sepultura")]})
     builder = _patched_builder(monkeypatch, client)
 
     builder.build_from_brief(
@@ -181,9 +179,7 @@ def test_name_from_brief_honors_explicit_save_as() -> None:
         )
         == "powermetal-10"
     )
-    assert name_from_brief("upbeat funk, call it Friday Fuel and keep it fresh") == (
-        "Friday Fuel"
-    )
+    assert name_from_brief("upbeat funk, call it Friday Fuel and keep it fresh") == ("Friday Fuel")
     assert name_from_brief("name it 'Rainy Days' please") == "Rainy Days"
     assert name_from_brief("songs that call to mind summer evenings") == (
         "That Call To Mind Summer Evenings"

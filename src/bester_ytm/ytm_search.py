@@ -107,9 +107,7 @@ class YTMSearchMixin(YTMSessionBase):
         release_group = artist_payload.get(release_key)
         if not isinstance(release_group, dict):
             return []
-        results = [
-            raw for raw in release_group.get("results", []) if isinstance(raw, dict)
-        ]
+        results = [raw for raw in release_group.get("results", []) if isinstance(raw, dict)]
         browse_id = release_group.get("browseId")
         params = release_group.get("params")
         if browse_id and params:

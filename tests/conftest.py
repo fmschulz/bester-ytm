@@ -51,6 +51,7 @@ def _isolated_xdg(tmp_path_factory: pytest.TempPathFactory, monkeypatch) -> None
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg-config")))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path_factory.mktemp("xdg-data")))
 
+
 _FAST_GRANULARITY = 0.002
 _textual_wait.SLEEP_GRANULARITY = _FAST_GRANULARITY
 _textual_wait.SLEEP_IDLE = _FAST_GRANULARITY / 20.0

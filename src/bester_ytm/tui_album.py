@@ -270,16 +270,13 @@ class AlbumActions:
             return  # a newer search replaced these results; keep its status
         self._set_status(message)
 
-    def _finish_album_node(
-        self, node: TreeNode, snapshot: PlaylistSnapshot, load_id: int
-    ) -> None:
+    def _finish_album_node(self, node: TreeNode, snapshot: PlaylistSnapshot, load_id: int) -> None:
         _node_data(node)["loading"] = False
         if load_id != self._results_load_id:
             return  # a newer search detached this node while the album loaded
         self._attach_album_tracks(node, snapshot)
         self._set_status(
-            f"Loaded album {self._album_title(node)}: "
-            f"{len(self._song_children(node))} track(s)."
+            f"Loaded album {self._album_title(node)}: {len(self._song_children(node))} track(s)."
         )
         pending = self._pending_album_action
         if pending is not None and pending.node is node:
@@ -288,10 +285,7 @@ class AlbumActions:
     async def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         data = _node_data(event.node)
         kind = data.get("kind")
-        if (
-            self.selected_result_video_ids
-            and not (kind == "album" and not event.node.is_expanded)
-        ):
+        if self.selected_result_video_ids and not (kind == "album" and not event.node.is_expanded):
             event.stop()
             await self.action_add_to_queue()
             return

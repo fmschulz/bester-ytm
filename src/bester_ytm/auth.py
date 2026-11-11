@@ -151,9 +151,7 @@ class AuthManager:
         if headers_raw is not None:
             return headers_from_paste(headers_raw)
         if browser:
-            return build_headers_raw(
-                export_browser_cookie_header(browser, self.paths.config_dir)
-            )
+            return build_headers_raw(export_browser_cookie_header(browser, self.paths.config_dir))
         if cookies_file:
             return build_headers_raw(cookie_header_from_netscape(cookies_file))
         if paste and sys.stdin.isatty():
@@ -167,9 +165,7 @@ class AuthManager:
                 "No browser profiles found. Use `bester-ytm auth login --paste` "
                 "or `--cookies-file` instead."
             )
-        return build_headers_raw(
-            export_browser_cookie_header(picked, self.paths.config_dir)
-        )
+        return build_headers_raw(export_browser_cookie_header(picked, self.paths.config_dir))
 
     def _pick_browser(self) -> str | None:
         browsers = detect_browsers()
@@ -180,9 +176,7 @@ class AuthManager:
         for index, name in enumerate(browsers, start=1):
             print(f"  {index}. {name}")
         while True:
-            choice = input(
-                f"Which browser is logged in? [1-{len(browsers)}, Enter = 1]: "
-            ).strip()
+            choice = input(f"Which browser is logged in? [1-{len(browsers)}, Enter = 1]: ").strip()
             if not choice:
                 choice = "1"
             if choice.isdigit() and 1 <= int(choice) <= len(browsers):

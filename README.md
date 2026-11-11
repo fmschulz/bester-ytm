@@ -77,10 +77,11 @@ covers the paste and OAuth alternatives.
 uv sync
 uv run pytest -q     # no network, no mpv
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy src
 ```
 
-CI checks lint, types, and 80% test coverage on Python 3.11 and 3.13. See
+CI checks lint, format, types, and 80% test coverage on Python 3.11 and 3.13. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for how to propose changes.
 
 ## License

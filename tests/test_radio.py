@@ -188,9 +188,7 @@ def test_play_video_radio_skips_yt_dlp_requirement(
 
 def test_now_playing_display_variants() -> None:
     assert RadioNowPlaying(station="X", show="Morning Show").display == "Morning Show"
-    assert (
-        RadioNowPlaying(station="X", artist="A", song="B", show="S").display == "A - B (S)"
-    )
+    assert RadioNowPlaying(station="X", artist="A", song="B", show="S").display == "A - B (S)"
 
 
 def test_settings_rewrite_preserves_radio_stations_section(
@@ -243,9 +241,7 @@ def test_add_station_writes_config_and_keeps_existing(
     assert stream_url_for("radio:wfmu") == "https://stream.wfmu.org/freeform-128k"
 
 
-def test_add_station_rejects_builtin_names(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_add_station_rejects_builtin_names(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from bester_ytm.radio import add_station
 
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
@@ -304,9 +300,7 @@ def test_probe_stream_rejects_playlist_urls_and_mime_types(
     monkeypatch.setattr(
         radio,
         "_open_url",
-        lambda url, headers=None: FakeResponse(
-            b"#EXTM3U", {"content-type": "audio/x-mpegurl"}
-        ),
+        lambda url, headers=None: FakeResponse(b"#EXTM3U", {"content-type": "audio/x-mpegurl"}),
     )
     with pytest.raises(RadioError, match="serves a playlist"):
         probe_stream("https://example.com/stream")

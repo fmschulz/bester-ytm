@@ -200,9 +200,9 @@ def test_add_similar_rejects_misconfigured_provider(monkeypatch) -> None:
     app.candidates_by_video_id = {"v1": _candidate("v1")}
     app.intelligence_settings = IntelligenceSettings(provider="auto")
     monkeypatch.setattr(
-        tui_similar, "resolve_provider", lambda settings: (_ for _ in ()).throw(
-            IntelligenceError("unknown intelligence provider")
-        )
+        tui_similar,
+        "resolve_provider",
+        lambda settings: (_ for _ in ()).throw(IntelligenceError("unknown intelligence provider")),
     )
 
     timers = _arm_count_window(monkeypatch, app)
@@ -239,9 +239,7 @@ def test_g_binding_maps_to_add_similar() -> None:
     from textual.binding import Binding
 
     actions = {
-        (b.key if isinstance(b, Binding) else b[0]): (
-            b.action if isinstance(b, Binding) else b[1]
-        )
+        (b.key if isinstance(b, Binding) else b[0]): (b.action if isinstance(b, Binding) else b[1])
         for b in BesterYTMApp.BINDINGS
     }
     assert actions["g"] == "add_similar"

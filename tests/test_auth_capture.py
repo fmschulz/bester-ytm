@@ -78,10 +78,7 @@ def test_cookie_header_from_netscape_rejects_lookalike_domains(tmp_path: Path) -
 
 
 def test_cookie_header_from_netscape_requires_sapisid(tmp_path: Path) -> None:
-    content = (
-        "# Netscape HTTP Cookie File\n"
-        ".youtube.com\tTRUE\t/\tTRUE\t0\tVISITOR_INFO1_LIVE\tx\n"
-    )
+    content = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tVISITOR_INFO1_LIVE\tx\n"
     path = _write_cookies(tmp_path / "cookies.txt", content)
 
     with pytest.raises(ConfigError, match="SAPISID cookie missing"):
@@ -100,9 +97,7 @@ def _fake_run_writing(content: str | None, stderr: str = ""):
         cookies_path = Path(command[command.index("--cookies") + 1])
         if content is not None:
             cookies_path.write_text(content, encoding="utf-8")
-        return subprocess.CompletedProcess(
-            command, returncode=2, stdout="", stderr=stderr
-        )
+        return subprocess.CompletedProcess(command, returncode=2, stdout="", stderr=stderr)
 
     return fake_run
 

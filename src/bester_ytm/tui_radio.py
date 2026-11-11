@@ -219,9 +219,7 @@ class RadioActions:
         try:
             suggestion = find_station(self.intelligence_settings, request)
             probe_stream(suggestion.stream_url)
-            station = add_station(
-                suggestion.name, suggestion.stream_url, key=suggestion.key
-            )
+            station = add_station(suggestion.name, suggestion.stream_url, key=suggestion.key)
         except (IntelligenceError, RadioError, ConfigError) as exc:
             self.call_from_thread(
                 self._set_status,
@@ -233,8 +231,7 @@ class RadioActions:
 
     def _finish_add_station(self, station: RadioStation) -> None:
         self._set_status(
-            f"Added radio station {station.name} ({station.stream_url}); "
-            "type radio: to play it."
+            f"Added radio station {station.name} ({station.stream_url}); type radio: to play it."
         )
 
 

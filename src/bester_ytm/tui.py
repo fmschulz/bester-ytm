@@ -158,9 +158,7 @@ class BesterYTMApp(
         self.auto_advance_pending = False
         self.was_mixing = False
         self.visualizer_effect = (
-            self.app_options.visualizer
-            if self.app_options.visualizer in EFFECT_ORDER
-            else "astra"
+            self.app_options.visualizer if self.app_options.visualizer in EFFECT_ORDER else "astra"
         )
         self._stage_focus: Widget | None = None
         self.selected_result_video_ids: set[str] = set()

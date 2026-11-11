@@ -289,10 +289,13 @@ class LibraryActions:
             for album in tree.root.children:
                 for node in self._song_children(album):
                     if self._song_candidate(node).video_id == video_id:
-                        node.set_label(self._song_label(
-                            self._song_candidate(node), video_id in self.selected_result_video_ids,
-                            favorite_ids,
-                        ))
+                        node.set_label(
+                            self._song_label(
+                                self._song_candidate(node),
+                                video_id in self.selected_result_video_ids,
+                                favorite_ids,
+                            )
+                        )
         if self._favorites_query is not None:
             self.run_worker(
                 self._refresh_favorites_view(self._results_load_id),

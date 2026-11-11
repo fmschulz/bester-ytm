@@ -9,9 +9,7 @@ from bester_ytm.stores import FavoritesStore, LocalPlaylist, LocalPlaylistStore,
 
 
 def _favorites(tmp_path: Path) -> FavoritesStore:
-    return FavoritesStore(
-        path=tmp_path / "favorites.json", legacy_path=tmp_path / "favorites.md"
-    )
+    return FavoritesStore(path=tmp_path / "favorites.json", legacy_path=tmp_path / "favorites.md")
 
 
 def test_favorites_store_toggle_favs_and_unfavs(tmp_path: Path) -> None:

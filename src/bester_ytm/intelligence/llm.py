@@ -52,8 +52,7 @@ def resolve_provider(settings: IntelligenceSettings) -> str:
     provider = settings.provider.strip().lower() or "auto"
     if provider not in KNOWN_PROVIDERS:
         raise IntelligenceError(
-            f"unknown intelligence provider {provider!r}; "
-            f"use one of {', '.join(KNOWN_PROVIDERS)}"
+            f"unknown intelligence provider {provider!r}; use one of {', '.join(KNOWN_PROVIDERS)}"
         )
     if provider != "auto":
         return provider
@@ -250,9 +249,7 @@ def _suggest_via_anthropic(settings: IntelligenceSettings, prompt: str) -> Sugge
     try:
         import anthropic
     except ImportError as exc:
-        raise IntelligenceError(
-            "the anthropic package is not installed; run uv sync"
-        ) from exc
+        raise IntelligenceError("the anthropic package is not installed; run uv sync") from exc
     try:
         client = anthropic.Anthropic()
         response = client.messages.parse(

@@ -132,9 +132,7 @@ class YTMLibraryMixin(YTMSessionBase):
     ) -> str:
         normalized_privacy = privacy.upper()
         if normalized_privacy not in VALID_PRIVACY:
-            raise YTMClientError(
-                "Privacy must be one of PRIVATE, UNLISTED, or PUBLIC."
-            )
+            raise YTMClientError("Privacy must be one of PRIVATE, UNLISTED, or PUBLIC.")
         if self.has_oauth_token:
             playlist_payload = self._youtube_data_request(
                 "POST",
@@ -170,16 +168,12 @@ class YTMLibraryMixin(YTMSessionBase):
     def delete_playlist(self, playlist_id: str) -> None:
         """Permanently delete a playlist from the user's YouTube account."""
         if self.has_oauth_token:
-            self._youtube_data_request(
-                "DELETE", "playlists", params={"id": playlist_id}
-            )
+            self._youtube_data_request("DELETE", "playlists", params={"id": playlist_id})
             return
         try:
             self.ytmusic.delete_playlist(playlist_id)
         except Exception as exc:
-            raise YTMClientError(
-                f"Could not delete playlist {playlist_id!r}: {exc}"
-            ) from exc
+            raise YTMClientError(f"Could not delete playlist {playlist_id!r}: {exc}") from exc
 
     def remove_playlist_item(self, playlist_id: str, video_id: str) -> int:
         """Remove every occurrence of a video from a playlist; returns the count removed."""
@@ -192,9 +186,7 @@ class YTMLibraryMixin(YTMSessionBase):
                 and candidate.video_id == video_id
             ]
             for item_id in item_ids:
-                self._youtube_data_request(
-                    "DELETE", "playlistItems", params={"id": item_id}
-                )
+                self._youtube_data_request("DELETE", "playlistItems", params={"id": item_id})
             return len(item_ids)
 
         try:
@@ -224,11 +216,7 @@ class YTMLibraryMixin(YTMSessionBase):
             return AddResult(playlist_id=playlist_id, requested=0, added=0)
         before = self.get_playlist(playlist_id)
         existing = set(before.video_ids)
-        missing = [
-            video_id
-            for video_id in dict.fromkeys(video_ids)
-            if video_id not in existing
-        ]
+        missing = [video_id for video_id in dict.fromkeys(video_ids) if video_id not in existing]
         if self.has_oauth_token:
             for video_id in missing:
                 self._add_video_with_retries(playlist_id, video_id)

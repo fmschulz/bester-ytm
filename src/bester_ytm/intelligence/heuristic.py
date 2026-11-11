@@ -49,8 +49,7 @@ class HeuristicProvider(IntelligenceProvider):
             artist=artist,
             title=candidate.title,
             reason=(
-                f"YouTube Music returned this as related to seed "
-                f"{seed.artist} - {seed.title}."
+                f"YouTube Music returned this as related to seed {seed.artist} - {seed.title}."
             ),
             role="related",
             query=f"{artist} {candidate.title}",

@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer time out on agent setup.
 - Briefs that mention favorites use the saved favorites as reference songs.
 
+### Changed
+
+- The code is formatted with `ruff format`; CI checks the format and installs
+  from the lock file.
+
 ### Removed
 
 - Unused code: the YouTube like call (favorites are local since 1.4.0), the

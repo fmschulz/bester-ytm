@@ -17,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 def _corrupt_store_error(path: Path, error: Exception) -> ConfigError:
     return ConfigError(
-        f"Store file {path} is corrupt: {error}. "
-        "Move the file aside (or delete it) and retry."
+        f"Store file {path} is corrupt: {error}. Move the file aside (or delete it) and retry."
     )
 
 

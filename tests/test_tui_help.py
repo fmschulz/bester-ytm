@@ -176,4 +176,5 @@ def test_short_terminal_has_room_for_shortcuts():
             await pilot.press("f1")
             await pilot.pause()
             assert app.screen.query_one("#help-shortcuts").size.height >= 10
+
     asyncio.run(run())

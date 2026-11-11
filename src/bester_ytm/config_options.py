@@ -83,9 +83,7 @@ def _section(document: dict[str, Any], name: str) -> dict[str, Any]:
     return section if isinstance(section, dict) else {}
 
 
-def _string(
-    path: Path, section: dict[str, Any], section_name: str, key: str, default: str
-) -> str:
+def _string(path: Path, section: dict[str, Any], section_name: str, key: str, default: str) -> str:
     value = section.get(key, default)
     if not isinstance(value, str):
         raise ConfigError(f"{path}: {section_name}.{key} must be a string (got {value!r})")
@@ -100,8 +98,7 @@ def _optional_width(path: Path, section: dict[str, Any], key: str) -> int | None
         raise ConfigError(f"{path}: ui.{key} must be a whole number of cells (got {value!r})")
     if not MIN_PANE_CELLS <= value <= MAX_PANE_CELLS:
         raise ConfigError(
-            f"{path}: ui.{key} must be between {MIN_PANE_CELLS} and {MAX_PANE_CELLS} "
-            f"(got {value})"
+            f"{path}: ui.{key} must be between {MIN_PANE_CELLS} and {MAX_PANE_CELLS} (got {value})"
         )
     return value
 
@@ -116,9 +113,7 @@ def _volume(path: Path, section: dict[str, Any]) -> float:
     return float(value)
 
 
-def _optional_path(
-    path: Path, section: dict[str, Any], section_name: str, key: str
-) -> Path | None:
+def _optional_path(path: Path, section: dict[str, Any], section_name: str, key: str) -> Path | None:
     value = section.get(key)
     if value is None:
         return None

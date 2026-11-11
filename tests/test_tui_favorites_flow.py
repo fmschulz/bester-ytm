@@ -109,15 +109,20 @@ def test_expanded_album_favorite_marker_survives_selection(monkeypatch):
         candidate = SongCandidate(video_id="album-song", title="Song [live]", artists=["Artist"])
         async with app.run_test(size=(110, 40)) as pilot:
             tree = app.query_one("#album-tree", AlbumTree)
-            await app._populate_album_tree([SearchItem(
-                item_type="album", title="[Album] [/bad]", browse_id="album"
-            )])
+            await app._populate_album_tree(
+                [SearchItem(item_type="album", title="[Album] [/bad]", browse_id="album")]
+            )
             album = tree.root.children[0]
             assert str(album.label) == "[Album] [/bad]"
-            app._attach_album_tracks(album, PlaylistSnapshot(
-                playlist_id="album", title="Album", video_ids=[candidate.video_id],
-                tracks=[candidate],
-            ))
+            app._attach_album_tracks(
+                album,
+                PlaylistSnapshot(
+                    playlist_id="album",
+                    title="Album",
+                    video_ids=[candidate.video_id],
+                    tracks=[candidate],
+                ),
+            )
             node = album.children[0]
             app._show_album_tree()
             tree.root.expand()

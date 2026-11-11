@@ -29,9 +29,7 @@ class PlaylistBuildError(RuntimeError):
     pass
 
 
-BRIEF_SUBJECT_PATTERN = re.compile(
-    r"(?:similar to|like|inspired by)\s+(.{2,80})", re.IGNORECASE
-)
+BRIEF_SUBJECT_PATTERN = re.compile(r"(?:similar to|like|inspired by)\s+(.{2,80})", re.IGNORECASE)
 BRIEF_COUNT_PATTERN = re.compile(r"\b(\d{1,3})\s*(?:songs?|tracks?)\b", re.IGNORECASE)
 BRIEF_FAVORITES_PATTERN = re.compile(r"\bfavou?rites\b", re.IGNORECASE)
 BRIEF_EXPLICIT_NAME_PATTERN = re.compile(

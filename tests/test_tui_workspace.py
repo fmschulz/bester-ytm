@@ -1,4 +1,5 @@
 """Exercise stage, resize and modal boundaries with real Textual key dispatch."""
+
 from __future__ import annotations
 
 import asyncio
@@ -51,6 +52,7 @@ def test_resize_stage_and_restore_focus(monkeypatch):
             await pilot.press("V", "ctrl+f")
             assert not app.screen.has_class("immersive")
             assert app.query_one("#search", Input).value == "favs:"
+
     asyncio.run(run())
 
 
@@ -60,9 +62,11 @@ def test_global_pause_preserves_typing_and_help_blocks_library_actions(monkeypat
         states = [PlaybackStatus(running=True), PlaybackStatus(running=True, paused=True)]
         current = [0]
         monkeypatch.setattr(app.playback, "status", lambda: states[current[0]])
+
         def pause():
             current[0] = 1 - current[0]
             return states[current[0]]
+
         monkeypatch.setattr(app.playback, "pause_resume", pause)
         async with app.run_test(size=(110, 40)) as pilot:
             search = app.query_one("#search", Input)
@@ -78,6 +82,7 @@ def test_global_pause_preserves_typing_and_help_blocks_library_actions(monkeypat
             assert search.value == "Daft Punk"
             await pilot.press("f1")
             assert app.focused is search
+
     asyncio.run(run())
 
 
@@ -113,6 +118,7 @@ def test_command_palette_has_a_separate_shortcut():
             assert isinstance(app.screen, CommandPalette)
             await pilot.press("escape")
             assert not isinstance(app.screen, CommandPalette)
+
     asyncio.run(run())
 
 
@@ -143,4 +149,5 @@ def test_idle_transport_and_background_updates_work_under_help():
             await pilot.press("f1")
             assert app.screen.has_class("compact")
             assert app.screen.has_class("short")
+
     asyncio.run(run())

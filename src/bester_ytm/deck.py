@@ -88,19 +88,13 @@ class Deck:
 
     def set_volume(self, volume: float, deadline_seconds: float = 2.0) -> None:
         clamped = max(0.0, min(100.0, volume))
-        self.client.send(
-            {"command": ["set_property", "volume", clamped]}, deadline_seconds
-        )
+        self.client.send({"command": ["set_property", "volume", clamped]}, deadline_seconds)
 
     def set_paused(self, paused: bool, deadline_seconds: float = 2.0) -> None:
-        self.client.send(
-            {"command": ["set_property", "pause", paused]}, deadline_seconds
-        )
+        self.client.send({"command": ["set_property", "pause", paused]}, deadline_seconds)
 
     def set_muted(self, muted: bool, deadline_seconds: float = 2.0) -> None:
-        self.client.send(
-            {"command": ["set_property", "mute", muted]}, deadline_seconds
-        )
+        self.client.send({"command": ["set_property", "mute", muted]}, deadline_seconds)
 
 
 def deck_socket_path(name: str) -> Path:
@@ -159,9 +153,7 @@ def spawn_prebuffer_deck(name: str, video_id: str, mpv_path: str) -> Deck:
         try:
             ipc_socket.unlink()
         except OSError as exc:
-            raise MpvIpcError(
-                f"could not remove stale deck socket {ipc_socket}: {exc}"
-            ) from exc
+            raise MpvIpcError(f"could not remove stale deck socket {ipc_socket}: {exc}") from exc
     try:
         process = spawn_mpv(mpv_path, video_id, ipc_socket, paused=True, volume=0.0)
     except OSError as exc:

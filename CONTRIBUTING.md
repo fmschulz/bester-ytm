@@ -13,10 +13,11 @@ uv run bester-ytm        # run the TUI from the working tree
 
 ## Before you open a pull request
 
-CI requires all three:
+CI requires all four:
 
 ```bash
 uv run ruff check .                                   # lint
+uv run ruff format --check .                          # format (fix: uv run ruff format .)
 uv run mypy src                                       # type check
 uv run pytest -q --cov=bester_ytm --cov-fail-under=80 # tests and coverage gate
 ```

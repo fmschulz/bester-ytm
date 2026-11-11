@@ -85,9 +85,7 @@ class YTMSessionBase:
                 require_private_file(self.paths.browser_auth)
                 self._backend = "browser"
                 return YTMusic(str(self.paths.browser_auth))
-            raise ConfigError(
-                "No YouTube Music auth file found. Run `bester-ytm auth login`."
-            )
+            raise ConfigError("No YouTube Music auth file found. Run `bester-ytm auth login`.")
 
         self._backend = "unauthenticated"
         return YTMusic()

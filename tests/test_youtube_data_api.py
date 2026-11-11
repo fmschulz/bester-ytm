@@ -280,9 +280,7 @@ def test_youtube_data_api_auth_status_success(
     ) -> FakeResponse:
         endpoint = url.rsplit("/", 1)[-1]
         if method == "GET" and endpoint == "channels":
-            return FakeResponse(
-                payload={"items": [{"snippet": {"title": "Frederik Schulz"}}]}
-            )
+            return FakeResponse(payload={"items": [{"snippet": {"title": "Frederik Schulz"}}]})
         if method == "GET" and endpoint == "playlists":
             return FakeResponse(payload={"items": [{"snippet": {"title": "Mix"}}]})
         raise AssertionError(f"Unexpected request: {method} {url}")

@@ -168,8 +168,7 @@ def probe_stream(stream_url: str) -> None:
             # metadata; they signal the AI returned an indirection, not a stream.
             if "mpegurl" in content_type or "scpls" in content_type:
                 raise RadioError(
-                    f"{stream_url} serves a playlist ({content_type}), "
-                    "not a direct audio stream"
+                    f"{stream_url} serves a playlist ({content_type}), not a direct audio stream"
                 )
             is_audio = (
                 content_type.startswith("audio/")
@@ -191,9 +190,7 @@ def probe_stream(stream_url: str) -> None:
 
 def _open_url(url: str, headers: dict[str, str] | None = None) -> Any:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(headers or {})})
-    return urllib.request.urlopen(
-        request, timeout=FETCH_TIMEOUT_SECONDS, context=_SSL_CONTEXT
-    )
+    return urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS, context=_SSL_CONTEXT)
 
 
 def _fetch_icy_title(stream_url: str) -> str:

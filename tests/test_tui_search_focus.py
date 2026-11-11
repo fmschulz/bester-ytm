@@ -146,9 +146,7 @@ def test_completion_keeps_focus_while_user_types_in_search(monkeypatch, tmp_path
     assert results.focus_calls == 0  # but focus stays on the search input
 
 
-def test_completion_keeps_focus_when_input_focused_during_load(
-    monkeypatch, tmp_path
-) -> None:
+def test_completion_keeps_focus_when_input_focused_during_load(monkeypatch, tmp_path) -> None:
     app, results, workers = _make_app(monkeypatch, tmp_path)
     _set_focused(monkeypatch, None)
 
@@ -161,9 +159,7 @@ def test_completion_keeps_focus_when_input_focused_during_load(
     assert results.focus_calls == 0
 
 
-def test_completion_focuses_results_when_search_focus_unchanged(
-    monkeypatch, tmp_path
-) -> None:
+def test_completion_focuses_results_when_search_focus_unchanged(monkeypatch, tmp_path) -> None:
     app, results, workers = _make_app(monkeypatch, tmp_path)
     search_input = StubInput("beach house")
     _set_focused(monkeypatch, search_input)  # submit leaves focus on search, untouched
@@ -187,9 +183,7 @@ def test_completion_focuses_results_when_no_input_focused(monkeypatch, tmp_path)
     assert results.focus_calls == 1
 
 
-def test_album_completion_keeps_focus_while_user_types_in_search(
-    monkeypatch, tmp_path
-) -> None:
+def test_album_completion_keeps_focus_while_user_types_in_search(monkeypatch, tmp_path) -> None:
     tree = FakeAlbumTree()
     app, results, workers = _make_app(monkeypatch, tmp_path, {"#album-tree": tree})
     app.client = AlbumClient()  # type: ignore[assignment]
@@ -205,9 +199,7 @@ def test_album_completion_keeps_focus_while_user_types_in_search(
     assert tree.focus_calls == 0  # but focus stays on the search input
 
 
-def test_album_completion_focuses_tree_when_search_focus_unchanged(
-    monkeypatch, tmp_path
-) -> None:
+def test_album_completion_focuses_tree_when_search_focus_unchanged(monkeypatch, tmp_path) -> None:
     tree = FakeAlbumTree()
     app, results, workers = _make_app(monkeypatch, tmp_path, {"#album-tree": tree})
     app.client = AlbumClient()  # type: ignore[assignment]
@@ -235,9 +227,7 @@ def test_completion_keeps_focus_when_builder_textarea_focused_mid_load(
     assert results.focus_calls == 0
 
 
-def test_playlist_listing_error_completion_respects_focused_input(
-    monkeypatch, tmp_path
-) -> None:
+def test_playlist_listing_error_completion_respects_focused_input(monkeypatch, tmp_path) -> None:
     app, results, _ = _make_app(monkeypatch, tmp_path)
     _set_focused(monkeypatch, StubInput())  # focused after the listing started
     local_items = [SearchItem(item_type="local_playlist", title="Mix", playlist_id="p1")]

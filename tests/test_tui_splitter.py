@@ -116,9 +116,7 @@ def test_configured_volume_seeds_playback(monkeypatch, tmp_path) -> None:
 def test_configured_favorites_file_wins(monkeypatch, tmp_path) -> None:
     favs = tmp_path / "favs.md"
     favs.write_text("Artist - Title\n", encoding="utf-8")
-    _write_config(
-        tmp_path, monkeypatch, f'[builder]\nfavorites_file = "{favs}"\n'
-    )
+    _write_config(tmp_path, monkeypatch, f'[builder]\nfavorites_file = "{favs}"\n')
 
     app = BesterYTMApp()
 

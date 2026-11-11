@@ -76,9 +76,7 @@ def test_first_time_prompt_prints_setup_guide(
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(
-        "builtins.input", lambda prompt: "my-app.apps.googleusercontent.com"
-    )
+    monkeypatch.setattr("builtins.input", lambda prompt: "my-app.apps.googleusercontent.com")
     monkeypatch.setattr("bester_ytm.auth.getpass", lambda prompt: "client-secret")
 
     AuthManager()._load_or_prompt_oauth_client()

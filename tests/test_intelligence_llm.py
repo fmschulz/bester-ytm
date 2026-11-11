@@ -203,9 +203,7 @@ def test_anthropic_provider_uses_structured_output(monkeypatch) -> None:
                 )
             )
 
-    monkeypatch.setattr(
-        anthropic, "Anthropic", lambda: SimpleNamespace(messages=FakeMessages())
-    )
+    monkeypatch.setattr(anthropic, "Anthropic", lambda: SimpleNamespace(messages=FakeMessages()))
 
     tracks = suggest_tracks(IntelligenceSettings(provider="anthropic"), ["A - B"], 1)
 
@@ -219,9 +217,7 @@ def test_anthropic_provider_wraps_api_errors(monkeypatch) -> None:
         def parse(self, **kwargs):
             raise anthropic.AnthropicError("no api key")
 
-    monkeypatch.setattr(
-        anthropic, "Anthropic", lambda: SimpleNamespace(messages=FakeMessages())
-    )
+    monkeypatch.setattr(anthropic, "Anthropic", lambda: SimpleNamespace(messages=FakeMessages()))
 
     with pytest.raises(IntelligenceError, match="Set ANTHROPIC_API_KEY"):
         suggest_tracks(IntelligenceSettings(provider="anthropic"), [], 1)
@@ -247,8 +243,7 @@ def test_resolve_provider_auto_falls_back_to_claude(monkeypatch) -> None:
 
 def test_claude_provider_parses_final_json_line(monkeypatch) -> None:
     payload = (
-        '{"name": "Dub Classics", '
-        '"tracks": [{"artist": "King Tubby", "title": "Dub Fi Gwan"}]}'
+        '{"name": "Dub Classics", "tracks": [{"artist": "King Tubby", "title": "Dub Fi Gwan"}]}'
     )
     monkeypatch.setattr(llm.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(
@@ -259,9 +254,7 @@ def test_claude_provider_parses_final_json_line(monkeypatch) -> None:
         ),
     )
 
-    result = llm.suggest_playlist(
-        llm.IntelligenceSettings(provider="claude"), [], 1, "dub"
-    )
+    result = llm.suggest_playlist(llm.IntelligenceSettings(provider="claude"), [], 1, "dub")
 
     assert result.name == "Dub Classics"
     assert result.tracks[0].artist == "King Tubby"

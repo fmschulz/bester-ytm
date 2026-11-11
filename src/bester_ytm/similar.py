@@ -68,9 +68,7 @@ def _resolve_suggestions(
             found.append(match)
             exclude_ids.add(match.video_id)
     if not found:
-        raise IntelligenceError(
-            "none of the suggested tracks could be resolved on YouTube Music"
-        )
+        raise IntelligenceError("none of the suggested tracks could be resolved on YouTube Music")
     return found
 
 

@@ -83,8 +83,11 @@ class EventHandlers:
         # Keep navigation keys from changing library views behind the help modal.
         if self.is_running and isinstance(self.screen, HelpScreen):
             return action in {"help", "toggle_playback"}
-        if (action == "remove_from_queue" and self._focus_context() == "results"
-                and self._favorites_query is not None):
+        if (
+            action == "remove_from_queue"
+            and self._focus_context() == "results"
+            and self._favorites_query is not None
+        ):
             return False
         contexts = self.CONTEXT_ACTIONS.get(action)
         if contexts is None:

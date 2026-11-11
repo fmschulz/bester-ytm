@@ -148,25 +148,19 @@ def test_action_quit_stops_playback_before_exit(monkeypatch, tmp_path) -> None:
 
 
 def test_fade_adjustments_report_length_clamps_and_cut_hint(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(
-        tui_playback, "save_transition_settings", lambda settings: Path("unused")
-    )
+    monkeypatch.setattr(tui_playback, "save_transition_settings", lambda settings: Path("unused"))
     playback = FakeTransitionPlayback(style=TransitionStyle.CROSSFADE, fade_seconds=6.0)
     app, statuses = _make_app(monkeypatch, tmp_path, playback)
 
     app.action_fade_longer()
     assert statuses[-1] == "Fade length 7s."
 
-    playback.transition = TransitionSettings(
-        style=TransitionStyle.CROSSFADE, fade_seconds=15.0
-    )
+    playback.transition = TransitionSettings(style=TransitionStyle.CROSSFADE, fade_seconds=15.0)
     app.transition_settings = playback.transition
     app.action_fade_longer()
     assert statuses[-1] == "Fade length at maximum (15s)."
 
-    playback.transition = TransitionSettings(
-        style=TransitionStyle.CROSSFADE, fade_seconds=1.0
-    )
+    playback.transition = TransitionSettings(style=TransitionStyle.CROSSFADE, fade_seconds=1.0)
     app.transition_settings = playback.transition
     app.action_fade_shorter()
     assert statuses[-1] == "Fade length at minimum (1s)."
@@ -274,9 +268,7 @@ def test_tui_startup_survives_invalid_transition_config(monkeypatch, tmp_path) -
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     config_dir = tmp_path / "config" / "bester-ytm"
     config_dir.mkdir(parents=True)
-    (config_dir / "config.toml").write_text(
-        '[playback]\ntransition = "wave"\n', encoding="utf-8"
-    )
+    (config_dir / "config.toml").write_text('[playback]\ntransition = "wave"\n', encoding="utf-8")
 
     app = tui.BesterYTMApp()
 
@@ -288,9 +280,7 @@ def test_tui_startup_survives_invalid_transition_config(monkeypatch, tmp_path) -
 def test_mix_and_fade_buttons_drive_transition_actions(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
-    monkeypatch.setattr(
-        tui_playback, "save_transition_settings", lambda settings: Path("unused")
-    )
+    monkeypatch.setattr(tui_playback, "save_transition_settings", lambda settings: Path("unused"))
 
     async def run_flow() -> None:
         app = tui.BesterYTMApp()

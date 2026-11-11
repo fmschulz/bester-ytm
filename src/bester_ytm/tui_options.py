@@ -48,9 +48,7 @@ class UiOptionsActions:
         self, left_width: int | None = None, right_width: int | None = None
     ) -> None:
         try:
-            save_ui_options(
-                self.visualizer_effect, left_width, right_width, theme=str(self.theme)
-            )
+            save_ui_options(self.visualizer_effect, left_width, right_width, theme=str(self.theme))
         except ConfigError as exc:
             self._set_status(f"Settings not saved: {exc}")
 

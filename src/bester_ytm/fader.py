@@ -36,9 +36,7 @@ class Fader:
     sleep: Callable[[float], None] = time.sleep
     failure_reason: str | None = field(default=None, init=False)
     _thread: threading.Thread | None = field(default=None, init=False, repr=False)
-    _cancel_event: threading.Event = field(
-        default_factory=threading.Event, init=False, repr=False
-    )
+    _cancel_event: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
     _progress: float = field(default=0.0, init=False)
     _done: bool = field(default=False, init=False)
 

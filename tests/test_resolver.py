@@ -4,9 +4,7 @@ from bester_ytm.playlist_plan import PlannedTrack, SongCandidate
 from bester_ytm.resolver import Resolver, variant_term
 
 
-@pytest.mark.parametrize(
-    "title", ["Stayin' Alive", "Demons", "Discovery", "Alive", "Nine Lives"]
-)
+@pytest.mark.parametrize("title", ["Stayin' Alive", "Demons", "Discovery", "Alive", "Nine Lives"])
 def test_variant_term_ignores_substring_matches(title: str) -> None:
     assert variant_term(title) is None
 
