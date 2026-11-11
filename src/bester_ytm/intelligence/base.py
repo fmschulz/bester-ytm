@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..playlist_plan import PlannedTrack, PlaylistPlan, RankedCandidate, SeedTrack, SongCandidate
+from ..playlist_plan import PlaylistPlan, SeedTrack
 
 
 class IntelligenceProvider(ABC):
@@ -15,11 +15,3 @@ class IntelligenceProvider(ABC):
         name: str,
     ) -> PlaylistPlan:
         """Create a draft plan before YouTube Music resolution."""
-
-    @abstractmethod
-    def rank_candidates(
-        self,
-        target: PlannedTrack,
-        candidates: list[SongCandidate],
-    ) -> RankedCandidate | None:
-        """Rank concrete YouTube Music candidates for a planned track."""

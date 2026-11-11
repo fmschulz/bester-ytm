@@ -1,4 +1,4 @@
-"""AI track suggestion across codex CLI, OpenAI-compatible, and Anthropic providers."""
+"""AI track suggestions from the codex or claude CLI, an OpenAI-compatible API, or Anthropic."""
 
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ def suggest_playlist(
         return _suggest_via_anthropic(settings, prompt)
     raise IntelligenceError(
         "the heuristic provider has no AI suggestions; configure [intelligence] "
-        "in config.toml (provider = codex, openai, or anthropic)"
+        "in config.toml (provider = codex, claude, openai, or anthropic)"
     )
 
 

@@ -1,7 +1,3 @@
-# mypy: disable-error-code="attr-defined"
-# Mixin typed against the composed BesterYTMApp; attribute lookups across
-# sibling mixins resolve at runtime (same policy as the tui_* overrides in
-# pyproject.toml).
 """Visualizer, theme, and pane-width option handling for the TUI."""
 
 from __future__ import annotations

@@ -47,7 +47,6 @@ class FakePlayback:
 
 
 class FakeYTMClient:
-    rated: list[tuple[str, str]] = []
     results: list[SongCandidate] = []
 
     def __init__(self, authenticated: bool = False) -> None:
@@ -55,9 +54,6 @@ class FakeYTMClient:
 
     def search_songs(self, query: str, limit: int = 5) -> list[SongCandidate]:
         return list(self.results)
-
-    def rate_song(self, video_id: str, rating: str = "LIKE") -> None:
-        FakeYTMClient.rated.append((video_id, rating))
 
 
 def _make_app(monkeypatch, tmp_path):
@@ -74,7 +70,6 @@ def _make_app(monkeypatch, tmp_path):
     monkeypatch.setattr(app, "_update_track_label", labels.append)
     monkeypatch.setattr(app, "run_worker", lambda work, **kwargs: workers.append(work))
     monkeypatch.setattr(app, "call_from_thread", lambda fn, *args: fn(*args))
-    FakeYTMClient.rated = []
     FakeYTMClient.results = []
     monkeypatch.setattr(tui_radio, "YTMClient", FakeYTMClient)
     return app, widgets, statuses, labels, workers
@@ -167,7 +162,6 @@ def test_favorite_during_radio_toggles_resolved_song_locally(monkeypatch, tmp_pa
     app.action_toggle_favorite()
     _drain(workers)
 
-    assert FakeYTMClient.rated == []
     assert FavoritesStore().ids() == {"ytm1"}
     assert statuses[-1] == "Favorited Stereolab - French Disko."
     app.action_toggle_favorite()
@@ -190,7 +184,6 @@ def test_favorite_during_radio_requires_track_info_but_no_login(monkeypatch, tmp
     app.action_toggle_favorite()
     _drain(workers)
     assert FavoritesStore().ids() == {"wild"}
-    assert FakeYTMClient.rated == []
 
 
 def test_favorite_during_radio_reports_unresolvable_song(monkeypatch, tmp_path) -> None:
@@ -203,7 +196,6 @@ def test_favorite_during_radio_reports_unresolvable_song(monkeypatch, tmp_path) 
     app.action_toggle_favorite()
     _drain(workers)
 
-    assert FakeYTMClient.rated == []
     assert "No confident YouTube Music match" in statuses[-1]
 
 
@@ -223,7 +215,6 @@ def test_local_fav_never_submits_ytm_ratings(monkeypatch, tmp_path) -> None:
     app.action_toggle_favorite()  # unfav
     _drain(workers)
 
-    assert FakeYTMClient.rated == []
 
 
 def test_local_fav_skips_ytm_sync_when_logged_out(monkeypatch, tmp_path) -> None:
@@ -234,7 +225,6 @@ def test_local_fav_skips_ytm_sync_when_logged_out(monkeypatch, tmp_path) -> None
     app.action_toggle_favorite()
     _drain(workers)
 
-    assert FakeYTMClient.rated == []
 
 
 def test_stale_poll_result_does_not_delay_next_station(monkeypatch, tmp_path) -> None:

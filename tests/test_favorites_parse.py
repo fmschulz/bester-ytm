@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bester_ytm.playlist_plan import parse_favorites_markdown, parse_seed_text
+from bester_ytm.playlist_plan import parse_seed_file, parse_seed_text
 
 
 def test_parse_tuiradio_favorites(tmp_path: Path) -> None:
@@ -20,7 +20,7 @@ def test_parse_tuiradio_favorites(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    seeds = parse_favorites_markdown(favs)
+    seeds = parse_seed_file(favs)
 
     assert [seed.artist for seed in seeds] == [
         "Beach House",

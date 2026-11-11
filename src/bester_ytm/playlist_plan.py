@@ -186,10 +186,6 @@ def parse_seed_file(path: Path) -> list[SeedTrack]:
     return parse_seed_text(path.read_text(encoding="utf-8"), str(path))
 
 
-def parse_favorites_markdown(path: Path) -> list[SeedTrack]:
-    return parse_seed_file(path)
-
-
 def plan_to_markdown(plan: PlaylistPlan) -> str:
     lines = [
         f"# {plan.name}",

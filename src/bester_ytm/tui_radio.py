@@ -238,7 +238,6 @@ class RadioActions:
         )
 
 
-
 def _resolve_radio_song(info: RadioNowPlaying) -> SongCandidate:
     """The most confident YTM match for a radio track, or a YTMClientError."""
     query = " ".join(part for part in (info.artist, info.song) if part)

@@ -45,12 +45,6 @@ class SelectionActions:
         item = getattr(results, "highlighted_child", None) if results else None
         return self._selection_candidate(item) is not None
 
-    def _toggle_clicked_result(self, widget: object) -> bool:
-        item = widget
-        while item is not None and getattr(item, "candidate", None) is None:
-            item = getattr(item, "parent", None)
-        return self._toggle_result_item(item)
-
     def _range_select_clicked_result(self, widget: object) -> bool:
         item = widget
         while item is not None and getattr(item, "candidate", None) is None:

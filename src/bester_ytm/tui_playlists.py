@@ -1,7 +1,3 @@
-# mypy: disable-error-code="attr-defined"
-# Mixin typed against the composed BesterYTMApp; attribute lookups across
-# sibling mixins resolve at runtime (same policy as the tui_* overrides in
-# pyproject.toml).
 """Playlist listing and deferred playlist/album queue loads for the TUI."""
 
 from __future__ import annotations

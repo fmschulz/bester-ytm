@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.widgets import Input
+from textual.widgets import Input, ListView
 
 from .playlist_plan import PlaylistPlan, SongCandidate, slugify
 from .stores import LocalPlaylist, LocalPlaylistStore
@@ -176,8 +176,6 @@ class QueueEditActions:
 
     def _schedule_library_refresh(self, highlight_id: str | None) -> None:
         """Refresh the left playlist library off the UI thread; no-op without a results pane."""
-        from textual.widgets import ListView
-
         if self._query_optional("#results", ListView) is None:
             return
         self.run_worker(self._refresh_local_playlist_library(highlight_id), exclusive=False)

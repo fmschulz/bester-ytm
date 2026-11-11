@@ -7,7 +7,7 @@ Outside the ytm_* modules, only auth.py (login setup) touches ytmusicapi.
 
 from __future__ import annotations
 
-from .ytm_library import VALID_PRIVACY, YTMLibraryMixin
+from .ytm_library import YTMLibraryMixin
 from .ytm_models import (
     AddResult,
     AuthStatus,
@@ -21,7 +21,6 @@ from .ytm_models import (
     playlist_item_to_candidate,
 )
 from .ytm_search import YTMSearchMixin
-from .ytm_session import YOUTUBE_API_BASE, _SerializedYTMusic
 
 
 class YTMClient(YTMSearchMixin, YTMLibraryMixin):
@@ -32,11 +31,8 @@ __all__ = [
     "AddResult",
     "AuthStatus",
     "PlaylistSnapshot",
-    "VALID_PRIVACY",
-    "YOUTUBE_API_BASE",
     "YTMClient",
     "YTMClientError",
-    "_SerializedYTMusic",
     "_artist_names",
     "_duration_to_seconds",
     "normalize_album",

@@ -2,23 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from ..playlist_plan import (
-    PlannedTrack,
-    PlaylistPlan,
-    RankedCandidate,
-    SeedTrack,
-    SongCandidate,
-    new_plan_id,
-)
-from ..resolver import Resolver
+from ..playlist_plan import PlannedTrack, PlaylistPlan, SeedTrack, SongCandidate, new_plan_id
 from .base import IntelligenceProvider
 
 
 class HeuristicProvider(IntelligenceProvider):
     """Deterministic fallback provider using seeds and YouTube Music related tracks."""
-
-    def __init__(self, allow_variants: bool = False) -> None:
-        self.resolver = Resolver(allow_variants=allow_variants)
 
     def build_playlist_plan(
         self,
@@ -69,10 +58,3 @@ class HeuristicProvider(IntelligenceProvider):
             selected_video_id=candidate.video_id,
             confidence=0.72,
         )
-
-    def rank_candidates(
-        self,
-        target: PlannedTrack,
-        candidates: list[SongCandidate],
-    ) -> RankedCandidate | None:
-        return self.resolver.select_best(target, candidates)

@@ -235,17 +235,6 @@ def test_enter_appends_selection_to_loaded_but_idle_playlist(monkeypatch) -> Non
     assert widgets["#status"].value == "Added 2 track(s) to AI Mix."
 
 
-def test_shift_click_toggles_result_selection(monkeypatch) -> None:
-    items = [FakeResultItem("v1", "One")]
-    app, _ = _make_app(monkeypatch, FakeResults(items), FakePlayback())
-
-    class FakeChild:
-        parent = items[0]
-
-    assert app._toggle_clicked_result(FakeChild()) is True
-    assert app.selected_result_video_ids == {"v1"}
-
-
 def test_toggle_select_outside_results_shows_hint(monkeypatch) -> None:
     app, widgets = _make_app(monkeypatch, FakeResults([]), FakePlayback())
 

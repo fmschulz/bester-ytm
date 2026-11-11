@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual.widgets import Input, ListView
 
 from .config import ConfigError
+from .playlist_plan import slugify
 from .radio import is_radio_video_id
 from .stores import FavoritesStore, LocalPlaylistStore
 from .ytm_client import PlaylistSnapshot, YTMClient, YTMClientError
@@ -99,8 +100,6 @@ class TrackMetadataActions:
         name_input = self._query_optional("#playlist-name", Input)
         typed = name_input.value.strip() if name_input and name_input.value else ""
         if typed:
-            from .playlist_plan import slugify
-
             await self._remove_from_local_playlist(slugify(typed), video_id)
             return
         self._set_status("Load a playlist first (Ctrl+P); Remove drops the highlighted track.")

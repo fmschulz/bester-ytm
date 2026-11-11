@@ -104,7 +104,7 @@ class PlaylistBuilder:
         allow_variants: bool = False,
     ) -> None:
         self.client = client or YTMClient(authenticated=False)
-        self.provider = provider or HeuristicProvider(allow_variants=allow_variants)
+        self.provider = provider or HeuristicProvider()
         self.resolver = Resolver(allow_variants=allow_variants)
         self.allow_variants = allow_variants
 
