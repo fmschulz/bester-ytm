@@ -38,7 +38,8 @@ once, like two decks on a DJ mixer:
   before the end of a track, it spawns the idle deck for the next queued
   track. At `effective_fade` remaining, it promotes that deck: the queue
   advances, the controller's `process` and `ipc_socket` switch to the new live
-  deck in one step, and the fade starts.
+  deck in one step, and the fade starts. A web radio stream has no end, so
+  the engine never schedules a blend out of one; `next` leaves it with a cut.
 - **Fader** (`fader.py`): an equal-power crossfade (`gain_out = cos(t*pi/2)`,
   `gain_in = sin(t*pi/2)`) scaled by the master volume and stepped every
   100 ms on a short-lived daemon thread. Clock and sleep are injected, so tests
@@ -102,7 +103,7 @@ silently.
 ## Storage and configuration
 
 ```text
-~/.config/bester-ytm/config.toml   [playback], [ui], [builder], [intelligence]
+~/.config/bester-ytm/config.toml   [playback], [ui], [builder], [intelligence], [radio]
 ~/.config/bester-ytm/browser.json  browser login (0600, never in git)
 ~/.config/bester-ytm/oauth*.json   OAuth client and token (0600, never in git)
 ~/.local/share/bester-ytm/         plans, favorites, local playlists

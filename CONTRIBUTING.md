@@ -24,13 +24,16 @@ uv run pytest -q --cov=bester_ytm --cov-fail-under=80 # tests and coverage gate
 ## Ground rules
 
 - **Layering**: the UI layers (`cli*`, `tui*`) never call ytmusicapi or spawn
-  mpv. `ytm_client.py` is the only module that talks to YouTube Music, and
-  `playback.py` the only one that controls mpv.
+  mpv. They reach YouTube Music only through `ytm_client.py` (a facade over
+  the `ytm_*` modules; the login setup in `auth.py` and `auth_capture.py` is
+  the one exception) and mpv only through `playback.py` (with its engine in
+  `transitions.py`, `deck.py`, `fader.py`, and `mpv_ipc.py`).
 - **Size**: modules under about 300 lines, functions under about 30, nesting
   at most 3 levels. Full type hints, `from __future__ import annotations`,
   double quotes.
-- **Errors**: raise `ConfigError`, `PlaybackError`, or `YTMClientError` with a
-  message that says what to do; never swallow exceptions.
+- **Errors**: raise the layer's own error (`ConfigError`, `PlaybackError`,
+  `YTMClientError`, `IntelligenceError`, `RadioError`) with a message that
+  says what to do; never swallow exceptions.
 - **Tests**: every change comes with tests. No network, no real mpv, and no
   real sleeps: fake mpv at the `subprocess.Popen` and IPC seams and inject
   clocks (see `tests/test_fader.py`). Keep the suite fast.

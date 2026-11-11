@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Web radio shows `live` and the recent-loudness seek bar again. mpv reports
+  the buffered part of a live stream as a growing track length, which the
+  player showed as a normal track.
+- In crossfade mode a station no longer fades out a few seconds after a song
+  is queued. It plays until `n`, as it did in cut mode.
+- A volume key pressed while a track loads steps from the set volume. It
+  jumped to 100% before, and the volume and mute display went blank during
+  the load.
+- Mute stays on when the next track starts in a new player process.
+- `playlist create` and `playlist export` report a corrupt plan file with a
+  message, not a traceback. Favorites and local playlists treat a file that
+  is not text the same way.
+- A comma inside a name stays in a prefixed search, such as
+  `artist:Earth, Wind & Fire,albums`.
+- `radio:` and station playback report an invalid `config.toml` in the status
+  line; the TUI stopped with an error before.
+- A failed search shows its reason in the library pane, which stayed on
+  "Searching" before.
+- The example download script runs on the bash 3.2 that macOS ships.
+- The keyboard guide uses the colors of the active theme.
+- YouTube playback prefers segmented streams and reports a failed or
+  truncated stream with an error; the remaining queue is kept.
+- Codex requests carry music-only instructions and medium reasoning, so they
+  no longer time out on agent setup.
+- Briefs that mention favorites use the saved favorites as reference songs.
+
+### Removed
+
+- Unused code: the YouTube like call (favorites are local since 1.4.0), the
+  provider `rank_candidates` hook, `Deck.stop`, `PlanStore.list`, and three
+  unused re-exports of `ytm_client`.
+
 ## [1.5.0] - 2026-09-27
 
 ### Added

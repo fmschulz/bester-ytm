@@ -39,9 +39,11 @@ src/bester_ytm/
 ├── mpv_ipc.py                           mpv JSON IPC transport
 ├── ytm_client.py + ytm_*.py             YouTube Music access: facade over
 │                                        session, search, library, models
-├── auth.py, config.py, config_options.py   logins, paths, config.toml
+├── auth.py, auth_capture.py             logins from browsers, files, pastes
+├── config.py, config_options.py         paths and config.toml
 ├── playlist_plan.py, playlist_builder.py, playlist_create.py, resolver.py
 ├── stores.py, search_query.py, similar.py
+├── local_files.py, radio.py             local audio files and web radio
 └── intelligence/                        AI providers (heuristic, codex,
                                          claude, openai, anthropic)
 ```
@@ -50,8 +52,9 @@ src/bester_ytm/
   `ytm_client.py` and `playback.py`.
 - Modules stay under about 300 lines and functions under about 30, with full
   type hints.
-- Errors are `ConfigError`, `PlaybackError`, or `YTMClientError` with messages
-  that say what to do.
+- Each layer raises its own error (`ConfigError`, `PlaybackError`,
+  `YTMClientError`, `IntelligenceError`, `RadioError`) with a message that
+  says what to do.
 - Tests fake mpv at the `subprocess.Popen` and IPC seams and inject clocks.
 
 [Architecture](architecture.md) explains the dual-deck engine and the stage;

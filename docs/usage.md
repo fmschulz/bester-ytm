@@ -66,6 +66,7 @@ album:metallica,year:1986           albums from one year
 artist:sepultura                    the artist's popular songs
 artist:sepultura,albums             the artist's albums
 artist:sepultura,year:1998,songs    tracks from the artist's 1998 releases
+artist:Earth, Wind & Fire,albums    a comma inside a name stays in the search
 playlist:                           your local playlists (playlists: also works)
 playlist:indie                      community playlists on YouTube Music
 favs:                               your favorites (favorites: and liked: too)
@@ -116,7 +117,9 @@ skip the queue.
 
 The seek bar draws how loud each stretch of the track was when it played;
 stretches skipped by seeking stay flat. Click it to seek. For web radio, it
-shows the recent loudness.
+shows the recent loudness, and the track length reads `live`.
+
+Mute stays on when the next track starts; press `m` again to unmute.
 
 ### The stage
 
@@ -161,6 +164,9 @@ and makes it the only row in the queue. The player shows the live track
 (`ByteFM · Artist - Song`), refreshed about every 20 seconds; `g` queues songs
 similar to it, and `f` looks it up on YouTube Music and saves it to your
 favorites. Radio needs no login.
+
+A station plays until you leave it. Songs you queue while it plays wait in the
+queue; press `n` to start them.
 
 To add a station, type `add radio station <name>` (for example
 `add radio station WFMU`) in the builder box and press **Build playlist**. The

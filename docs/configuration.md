@@ -50,6 +50,10 @@ fip = "https://icecast.radiofrance.fr/fip-midfi.mp3"   # example
 Values out of range raise a `ConfigError` at startup. `bester-ytm config show`
 prints the effective `transition` and `fade_seconds`.
 
+The TUI rewrites `config.toml` when it saves a setting (scene, theme, pane
+width, transition, fade length, or a new radio station). It keeps every value,
+but it does not keep comments.
+
 ## Data locations
 
 ```text

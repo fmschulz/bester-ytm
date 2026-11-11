@@ -62,9 +62,9 @@ In the TUI, two more sources work without an account:
 
 ## Logging in
 
-A login unlocks your library playlists, playlist creation and editing,
-removing tracks from YouTube playlists, and liking songs on YouTube Music
-with `f`, including the song a radio station is playing.
+A login unlocks your library playlists, playlist creation and editing, and
+removing tracks from YouTube playlists. Favorites (`f`) need no login; they
+stay on this machine and do not change your YouTube Music likes.
 
 ### Option 1 (recommended): browser login
 

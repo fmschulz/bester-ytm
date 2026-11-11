@@ -40,7 +40,9 @@ These checks need audio or a login, so the automated tests skip them.
       and YouTube tracks.
 - [ ] `radio:` lists ByteFM and KALX; `Enter` plays a station, the player
       shows the live track within about 20 seconds, and `f` saves a YouTube
-      Music match without a login.
+      Music match without a login. The track length reads `live` and the seek
+      bar shows the recent loudness.
+- [ ] `m` mutes; after `n` in cut mode, the next track is still muted.
 - [ ] `F1` opens help while typing, filtering by `favorite` finds the favorite
       keys, and `F1` closes help and restores input focus.
 - [ ] `V` or a click on the stage shows it full screen; `Ctrl+Space` pauses;
